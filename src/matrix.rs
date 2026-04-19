@@ -144,23 +144,13 @@ impl<S: FaceletArray> Matrix<S> {
         }
     }
 
-    pub fn preview_string(&self, limit: usize) -> String {
-        let limit = limit.max(1);
-        let rows = preview_indices(self.n, limit);
-        let cols = preview_indices(self.n, limit);
+    pub fn preview_string(&self) -> String {
         let mut out = String::new();
 
-        for (ri, row) in rows.iter().copied().enumerate() {
-            if ri > 0 && rows[ri - 1] + 1 != row {
-                out.push_str("...\n");
-            }
-
-            for (ci, col) in cols.iter().copied().enumerate() {
-                if ci > 0 {
+        for row in 0..self.n {
+            for col in 0..self.n {
+                if col > 0 {
                     out.push(' ');
-                }
-                if ci > 0 && cols[ci - 1] + 1 != col {
-                    out.push_str("... ");
                 }
                 out.push(self.get(row, col).as_char());
             }
@@ -169,17 +159,4 @@ impl<S: FaceletArray> Matrix<S> {
 
         out
     }
-}
-
-pub(crate) fn preview_indices(n: usize, limit: usize) -> Vec<usize> {
-    if n <= limit {
-        return (0..n).collect();
-    }
-
-    let head = limit.div_ceil(2);
-    let tail = limit - head;
-    let mut indices = Vec::with_capacity(limit);
-    indices.extend(0..head);
-    indices.extend(n - tail..n);
-    indices
 }

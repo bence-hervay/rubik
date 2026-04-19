@@ -256,23 +256,13 @@ impl<S: FaceletArray> Face<S> {
         }
     }
 
-    pub fn preview_string(&self, limit: usize) -> String {
-        let limit = limit.max(1);
-        let rows = crate::matrix::preview_indices(self.side_len(), limit);
-        let cols = crate::matrix::preview_indices(self.side_len(), limit);
+    pub fn preview_string(&self) -> String {
         let mut out = String::new();
 
-        for (ri, row) in rows.iter().copied().enumerate() {
-            if ri > 0 && rows[ri - 1] + 1 != row {
-                out.push_str("...\n");
-            }
-
-            for (ci, col) in cols.iter().copied().enumerate() {
-                if ci > 0 {
+        for row in 0..self.side_len() {
+            for col in 0..self.side_len() {
+                if col > 0 {
                     out.push(' ');
-                }
-                if ci > 0 && cols[ci - 1] + 1 != col {
-                    out.push_str("... ");
                 }
                 out.push(self.get(row, col).as_char());
             }

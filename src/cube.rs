@@ -207,56 +207,45 @@ impl<S: FaceletArray> Cube<S> {
             .expect("cube storage estimate overflowed usize")
     }
 
-    pub fn preview_net_string(&self, limit: usize) -> String {
-        let limit = limit.max(1);
-        let rows = crate::matrix::preview_indices(self.n, limit);
-        let cols = crate::matrix::preview_indices(self.n, limit);
-        let face_width = preview_face_width(&cols);
+    pub fn net_string(&self) -> String {
+        let rows = (0..self.n).collect::<Vec<_>>();
+        let cols = (0..self.n).collect::<Vec<_>>();
+        let face_width = net_face_width(&cols);
         let middle_indent = " ".repeat(face_width + NET_FACE_GAP.len());
-        let mut previous_row = None;
         let mut out = String::new();
 
         let _ = writeln!(
             out,
-            "Cube(n={}, history={}, storage~{} bytes, limit={})",
+            "Cube(n={}, history={}, storage~{} bytes)",
             self.n,
             self.history.len(),
             self.estimated_storage_bytes(),
-            limit
         );
 
         self.push_net_face_block(
             &mut out,
             &rows,
             &cols,
-            face_width,
             |out| out.push_str(&middle_indent),
             &[FaceId::U],
-            &mut previous_row,
         );
         out.push('\n');
-        previous_row = None;
 
         self.push_net_face_block(
             &mut out,
             &rows,
             &cols,
-            face_width,
             |_| {},
             &[FaceId::L, FaceId::F, FaceId::R, FaceId::B],
-            &mut previous_row,
         );
         out.push('\n');
-        previous_row = None;
 
         self.push_net_face_block(
             &mut out,
             &rows,
             &cols,
-            face_width,
             |out| out.push_str(&middle_indent),
             &[FaceId::D],
-            &mut previous_row,
         );
 
         out
@@ -267,18 +256,10 @@ impl<S: FaceletArray> Cube<S> {
         out: &mut String,
         rows: &[usize],
         cols: &[usize],
-        face_width: usize,
         mut push_prefix: impl FnMut(&mut String),
         faces: &[FaceId],
-        previous_row: &mut Option<usize>,
     ) {
         for row in rows.iter().copied() {
-            if previous_row.is_some_and(|previous| previous + 1 != row) {
-                push_prefix(out);
-                push_face_gap_row(out, face_width, faces.len());
-                out.push('\n');
-            }
-
             push_prefix(out);
             for (face_index, face) in faces.iter().copied().enumerate() {
                 if face_index > 0 {
@@ -287,7 +268,6 @@ impl<S: FaceletArray> Cube<S> {
                 self.push_net_face_row(out, face, row, cols);
             }
             out.push('\n');
-            *previous_row = Some(row);
         }
     }
 
@@ -295,9 +275,6 @@ impl<S: FaceletArray> Cube<S> {
         for (col_index, col) in cols.iter().copied().enumerate() {
             if col_index > 0 {
                 out.push(' ');
-            }
-            if col_index > 0 && cols[col_index - 1] + 1 != col {
-                out.push_str("... ");
             }
             out.push(self.face(face).get(row, col).as_char());
         }
@@ -349,28 +326,8 @@ impl<S: FaceletArray> Cube<S> {
 
 const NET_FACE_GAP: &str = "   ";
 
-fn preview_face_width(cols: &[usize]) -> usize {
-    let skipped_col_breaks = cols
-        .windows(2)
-        .filter(|pair| pair[0] + 1 != pair[1])
-        .count();
-    cols.len()
-        .saturating_add(cols.len().saturating_sub(1))
-        .saturating_add(skipped_col_breaks * 4)
-}
-
-fn push_face_gap_row(out: &mut String, face_width: usize, face_count: usize) {
-    for face_index in 0..face_count {
-        if face_index > 0 {
-            out.push_str(NET_FACE_GAP);
-        }
-
-        let left_padding = face_width.saturating_sub(3) / 2;
-        let right_padding = face_width.saturating_sub(3 + left_padding);
-        out.push_str(&" ".repeat(left_padding));
-        out.push_str("...");
-        out.push_str(&" ".repeat(right_padding));
-    }
+fn net_face_width(cols: &[usize]) -> usize {
+    cols.len().saturating_add(cols.len().saturating_sub(1))
 }
 
 impl<S: FaceletArray> fmt::Display for Cube<S> {
@@ -449,13 +406,13 @@ mod tests {
     }
 
     #[test]
-    fn preview_net_uses_traditional_geometry() {
+    fn net_uses_traditional_geometry() {
         let cube = Cube::<ByteArray>::new_solved(2);
 
         assert_eq!(
-            cube.preview_net_string(2),
+            cube.net_string(),
             concat!(
-                "Cube(n=2, history=0, storage~24 bytes, limit=2)\n",
+                "Cube(n=2, history=0, storage~24 bytes)\n",
                 "      W W\n",
                 "      W W\n",
                 "\n",
@@ -469,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_net_keeps_unfolded_face_orientations() {
+    fn net_keeps_unfolded_face_orientations() {
         let mut cube = Cube::<ByteArray>::new_solved(3);
 
         for row in 0..3 {
@@ -490,9 +447,9 @@ mod tests {
         }
 
         assert_eq!(
-            cube.preview_net_string(3),
+            cube.net_string(),
             concat!(
-                "Cube(n=3, history=0, storage~54 bytes, limit=3)\n",
+                "Cube(n=3, history=0, storage~54 bytes)\n",
                 "        W W W\n",
                 "        Y Y Y\n",
                 "        R R R\n",
@@ -506,5 +463,26 @@ mod tests {
                 "        W W W\n",
             )
         );
+    }
+
+    #[test]
+    fn net_prints_full_small_faces() {
+        let cube = Cube::<ByteArray>::new_solved(4);
+        let net = cube.net_string();
+
+        assert!(!net.contains("..."));
+        assert!(net.contains("W W W W"));
+        assert!(net.contains("O O O O   G G G G   R R R R   B B B B"));
+    }
+
+    #[test]
+    fn net_prints_full_large_faces_without_ellipsis_markers() {
+        let cube = Cube::<ByteArray>::new_solved(5);
+        let net = cube.net_string();
+
+        assert!(!net.contains("..."));
+        assert!(net.contains("            W W W W W\n"));
+        assert!(net.contains("O O O O O   G G G G G   R R R R R   B B B B B\n"));
+        assert!(net.contains("            Y Y Y Y Y\n"));
     }
 }
