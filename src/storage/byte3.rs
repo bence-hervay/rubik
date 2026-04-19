@@ -20,6 +20,7 @@ impl Byte3 {
         &self.data
     }
 
+    #[inline(always)]
     fn byte_and_slot(index: usize) -> (usize, usize) {
         (
             index / Self::FACELETS_PER_BYTE,
@@ -27,11 +28,22 @@ impl Byte3 {
         )
     }
 
-    fn place_value(slot: usize) -> u8 {
+    #[inline(always)]
+    fn replace_slot(byte: &mut u8, slot: usize, value: u8) {
         match slot {
-            0 => 1,
-            1 => Self::BASE,
-            2 => Self::BASE * Self::BASE,
+            0 => {
+                let old = *byte % Self::BASE;
+                *byte = *byte - old + value;
+            }
+            1 => {
+                let old = (*byte / Self::BASE) % Self::BASE;
+                *byte = *byte - old * Self::BASE + value * Self::BASE;
+            }
+            2 => {
+                let place = Self::BASE * Self::BASE;
+                let old = *byte / place;
+                *byte = *byte - old * place + value * place;
+            }
             _ => unreachable!("byte3 slot must be 0, 1, or 2"),
         }
     }
@@ -63,8 +75,13 @@ impl FaceletArray for Byte3 {
         assert!(index < self.len);
 
         let (byte, slot) = Self::byte_and_slot(index);
-        let place = Self::place_value(slot);
-        let raw = (self.data[byte] / place) % Self::BASE;
+        let packed = self.data[byte];
+        let raw = match slot {
+            0 => packed % Self::BASE,
+            1 => (packed / Self::BASE) % Self::BASE,
+            2 => packed / (Self::BASE * Self::BASE),
+            _ => unreachable!("byte3 slot must be 0, 1, or 2"),
+        };
         Facelet::from_u8(raw)
     }
 
@@ -72,8 +89,35 @@ impl FaceletArray for Byte3 {
         assert!(index < self.len);
 
         let (byte, slot) = Self::byte_and_slot(index);
-        let place = Self::place_value(slot);
-        let old = (self.data[byte] / place) % Self::BASE;
-        self.data[byte] = self.data[byte] - old * place + value.as_u8() * place;
+        Self::replace_slot(&mut self.data[byte], slot, value.as_u8());
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked_raw(&self, index: usize) -> u8 {
+        let (byte, slot) = Self::byte_and_slot(index);
+        let packed = *self.data.get_unchecked(byte);
+        match slot {
+            0 => packed % Self::BASE,
+            1 => (packed / Self::BASE) % Self::BASE,
+            2 => packed / (Self::BASE * Self::BASE),
+            _ => unreachable!("byte3 slot must be 0, 1, or 2"),
+        }
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
+        let (byte, slot) = Self::byte_and_slot(index);
+        let slot_byte = self.data.get_unchecked_mut(byte);
+        Self::replace_slot(slot_byte, slot, value);
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked(&self, index: usize) -> Facelet {
+        Facelet::from_u8(self.get_unchecked_raw(index))
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked(&mut self, index: usize, value: Facelet) {
+        self.set_unchecked_raw(index, value.as_u8());
     }
 }

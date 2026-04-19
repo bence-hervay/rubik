@@ -46,6 +46,7 @@ impl<S: FaceletArray> Matrix<S> {
         &self.data
     }
 
+    #[inline]
     pub fn storage_mut(&mut self) -> &mut S {
         &mut self.data
     }

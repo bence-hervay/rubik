@@ -17,6 +17,7 @@ impl Nibble {
         &self.data
     }
 
+    #[inline(always)]
     fn byte_and_shift(index: usize) -> (usize, u8) {
         let byte = index / 2;
         let shift = if index % 2 == 0 { 0 } else { 4 };
@@ -56,5 +57,29 @@ impl FaceletArray for Nibble {
         let (byte, shift) = Self::byte_and_shift(index);
         let clear_mask = !(0x0Fu8 << shift);
         self.data[byte] = (self.data[byte] & clear_mask) | (value.as_u8() << shift);
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked_raw(&self, index: usize) -> u8 {
+        let (byte, shift) = Self::byte_and_shift(index);
+        (*self.data.get_unchecked(byte) >> shift) & 0x0F
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
+        let (byte, shift) = Self::byte_and_shift(index);
+        let slot = self.data.get_unchecked_mut(byte);
+        let clear_mask = !(0x0Fu8 << shift);
+        *slot = (*slot & clear_mask) | (value << shift);
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked(&self, index: usize) -> Facelet {
+        Facelet::from_u8(self.get_unchecked_raw(index))
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked(&mut self, index: usize, value: Facelet) {
+        self.set_unchecked_raw(index, value.as_u8());
     }
 }

@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::{
     facelet::Facelet,
-    line::{LineBuffer, LineKind},
+    line::{LineBuffer, LineKind, LineTraversal},
     matrix::Matrix,
     moves::MoveAngle,
     storage::FaceletArray,
@@ -117,6 +117,7 @@ impl<S: FaceletArray> Face<S> {
         &self.matrix
     }
 
+    #[inline]
     pub fn matrix_mut(&mut self) -> &mut Matrix<S> {
         &mut self.matrix
     }
@@ -135,6 +136,7 @@ impl<S: FaceletArray> Face<S> {
         }
     }
 
+    #[inline(always)]
     pub fn logical_line_as_physical(
         &self,
         kind: LineKind,
@@ -153,6 +155,41 @@ impl<S: FaceletArray> Face<S> {
             (LineKind::Col, 2) => (LineKind::Col, n - 1 - index, true),
             (LineKind::Col, 3) => (LineKind::Row, index, true),
             _ => unreachable!("face angle is always normalized"),
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn line_traversal(
+        &self,
+        kind: LineKind,
+        index: usize,
+        reversed: bool,
+    ) -> LineTraversal {
+        let n = self.side_len();
+        let (physical_kind, physical_index, physical_reversed) =
+            self.logical_line_as_physical(kind, index);
+        let reversed = physical_reversed ^ reversed;
+
+        match physical_kind {
+            LineKind::Row => {
+                let col = if reversed { n - 1 } else { 0 };
+                let start = physical_index
+                    .checked_mul(n)
+                    .and_then(|row_start| row_start.checked_add(col))
+                    .expect("line start index overflowed usize");
+                let step = if reversed { -1 } else { 1 };
+                LineTraversal::new(start, step)
+            }
+            LineKind::Col => {
+                let row = if reversed { n - 1 } else { 0 };
+                let start = row
+                    .checked_mul(n)
+                    .and_then(|row_start| row_start.checked_add(physical_index))
+                    .expect("line start index overflowed usize");
+                let step = isize::try_from(n).expect("line step overflowed isize");
+                let step = if reversed { -step } else { step };
+                LineTraversal::new(start, step)
+            }
         }
     }
 

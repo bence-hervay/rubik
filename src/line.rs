@@ -67,6 +67,22 @@ impl StripSpec {
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub(crate) struct LineTraversal {
+    pub start: isize,
+    pub step: isize,
+}
+
+impl LineTraversal {
+    #[inline(always)]
+    pub fn new(start: usize, step: isize) -> Self {
+        Self {
+            start: isize::try_from(start).expect("line start index overflowed isize"),
+            step,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct MoveScratch {
     pub a: LineBuffer,

@@ -29,6 +29,38 @@ pub trait FaceletArray: Clone + core::fmt::Debug {
 
     fn set(&mut self, index: usize, value: Facelet);
 
+    /// # Safety
+    ///
+    /// `index` must be in bounds for this storage.
+    #[inline]
+    unsafe fn get_unchecked_raw(&self, index: usize) -> u8 {
+        self.get(index).as_u8()
+    }
+
+    /// # Safety
+    ///
+    /// `index` must be in bounds for this storage and `value` must encode a valid facelet.
+    #[inline]
+    unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
+        self.set(index, Facelet::from_u8(value));
+    }
+
+    /// # Safety
+    ///
+    /// `index` must be in bounds for this storage.
+    #[inline]
+    unsafe fn get_unchecked(&self, index: usize) -> Facelet {
+        Facelet::from_u8(self.get_unchecked_raw(index))
+    }
+
+    /// # Safety
+    ///
+    /// `index` must be in bounds for this storage.
+    #[inline]
+    unsafe fn set_unchecked(&mut self, index: usize, value: Facelet) {
+        self.set_unchecked_raw(index, value.as_u8());
+    }
+
     fn fill(&mut self, value: Facelet) {
         for i in 0..self.len() {
             self.set(i, value);

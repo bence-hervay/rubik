@@ -6,7 +6,7 @@ use crate::{
     facelet::Facelet,
     geometry,
     history::MoveHistory,
-    line::{LineBuffer, MoveScratch, StripSpec},
+    line::{LineTraversal, StripSpec},
     moves::{Axis, Move, MoveAngle},
     random::RandomSource,
     storage::FaceletArray,
@@ -53,7 +53,6 @@ pub struct Cube<S: FaceletArray> {
     n: usize,
     faces: [Face<S>; 6],
     history: MoveHistory,
-    scratch: MoveScratch,
 }
 
 impl<S: FaceletArray> Cube<S> {
@@ -75,7 +74,6 @@ impl<S: FaceletArray> Cube<S> {
                 Face::new(FaceId::B, n, scheme.b),
             ],
             history: MoveHistory::new(),
-            scratch: MoveScratch::new(n),
         }
     }
 
@@ -281,44 +279,138 @@ impl<S: FaceletArray> Cube<S> {
         assert!(mv.depth < self.n, "move depth out of bounds");
     }
 
-    fn read_spec(faces: &[Face<S>; 6], spec: StripSpec, out: &mut LineBuffer) {
-        faces[spec.face.index()].read_line_into(spec.kind, spec.index, spec.reversed, out);
-    }
-
-    fn write_spec(faces: &mut [Face<S>; 6], spec: StripSpec, src: &LineBuffer) {
-        faces[spec.face.index()].write_line_from(spec.kind, spec.index, spec.reversed, src);
-    }
-
+    #[inline]
     fn apply_side_cycle(&mut self, specs: [StripSpec; 4], angle: MoveAngle) {
-        let faces = &mut self.faces;
-        let scratch = &mut self.scratch;
+        let traversals = [
+            self.faces[specs[0].face.index()].line_traversal(
+                specs[0].kind,
+                specs[0].index,
+                specs[0].reversed,
+            ),
+            self.faces[specs[1].face.index()].line_traversal(
+                specs[1].kind,
+                specs[1].index,
+                specs[1].reversed,
+            ),
+            self.faces[specs[2].face.index()].line_traversal(
+                specs[2].kind,
+                specs[2].index,
+                specs[2].reversed,
+            ),
+            self.faces[specs[3].face.index()].line_traversal(
+                specs[3].kind,
+                specs[3].index,
+                specs[3].reversed,
+            ),
+        ];
+        let face_indices = [
+            specs[0].face.index(),
+            specs[1].face.index(),
+            specs[2].face.index(),
+            specs[3].face.index(),
+        ];
+        let (face0, face1, face2, face3) = faces4_mut(&mut self.faces, face_indices);
 
-        Self::read_spec(faces, specs[0], &mut scratch.a);
-        Self::read_spec(faces, specs[1], &mut scratch.b);
-        Self::read_spec(faces, specs[2], &mut scratch.c);
-        Self::read_spec(faces, specs[3], &mut scratch.d);
+        cycle_four_lines(
+            face0.matrix_mut().storage_mut(),
+            traversals[0],
+            face1.matrix_mut().storage_mut(),
+            traversals[1],
+            face2.matrix_mut().storage_mut(),
+            traversals[2],
+            face3.matrix_mut().storage_mut(),
+            traversals[3],
+            self.n,
+            angle,
+        );
+    }
+}
 
-        match angle.as_u8() {
-            1 => {
-                Self::write_spec(faces, specs[1], &scratch.a);
-                Self::write_spec(faces, specs[2], &scratch.b);
-                Self::write_spec(faces, specs[3], &scratch.c);
-                Self::write_spec(faces, specs[0], &scratch.d);
-            }
-            2 => {
-                Self::write_spec(faces, specs[2], &scratch.a);
-                Self::write_spec(faces, specs[3], &scratch.b);
-                Self::write_spec(faces, specs[0], &scratch.c);
-                Self::write_spec(faces, specs[1], &scratch.d);
-            }
-            3 => {
-                Self::write_spec(faces, specs[3], &scratch.a);
-                Self::write_spec(faces, specs[0], &scratch.b);
-                Self::write_spec(faces, specs[1], &scratch.c);
-                Self::write_spec(faces, specs[2], &scratch.d);
-            }
-            _ => unreachable!("move angle is one of 1, 2, or 3"),
+#[inline]
+fn faces4_mut<S: FaceletArray>(
+    faces: &mut [Face<S>; 6],
+    indices: [usize; 4],
+) -> (&mut Face<S>, &mut Face<S>, &mut Face<S>, &mut Face<S>) {
+    for i in 0..indices.len() {
+        assert!(indices[i] < faces.len(), "face index out of bounds");
+        for j in i + 1..indices.len() {
+            assert_ne!(
+                indices[i], indices[j],
+                "move side strips must use distinct faces"
+            );
         }
+    }
+
+    let ptr = faces.as_mut_ptr();
+    unsafe {
+        // The index checks above guarantee these mutable references do not alias.
+        (
+            &mut *ptr.add(indices[0]),
+            &mut *ptr.add(indices[1]),
+            &mut *ptr.add(indices[2]),
+            &mut *ptr.add(indices[3]),
+        )
+    }
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn cycle_four_lines<S: FaceletArray>(
+    storage0: &mut S,
+    traversal0: LineTraversal,
+    storage1: &mut S,
+    traversal1: LineTraversal,
+    storage2: &mut S,
+    traversal2: LineTraversal,
+    storage3: &mut S,
+    traversal3: LineTraversal,
+    len: usize,
+    angle: MoveAngle,
+) {
+    let mut p0 = traversal0.start;
+    let mut p1 = traversal1.start;
+    let mut p2 = traversal2.start;
+    let mut p3 = traversal3.start;
+
+    for _ in 0..len {
+        let i0 = p0 as usize;
+        let i1 = p1 as usize;
+        let i2 = p2 as usize;
+        let i3 = p3 as usize;
+
+        unsafe {
+            // Traversals come from validated strips; raw values are only moved between storages.
+            let v0 = storage0.get_unchecked_raw(i0);
+            let v1 = storage1.get_unchecked_raw(i1);
+            let v2 = storage2.get_unchecked_raw(i2);
+            let v3 = storage3.get_unchecked_raw(i3);
+
+            match angle {
+                MoveAngle::Positive => {
+                    storage0.set_unchecked_raw(i0, v3);
+                    storage1.set_unchecked_raw(i1, v0);
+                    storage2.set_unchecked_raw(i2, v1);
+                    storage3.set_unchecked_raw(i3, v2);
+                }
+                MoveAngle::Double => {
+                    storage0.set_unchecked_raw(i0, v2);
+                    storage1.set_unchecked_raw(i1, v3);
+                    storage2.set_unchecked_raw(i2, v0);
+                    storage3.set_unchecked_raw(i3, v1);
+                }
+                MoveAngle::Negative => {
+                    storage0.set_unchecked_raw(i0, v1);
+                    storage1.set_unchecked_raw(i1, v2);
+                    storage2.set_unchecked_raw(i2, v3);
+                    storage3.set_unchecked_raw(i3, v0);
+                }
+            }
+        }
+
+        p0 += traversal0.step;
+        p1 += traversal1.step;
+        p2 += traversal2.step;
+        p3 += traversal3.step;
     }
 }
 

@@ -40,6 +40,26 @@ impl FaceletArray for Byte {
         self.data[index] = value.as_u8();
     }
 
+    #[inline(always)]
+    unsafe fn get_unchecked_raw(&self, index: usize) -> u8 {
+        *self.data.get_unchecked(index)
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
+        *self.data.get_unchecked_mut(index) = value;
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked(&self, index: usize) -> Facelet {
+        Facelet::from_u8(*self.data.get_unchecked(index))
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked(&mut self, index: usize, value: Facelet) {
+        *self.data.get_unchecked_mut(index) = value.as_u8();
+    }
+
     fn read_block(&self, start: usize, out: &mut [Facelet]) {
         assert!(start <= self.data.len());
         assert!(out.len() <= self.data.len() - start);
