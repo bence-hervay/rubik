@@ -352,6 +352,32 @@ mod tests {
     use super::*;
     use crate::{ByteArray, FaceAngle, NibbleArray, Packed3Array};
 
+    fn basic_singmaster_turn(side_length: usize, notation: &str) -> Move {
+        let last = side_length - 1;
+
+        match notation {
+            "U" => Move::new(Axis::Y, last, MoveAngle::Positive),
+            "U'" => Move::new(Axis::Y, last, MoveAngle::Negative),
+            "U2" => Move::new(Axis::Y, last, MoveAngle::Double),
+            "D" => Move::new(Axis::Y, 0, MoveAngle::Negative),
+            "D'" => Move::new(Axis::Y, 0, MoveAngle::Positive),
+            "D2" => Move::new(Axis::Y, 0, MoveAngle::Double),
+            "R" => Move::new(Axis::X, last, MoveAngle::Positive),
+            "R'" => Move::new(Axis::X, last, MoveAngle::Negative),
+            "R2" => Move::new(Axis::X, last, MoveAngle::Double),
+            "L" => Move::new(Axis::X, 0, MoveAngle::Negative),
+            "L'" => Move::new(Axis::X, 0, MoveAngle::Positive),
+            "L2" => Move::new(Axis::X, 0, MoveAngle::Double),
+            "F" => Move::new(Axis::Z, last, MoveAngle::Positive),
+            "F'" => Move::new(Axis::Z, last, MoveAngle::Negative),
+            "F2" => Move::new(Axis::Z, last, MoveAngle::Double),
+            "B" => Move::new(Axis::Z, 0, MoveAngle::Negative),
+            "B'" => Move::new(Axis::Z, 0, MoveAngle::Positive),
+            "B2" => Move::new(Axis::Z, 0, MoveAngle::Double),
+            _ => panic!("unsupported basic Singmaster turn: {notation}"),
+        }
+    }
+
     fn every_move_inverse_restores<S: FaceletArray>() {
         for n in 1..6 {
             for axis in [Axis::X, Axis::Y, Axis::Z] {
@@ -404,6 +430,84 @@ mod tests {
         let mut cube = Cube::<ByteArray>::new_solved(3);
         cube.apply_move(Move::new(Axis::Z, 2, MoveAngle::Positive));
         assert_eq!(cube.history().len(), 1);
+    }
+
+    #[test]
+    fn basic_singmaster_turns_match_our_move_notation() {
+        let side_length = 5;
+        let last = side_length - 1;
+
+        let cases = [
+            ("U", Axis::Y, last, MoveAngle::Positive),
+            ("U'", Axis::Y, last, MoveAngle::Negative),
+            ("U2", Axis::Y, last, MoveAngle::Double),
+            ("D", Axis::Y, 0, MoveAngle::Negative),
+            ("D'", Axis::Y, 0, MoveAngle::Positive),
+            ("D2", Axis::Y, 0, MoveAngle::Double),
+            ("R", Axis::X, last, MoveAngle::Positive),
+            ("R'", Axis::X, last, MoveAngle::Negative),
+            ("R2", Axis::X, last, MoveAngle::Double),
+            ("L", Axis::X, 0, MoveAngle::Negative),
+            ("L'", Axis::X, 0, MoveAngle::Positive),
+            ("L2", Axis::X, 0, MoveAngle::Double),
+            ("F", Axis::Z, last, MoveAngle::Positive),
+            ("F'", Axis::Z, last, MoveAngle::Negative),
+            ("F2", Axis::Z, last, MoveAngle::Double),
+            ("B", Axis::Z, 0, MoveAngle::Negative),
+            ("B'", Axis::Z, 0, MoveAngle::Positive),
+            ("B2", Axis::Z, 0, MoveAngle::Double),
+        ];
+
+        for (notation, axis, depth, angle) in cases {
+            assert_eq!(
+                basic_singmaster_turn(side_length, notation),
+                Move::new(axis, depth, angle),
+                "unexpected move notation for {notation}"
+            );
+        }
+    }
+
+    #[test]
+    fn basic_singmaster_prime_and_double_turns_match_inverse_rules() {
+        let side_length = 5;
+        let cases = [
+            ("U", "U'", "U2"),
+            ("D", "D'", "D2"),
+            ("R", "R'", "R2"),
+            ("L", "L'", "L2"),
+            ("F", "F'", "F2"),
+            ("B", "B'", "B2"),
+        ];
+
+        for (turn, prime, double) in cases {
+            let turn_move = basic_singmaster_turn(side_length, turn);
+            let prime_move = basic_singmaster_turn(side_length, prime);
+            let double_move = basic_singmaster_turn(side_length, double);
+
+            assert_eq!(
+                prime_move,
+                turn_move.inverse(),
+                "{prime} should invert {turn}"
+            );
+            assert_eq!(
+                double_move,
+                double_move.inverse(),
+                "{double} should be self-inverse"
+            );
+
+            let mut cube = Cube::<ByteArray>::new_solved(side_length);
+            cube.apply_move_untracked(turn_move);
+            cube.apply_move_untracked(prime_move);
+            assert!(
+                cube.is_solved(),
+                "{turn} followed by {prime} should restore"
+            );
+
+            let mut cube = Cube::<ByteArray>::new_solved(side_length);
+            cube.apply_move_untracked(double_move);
+            cube.apply_move_untracked(double_move);
+            assert!(cube.is_solved(), "{double} twice should restore");
+        }
     }
 
     #[test]
