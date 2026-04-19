@@ -11,28 +11,39 @@ pub enum Axis {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum TurnAmount {
-    /// Clockwise when looking from the positive end of the axis toward the cube.
-    Cw,
-    Half,
-    /// Counter-clockwise when looking from the positive end of the axis toward the cube.
-    Ccw,
+pub enum Angle {
+    /// Positive quarter turn around the selected axis.
+    Positive,
+    /// Negative quarter turn around the selected axis.
+    Negative,
+    /// Double turn around the selected axis.
+    Double,
 }
 
-impl TurnAmount {
+impl Angle {
     pub const fn quarter_turns(self) -> u8 {
         match self {
-            Self::Cw => 1,
-            Self::Half => 2,
-            Self::Ccw => 3,
+            Self::Positive => 1,
+            Self::Negative => 3,
+            Self::Double => 2,
         }
     }
 
     pub const fn inverse(self) -> Self {
         match self {
-            Self::Cw => Self::Ccw,
-            Self::Half => Self::Half,
-            Self::Ccw => Self::Cw,
+            Self::Positive => Self::Negative,
+            Self::Negative => Self::Positive,
+            Self::Double => Self::Double,
+        }
+    }
+}
+
+impl fmt::Display for Angle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Positive => write!(f, "positive"),
+            Self::Negative => write!(f, "negative"),
+            Self::Double => write!(f, "double"),
         }
     }
 }
@@ -41,29 +52,25 @@ impl TurnAmount {
 pub struct Move {
     pub axis: Axis,
     pub depth: usize,
-    pub amount: TurnAmount,
+    pub angle: Angle,
 }
 
 impl Move {
-    pub const fn new(axis: Axis, depth: usize, amount: TurnAmount) -> Self {
-        Self {
-            axis,
-            depth,
-            amount,
-        }
+    pub const fn new(axis: Axis, depth: usize, angle: Angle) -> Self {
+        Self { axis, depth, angle }
     }
 
     pub const fn inverse(self) -> Self {
         Self {
             axis: self.axis,
             depth: self.depth,
-            amount: self.amount.inverse(),
+            angle: self.angle.inverse(),
         }
     }
 }
 
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}[{}] {:?}", self.axis, self.depth, self.amount)
+        write!(f, "{:?}[{}] {}", self.axis, self.depth, self.angle)
     }
 }

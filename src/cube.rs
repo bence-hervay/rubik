@@ -7,7 +7,7 @@ use crate::{
     geometry,
     history::MoveHistory,
     line::{LineBuffer, MoveScratch, StripSpec},
-    moves::{Axis, Move, TurnAmount},
+    moves::{Angle, Axis, Move},
     random::RandomSource,
     storage::FaceletArray,
 };
@@ -112,7 +112,7 @@ impl<S: FaceletArray> Cube<S> {
         self.validate_move(mv);
         let specs = self.plan_move(mv);
         self.rotate_outer_face_meta(mv);
-        self.apply_side_cycle(specs, mv.amount);
+        self.apply_side_cycle(specs, mv.angle);
     }
 
     pub fn apply_moves<I>(&mut self, moves: I)
@@ -143,12 +143,12 @@ impl<S: FaceletArray> Cube<S> {
 
         if mv.depth == self.n - 1 {
             let face = geometry::positive_axis_face(mv.axis);
-            self.faces[face.index()].rotate_meta_by(mv.amount.quarter_turns());
+            self.faces[face.index()].rotate_meta_by(mv.angle.quarter_turns());
         }
 
         if mv.depth == 0 {
             let face = geometry::negative_axis_face(mv.axis);
-            self.faces[face.index()].rotate_meta_by(mv.amount.inverse().quarter_turns());
+            self.faces[face.index()].rotate_meta_by(mv.angle.inverse().quarter_turns());
         }
     }
 
@@ -161,13 +161,13 @@ impl<S: FaceletArray> Cube<S> {
 
         let depth = (rng.next_u64() as usize) % self.n;
 
-        let amount = match (rng.next_u64() % 3) as u8 {
-            0 => TurnAmount::Cw,
-            1 => TurnAmount::Half,
-            _ => TurnAmount::Ccw,
+        let angle = match (rng.next_u64() % 3) as u8 {
+            0 => Angle::Positive,
+            1 => Angle::Negative,
+            _ => Angle::Double,
         };
 
-        Move::new(axis, depth, amount)
+        Move::new(axis, depth, angle)
     }
 
     pub fn scramble<R: RandomSource>(&mut self, rng: &mut R, count: usize) {
@@ -292,7 +292,7 @@ impl<S: FaceletArray> Cube<S> {
         faces[spec.face.index()].write_line_from(spec.kind, spec.index, spec.reversed, src);
     }
 
-    fn apply_side_cycle(&mut self, specs: [StripSpec; 4], amount: TurnAmount) {
+    fn apply_side_cycle(&mut self, specs: [StripSpec; 4], angle: Angle) {
         let faces = &mut self.faces;
         let scratch = &mut self.scratch;
 
@@ -301,24 +301,24 @@ impl<S: FaceletArray> Cube<S> {
         Self::read_spec(faces, specs[2], &mut scratch.c);
         Self::read_spec(faces, specs[3], &mut scratch.d);
 
-        match amount {
-            TurnAmount::Cw => {
+        match angle {
+            Angle::Positive => {
                 Self::write_spec(faces, specs[1], &scratch.a);
                 Self::write_spec(faces, specs[2], &scratch.b);
                 Self::write_spec(faces, specs[3], &scratch.c);
                 Self::write_spec(faces, specs[0], &scratch.d);
             }
-            TurnAmount::Half => {
-                Self::write_spec(faces, specs[2], &scratch.a);
-                Self::write_spec(faces, specs[3], &scratch.b);
-                Self::write_spec(faces, specs[0], &scratch.c);
-                Self::write_spec(faces, specs[1], &scratch.d);
-            }
-            TurnAmount::Ccw => {
+            Angle::Negative => {
                 Self::write_spec(faces, specs[3], &scratch.a);
                 Self::write_spec(faces, specs[0], &scratch.b);
                 Self::write_spec(faces, specs[1], &scratch.c);
                 Self::write_spec(faces, specs[2], &scratch.d);
+            }
+            Angle::Double => {
+                Self::write_spec(faces, specs[2], &scratch.a);
+                Self::write_spec(faces, specs[3], &scratch.b);
+                Self::write_spec(faces, specs[0], &scratch.c);
+                Self::write_spec(faces, specs[1], &scratch.d);
             }
         }
     }
@@ -355,8 +355,8 @@ mod tests {
         for n in 1..6 {
             for axis in [Axis::X, Axis::Y, Axis::Z] {
                 for depth in 0..n {
-                    for amount in [TurnAmount::Cw, TurnAmount::Half, TurnAmount::Ccw] {
-                        let mv = Move::new(axis, depth, amount);
+                    for angle in [Angle::Positive, Angle::Negative, Angle::Double] {
+                        let mv = Move::new(axis, depth, angle);
                         let mut cube = Cube::<S>::new_solved(n);
                         cube.apply_move_untracked(mv);
                         cube.apply_move_untracked(mv.inverse());
@@ -387,7 +387,7 @@ mod tests {
         for n in 1..6 {
             for axis in [Axis::X, Axis::Y, Axis::Z] {
                 for depth in 0..n {
-                    let mv = Move::new(axis, depth, TurnAmount::Cw);
+                    let mv = Move::new(axis, depth, Angle::Positive);
                     let mut cube = Cube::<ByteArray>::new_solved(n);
                     for _ in 0..4 {
                         cube.apply_move_untracked(mv);
@@ -401,7 +401,7 @@ mod tests {
     #[test]
     fn tracked_moves_enter_history() {
         let mut cube = Cube::<ByteArray>::new_solved(3);
-        cube.apply_move(Move::new(Axis::Z, 2, TurnAmount::Cw));
+        cube.apply_move(Move::new(Axis::Z, 2, Angle::Positive));
         assert_eq!(cube.history().len(), 1);
     }
 

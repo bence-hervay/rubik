@@ -16,7 +16,7 @@ pub use facelet::Facelet;
 pub use history::MoveHistory;
 pub use line::{LineBuffer, LineKind, MoveScratch, StripSpec};
 pub use matrix::Matrix;
-pub use moves::{Axis, Move, TurnAmount};
+pub use moves::{Angle, Axis, Move};
 pub use random::{RandomSource, XorShift64};
 pub use solver::{MoveSequence, Solver};
 pub use storage::{ByteArray, FaceletArray, NibbleArray, Packed3Array};
