@@ -209,7 +209,13 @@ impl<S: FaceletArray> Cube<S> {
 
     pub fn preview_net_string(&self, limit: usize) -> String {
         let limit = limit.max(1);
+        let rows = crate::matrix::preview_indices(self.n, limit);
+        let cols = crate::matrix::preview_indices(self.n, limit);
+        let face_width = preview_face_width(&cols);
+        let middle_indent = " ".repeat(face_width + NET_FACE_GAP.len());
+        let mut previous_row = None;
         let mut out = String::new();
+
         let _ = writeln!(
             out,
             "Cube(n={}, history={}, storage~{} bytes, limit={})",
@@ -219,12 +225,82 @@ impl<S: FaceletArray> Cube<S> {
             limit
         );
 
-        for id in FaceId::ALL {
-            let _ = writeln!(out, "{id}:");
-            out.push_str(&self.face(id).preview_string(limit));
-        }
+        self.push_net_face_block(
+            &mut out,
+            &rows,
+            &cols,
+            face_width,
+            |out| out.push_str(&middle_indent),
+            &[FaceId::U],
+            &mut previous_row,
+        );
+        out.push('\n');
+        previous_row = None;
+
+        self.push_net_face_block(
+            &mut out,
+            &rows,
+            &cols,
+            face_width,
+            |_| {},
+            &[FaceId::L, FaceId::F, FaceId::R, FaceId::B],
+            &mut previous_row,
+        );
+        out.push('\n');
+        previous_row = None;
+
+        self.push_net_face_block(
+            &mut out,
+            &rows,
+            &cols,
+            face_width,
+            |out| out.push_str(&middle_indent),
+            &[FaceId::D],
+            &mut previous_row,
+        );
 
         out
+    }
+
+    fn push_net_face_block(
+        &self,
+        out: &mut String,
+        rows: &[usize],
+        cols: &[usize],
+        face_width: usize,
+        mut push_prefix: impl FnMut(&mut String),
+        faces: &[FaceId],
+        previous_row: &mut Option<usize>,
+    ) {
+        for row in rows.iter().copied() {
+            if previous_row.is_some_and(|previous| previous + 1 != row) {
+                push_prefix(out);
+                push_face_gap_row(out, face_width, faces.len());
+                out.push('\n');
+            }
+
+            push_prefix(out);
+            for (face_index, face) in faces.iter().copied().enumerate() {
+                if face_index > 0 {
+                    out.push_str(NET_FACE_GAP);
+                }
+                self.push_net_face_row(out, face, row, cols);
+            }
+            out.push('\n');
+            *previous_row = Some(row);
+        }
+    }
+
+    fn push_net_face_row(&self, out: &mut String, face: FaceId, row: usize, cols: &[usize]) {
+        for (col_index, col) in cols.iter().copied().enumerate() {
+            if col_index > 0 {
+                out.push(' ');
+            }
+            if col_index > 0 && cols[col_index - 1] + 1 != col {
+                out.push_str("... ");
+            }
+            out.push(self.face(face).get(row, col).as_char());
+        }
     }
 
     fn validate_move(&self, mv: Move) {
@@ -268,6 +344,32 @@ impl<S: FaceletArray> Cube<S> {
                 Self::write_spec(faces, specs[2], &scratch.d);
             }
         }
+    }
+}
+
+const NET_FACE_GAP: &str = "   ";
+
+fn preview_face_width(cols: &[usize]) -> usize {
+    let skipped_col_breaks = cols
+        .windows(2)
+        .filter(|pair| pair[0] + 1 != pair[1])
+        .count();
+    cols.len()
+        .saturating_add(cols.len().saturating_sub(1))
+        .saturating_add(skipped_col_breaks * 4)
+}
+
+fn push_face_gap_row(out: &mut String, face_width: usize, face_count: usize) {
+    for face_index in 0..face_count {
+        if face_index > 0 {
+            out.push_str(NET_FACE_GAP);
+        }
+
+        let left_padding = face_width.saturating_sub(3) / 2;
+        let right_padding = face_width.saturating_sub(3 + left_padding);
+        out.push_str(&" ".repeat(left_padding));
+        out.push_str("...");
+        out.push_str(&" ".repeat(right_padding));
     }
 }
 
@@ -344,5 +446,65 @@ mod tests {
         let mut cube = Cube::<ByteArray>::new_solved(3);
         cube.apply_move(Move::new(Axis::Z, 2, TurnAmount::Cw));
         assert_eq!(cube.history().len(), 1);
+    }
+
+    #[test]
+    fn preview_net_uses_traditional_geometry() {
+        let cube = Cube::<ByteArray>::new_solved(2);
+
+        assert_eq!(
+            cube.preview_net_string(2),
+            concat!(
+                "Cube(n=2, history=0, storage~24 bytes, limit=2)\n",
+                "      W W\n",
+                "      W W\n",
+                "\n",
+                "O O   G G   R R   B B\n",
+                "O O   G G   R R   B B\n",
+                "\n",
+                "      Y Y\n",
+                "      Y Y\n",
+            )
+        );
+    }
+
+    #[test]
+    fn preview_net_keeps_unfolded_face_orientations() {
+        let mut cube = Cube::<ByteArray>::new_solved(3);
+
+        for row in 0..3 {
+            for col in 0..3 {
+                cube.face_mut(FaceId::U)
+                    .set(row, col, Facelet::from_u8(row as u8));
+                cube.face_mut(FaceId::D)
+                    .set(row, col, Facelet::from_u8((2 - row) as u8));
+                cube.face_mut(FaceId::F)
+                    .set(row, col, Facelet::from_u8(col as u8));
+                cube.face_mut(FaceId::B)
+                    .set(row, col, Facelet::from_u8((2 - col) as u8));
+                cube.face_mut(FaceId::L)
+                    .set(row, col, Facelet::from_u8((row + col) as u8));
+                cube.face_mut(FaceId::R)
+                    .set(row, col, Facelet::from_u8((row + 2 - col) as u8));
+            }
+        }
+
+        assert_eq!(
+            cube.preview_net_string(3),
+            concat!(
+                "Cube(n=3, history=0, storage~54 bytes, limit=3)\n",
+                "        W W W\n",
+                "        Y Y Y\n",
+                "        R R R\n",
+                "\n",
+                "W Y R   W Y R   R Y W   R Y W\n",
+                "Y R O   W Y R   O R Y   R Y W\n",
+                "R O G   W Y R   G O R   R Y W\n",
+                "\n",
+                "        R R R\n",
+                "        Y Y Y\n",
+                "        W W W\n",
+            )
+        );
     }
 }
