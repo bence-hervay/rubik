@@ -10,9 +10,9 @@ use rubik::{
     Axis, Byte, Byte3, ColorScheme, Cube, Facelet, Move, MoveAngle, Nibble, ThreeBit, XorShift64,
 };
 
-const DEFAULT_MEMORY_SIDE_LENGTH: usize = 10000;
-const DEFAULT_RANDOM_MOVE_SIDE_LENGTH: usize = 5000;
-const DEFAULT_RANDOM_MOVE_COUNT: usize = 100_000;
+const DEFAULT_MEMORY_SIDE_LENGTH: usize = 5_000;
+const DEFAULT_RANDOM_MOVE_SIDE_LENGTH: usize = 5_000;
+const DEFAULT_RANDOM_MOVE_COUNT: usize = 10_000;
 const DEFAULT_RANDOM_SEED: u64 = 0xC0BEE_CAFE_F00D;
 const METRIC_COLUMN_WIDTH: usize = 28;
 const STORAGE_COLUMN_WIDTH: usize = 8;
