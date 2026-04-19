@@ -11,12 +11,12 @@ use rubik::{
     Packed3Array, XorShift64,
 };
 
-const DEFAULT_MEMORY_SIDE_LENGTH: usize = 4096;
-const DEFAULT_RANDOM_MOVE_SIDE_LENGTH: usize = 4096;
-const DEFAULT_RANDOM_MOVE_COUNT: usize = 1_000;
+const DEFAULT_MEMORY_SIDE_LENGTH: usize = 10000;
+const DEFAULT_RANDOM_MOVE_SIDE_LENGTH: usize = 5000;
+const DEFAULT_RANDOM_MOVE_COUNT: usize = 10_000;
 const DEFAULT_RANDOM_SEED: u64 = 0xC0BEE_CAFE_F00D;
 const METRIC_COLUMN_WIDTH: usize = 28;
-const STORAGE_COLUMN_WIDTH: usize = 24;
+const STORAGE_COLUMN_WIDTH: usize = 12;
 const STORAGE_KIND_COUNT: usize = 4;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -37,10 +37,10 @@ impl StorageKind {
 
     fn as_str(self) -> &'static str {
         match self {
-            Self::Byte => "byte",
-            Self::BaseSixThreePerByte => "base_six_three_per_byte",
-            Self::Nibble => "nibble",
-            Self::PackedThreeBits => "packed_three_bits",
+            Self::Byte => "ByteArray",
+            Self::BaseSixThreePerByte => "Base6Array",
+            Self::Nibble => "NibbleArray",
+            Self::PackedThreeBits => "Packed3Array",
         }
     }
 }
@@ -56,10 +56,10 @@ impl FromStr for StorageKind {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
-            "byte" => Ok(Self::Byte),
-            "base_six_three_per_byte" => Ok(Self::BaseSixThreePerByte),
-            "nibble" => Ok(Self::Nibble),
-            "packed_three_bits" => Ok(Self::PackedThreeBits),
+            "ByteArray" => Ok(Self::Byte),
+            "Base6Array" => Ok(Self::BaseSixThreePerByte),
+            "NibbleArray" => Ok(Self::Nibble),
+            "Packed3Array" => Ok(Self::PackedThreeBits),
             _ => Err(format!("unknown storage kind: {value}")),
         }
     }
