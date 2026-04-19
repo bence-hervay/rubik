@@ -416,16 +416,19 @@ fn format_bytes(bytes: usize) -> String {
     const KIB: f64 = 1024.0;
     const MIB: f64 = KIB * 1024.0;
     const GIB: f64 = MIB * 1024.0;
+    const TIB: f64 = GIB * 1024.0;
 
     let bytes = bytes as f64;
-    if bytes >= GIB {
-        format!("{:.2} gibibytes", bytes / GIB)
+    if bytes >= TIB {
+        format!("{:.1}T", bytes / TIB)
+    } else if bytes >= GIB {
+        format!("{:.1}G", bytes / GIB)
     } else if bytes >= MIB {
-        format!("{:.2} mebibytes", bytes / MIB)
+        format!("{:.1}M", bytes / MIB)
     } else if bytes >= KIB {
-        format!("{:.2} kibibytes", bytes / KIB)
+        format!("{:.1}K", bytes / KIB)
     } else {
-        format!("{bytes:.0} bytes")
+        format!("{bytes:.0}B")
     }
 }
 
