@@ -7,7 +7,7 @@ use crate::{
     geometry,
     history::MoveHistory,
     line::{LineBuffer, MoveScratch, StripSpec},
-    moves::{Angle, Axis, Move},
+    moves::{Axis, Move, MoveAngle},
     random::RandomSource,
     storage::FaceletArray,
 };
@@ -143,12 +143,12 @@ impl<S: FaceletArray> Cube<S> {
 
         if mv.depth == self.n - 1 {
             let face = geometry::positive_axis_face(mv.axis);
-            self.faces[face.index()].rotate_meta_by(mv.angle.quarter_turns());
+            self.faces[face.index()].rotate_meta_by(mv.angle);
         }
 
         if mv.depth == 0 {
             let face = geometry::negative_axis_face(mv.axis);
-            self.faces[face.index()].rotate_meta_by(mv.angle.inverse().quarter_turns());
+            self.faces[face.index()].rotate_meta_by(mv.angle);
         }
     }
 
@@ -162,9 +162,9 @@ impl<S: FaceletArray> Cube<S> {
         let depth = (rng.next_u64() as usize) % self.n;
 
         let angle = match (rng.next_u64() % 3) as u8 {
-            0 => Angle::Positive,
-            1 => Angle::Negative,
-            _ => Angle::Double,
+            0 => MoveAngle::Positive,
+            1 => MoveAngle::Double,
+            _ => MoveAngle::Negative,
         };
 
         Move::new(axis, depth, angle)
@@ -292,7 +292,7 @@ impl<S: FaceletArray> Cube<S> {
         faces[spec.face.index()].write_line_from(spec.kind, spec.index, spec.reversed, src);
     }
 
-    fn apply_side_cycle(&mut self, specs: [StripSpec; 4], angle: Angle) {
+    fn apply_side_cycle(&mut self, specs: [StripSpec; 4], angle: MoveAngle) {
         let faces = &mut self.faces;
         let scratch = &mut self.scratch;
 
@@ -301,25 +301,26 @@ impl<S: FaceletArray> Cube<S> {
         Self::read_spec(faces, specs[2], &mut scratch.c);
         Self::read_spec(faces, specs[3], &mut scratch.d);
 
-        match angle {
-            Angle::Positive => {
+        match angle.as_u8() {
+            1 => {
                 Self::write_spec(faces, specs[1], &scratch.a);
                 Self::write_spec(faces, specs[2], &scratch.b);
                 Self::write_spec(faces, specs[3], &scratch.c);
                 Self::write_spec(faces, specs[0], &scratch.d);
             }
-            Angle::Negative => {
-                Self::write_spec(faces, specs[3], &scratch.a);
-                Self::write_spec(faces, specs[0], &scratch.b);
-                Self::write_spec(faces, specs[1], &scratch.c);
-                Self::write_spec(faces, specs[2], &scratch.d);
-            }
-            Angle::Double => {
+            2 => {
                 Self::write_spec(faces, specs[2], &scratch.a);
                 Self::write_spec(faces, specs[3], &scratch.b);
                 Self::write_spec(faces, specs[0], &scratch.c);
                 Self::write_spec(faces, specs[1], &scratch.d);
             }
+            3 => {
+                Self::write_spec(faces, specs[3], &scratch.a);
+                Self::write_spec(faces, specs[0], &scratch.b);
+                Self::write_spec(faces, specs[1], &scratch.c);
+                Self::write_spec(faces, specs[2], &scratch.d);
+            }
+            _ => unreachable!("move angle is one of 1, 2, or 3"),
         }
     }
 }
@@ -349,13 +350,13 @@ impl<S: FaceletArray> fmt::Display for Cube<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ByteArray, NibbleArray, Packed3Array};
+    use crate::{ByteArray, FaceAngle, NibbleArray, Packed3Array};
 
     fn every_move_inverse_restores<S: FaceletArray>() {
         for n in 1..6 {
             for axis in [Axis::X, Axis::Y, Axis::Z] {
                 for depth in 0..n {
-                    for angle in [Angle::Positive, Angle::Negative, Angle::Double] {
+                    for angle in MoveAngle::ALL {
                         let mv = Move::new(axis, depth, angle);
                         let mut cube = Cube::<S>::new_solved(n);
                         cube.apply_move_untracked(mv);
@@ -387,7 +388,7 @@ mod tests {
         for n in 1..6 {
             for axis in [Axis::X, Axis::Y, Axis::Z] {
                 for depth in 0..n {
-                    let mv = Move::new(axis, depth, Angle::Positive);
+                    let mv = Move::new(axis, depth, MoveAngle::Positive);
                     let mut cube = Cube::<ByteArray>::new_solved(n);
                     for _ in 0..4 {
                         cube.apply_move_untracked(mv);
@@ -401,8 +402,44 @@ mod tests {
     #[test]
     fn tracked_moves_enter_history() {
         let mut cube = Cube::<ByteArray>::new_solved(3);
-        cube.apply_move(Move::new(Axis::Z, 2, Angle::Positive));
+        cube.apply_move(Move::new(Axis::Z, 2, MoveAngle::Positive));
         assert_eq!(cube.history().len(), 1);
+    }
+
+    #[test]
+    fn outer_face_rotation_tracks_move_angle_directly() {
+        let mut cube = Cube::<ByteArray>::new_solved(3);
+
+        cube.apply_move_untracked(Move::new(Axis::Z, 2, MoveAngle::Positive));
+        assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(1));
+
+        cube.apply_move_untracked(Move::new(Axis::Z, 0, MoveAngle::Positive));
+        assert_eq!(cube.face(FaceId::B).rotation(), FaceAngle::new(1));
+
+        cube.apply_move_untracked(Move::new(Axis::X, 2, MoveAngle::Negative));
+        assert_eq!(cube.face(FaceId::R).rotation(), FaceAngle::new(3));
+
+        cube.apply_move_untracked(Move::new(Axis::X, 0, MoveAngle::Double));
+        assert_eq!(cube.face(FaceId::L).rotation(), FaceAngle::new(2));
+    }
+
+    #[test]
+    fn face_rotation_accumulates_angles_modulo_four() {
+        let mut cube = Cube::<ByteArray>::new_solved(3);
+
+        assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(0));
+
+        cube.apply_move_untracked(Move::new(Axis::Z, 2, MoveAngle::Positive));
+        assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(1));
+
+        cube.apply_move_untracked(Move::new(Axis::Z, 2, MoveAngle::Positive));
+        assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(2));
+
+        cube.apply_move_untracked(Move::new(Axis::Z, 2, MoveAngle::Positive));
+        assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(3));
+
+        cube.apply_move_untracked(Move::new(Axis::Z, 2, MoveAngle::Positive));
+        assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(0));
     }
 
     #[test]

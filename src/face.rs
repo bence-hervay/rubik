@@ -4,6 +4,7 @@ use crate::{
     facelet::Facelet,
     line::{LineBuffer, LineKind},
     matrix::Matrix,
+    moves::MoveAngle,
     storage::FaceletArray,
 };
 
@@ -40,44 +41,31 @@ impl fmt::Display for FaceId {
     }
 }
 
-#[repr(u8)]
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub enum FaceRotation {
-    #[default]
-    R0 = 0,
-    R90 = 1,
-    R180 = 2,
-    R270 = 3,
+pub struct FaceAngle(u8);
+
+impl FaceAngle {
+    pub const fn new(turns: u8) -> Self {
+        Self(turns & 3)
+    }
+
+    pub const fn as_u8(self) -> u8 {
+        self.0
+    }
+
+    pub const fn quarter_turns(self) -> u8 {
+        self.0
+    }
+
+    pub const fn turned_by(self, angle: MoveAngle) -> Self {
+        Self::new(self.0 + angle.as_u8())
+    }
 }
 
-impl FaceRotation {
-    pub const fn quarter_turns(self) -> u8 {
-        self as u8
-    }
-
-    pub const fn from_quarter_turns(turns: u8) -> Self {
-        match turns & 3 {
-            0 => Self::R0,
-            1 => Self::R90,
-            2 => Self::R180,
-            _ => Self::R270,
-        }
-    }
-
-    pub const fn turned_cw(self) -> Self {
-        Self::from_quarter_turns(self.quarter_turns() + 1)
-    }
-
-    pub const fn turned_half(self) -> Self {
-        Self::from_quarter_turns(self.quarter_turns() + 2)
-    }
-
-    pub const fn turned_ccw(self) -> Self {
-        Self::from_quarter_turns(self.quarter_turns() + 3)
-    }
-
-    pub const fn turned_by(self, turns: u8) -> Self {
-        Self::from_quarter_turns(self.quarter_turns() + turns)
+impl fmt::Display for FaceAngle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -85,7 +73,7 @@ impl FaceRotation {
 pub struct Face<S: FaceletArray> {
     id: FaceId,
     matrix: Matrix<S>,
-    rotation: FaceRotation,
+    rotation: FaceAngle,
 }
 
 impl<S: FaceletArray> Face<S> {
@@ -93,7 +81,7 @@ impl<S: FaceletArray> Face<S> {
         Self {
             id,
             matrix: Matrix::new_filled(n, fill),
-            rotation: FaceRotation::R0,
+            rotation: FaceAngle::default(),
         }
     }
 
@@ -101,7 +89,7 @@ impl<S: FaceletArray> Face<S> {
         Self {
             id,
             matrix,
-            rotation: FaceRotation::R0,
+            rotation: FaceAngle::default(),
         }
     }
 
@@ -113,28 +101,16 @@ impl<S: FaceletArray> Face<S> {
         self.matrix.side_len()
     }
 
-    pub fn rotation(&self) -> FaceRotation {
+    pub fn rotation(&self) -> FaceAngle {
         self.rotation
     }
 
-    pub fn set_rotation(&mut self, rotation: FaceRotation) {
+    pub fn set_rotation(&mut self, rotation: FaceAngle) {
         self.rotation = rotation;
     }
 
-    pub fn rotate_meta_cw(&mut self) {
-        self.rotation = self.rotation.turned_cw();
-    }
-
-    pub fn rotate_meta_half(&mut self) {
-        self.rotation = self.rotation.turned_half();
-    }
-
-    pub fn rotate_meta_ccw(&mut self) {
-        self.rotation = self.rotation.turned_ccw();
-    }
-
-    pub fn rotate_meta_by(&mut self, quarter_turns_cw: u8) {
-        self.rotation = self.rotation.turned_by(quarter_turns_cw);
+    pub fn rotate_meta_by(&mut self, angle: MoveAngle) {
+        self.rotation = self.rotation.turned_by(angle);
     }
 
     pub fn matrix(&self) -> &Matrix<S> {
@@ -150,11 +126,12 @@ impl<S: FaceletArray> Face<S> {
         assert!(row < n, "row out of bounds");
         assert!(col < n, "col out of bounds");
 
-        match self.rotation {
-            FaceRotation::R0 => (row, col),
-            FaceRotation::R90 => (n - 1 - col, row),
-            FaceRotation::R180 => (n - 1 - row, n - 1 - col),
-            FaceRotation::R270 => (col, n - 1 - row),
+        match self.rotation.as_u8() {
+            0 => (row, col),
+            1 => (n - 1 - col, row),
+            2 => (n - 1 - row, n - 1 - col),
+            3 => (col, n - 1 - row),
+            _ => unreachable!("face angle is always normalized"),
         }
     }
 
@@ -166,15 +143,16 @@ impl<S: FaceletArray> Face<S> {
         let n = self.side_len();
         assert!(index < n, "line index out of bounds");
 
-        match (kind, self.rotation) {
-            (LineKind::Row, FaceRotation::R0) => (LineKind::Row, index, false),
-            (LineKind::Row, FaceRotation::R90) => (LineKind::Col, index, true),
-            (LineKind::Row, FaceRotation::R180) => (LineKind::Row, n - 1 - index, true),
-            (LineKind::Row, FaceRotation::R270) => (LineKind::Col, n - 1 - index, false),
-            (LineKind::Col, FaceRotation::R0) => (LineKind::Col, index, false),
-            (LineKind::Col, FaceRotation::R90) => (LineKind::Row, n - 1 - index, false),
-            (LineKind::Col, FaceRotation::R180) => (LineKind::Col, n - 1 - index, true),
-            (LineKind::Col, FaceRotation::R270) => (LineKind::Row, index, true),
+        match (kind, self.rotation.as_u8()) {
+            (LineKind::Row, 0) => (LineKind::Row, index, false),
+            (LineKind::Row, 1) => (LineKind::Col, index, true),
+            (LineKind::Row, 2) => (LineKind::Row, n - 1 - index, true),
+            (LineKind::Row, 3) => (LineKind::Col, n - 1 - index, false),
+            (LineKind::Col, 0) => (LineKind::Col, index, false),
+            (LineKind::Col, 1) => (LineKind::Row, n - 1 - index, false),
+            (LineKind::Col, 2) => (LineKind::Col, n - 1 - index, true),
+            (LineKind::Col, 3) => (LineKind::Row, index, true),
+            _ => unreachable!("face angle is always normalized"),
         }
     }
 
@@ -277,10 +255,46 @@ impl<S: FaceletArray> fmt::Display for Face<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Face({}, n={}, rot={:?})",
+            "Face({}, n={}, rotation={})",
             self.id,
             self.side_len(),
             self.rotation
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FaceAngle;
+    use crate::MoveAngle;
+
+    #[test]
+    fn face_angle_is_normalized_modulo_four() {
+        assert_eq!(FaceAngle::new(0).as_u8(), 0);
+        assert_eq!(FaceAngle::new(1).as_u8(), 1);
+        assert_eq!(FaceAngle::new(2).as_u8(), 2);
+        assert_eq!(FaceAngle::new(3).as_u8(), 3);
+        assert_eq!(FaceAngle::new(4).as_u8(), 0);
+        assert_eq!(FaceAngle::new(7).as_u8(), 3);
+    }
+
+    #[test]
+    fn face_angle_turning_is_addition_modulo_four() {
+        assert_eq!(
+            FaceAngle::new(0).turned_by(MoveAngle::Positive),
+            FaceAngle::new(1)
+        );
+        assert_eq!(
+            FaceAngle::new(1).turned_by(MoveAngle::Positive),
+            FaceAngle::new(2)
+        );
+        assert_eq!(
+            FaceAngle::new(2).turned_by(MoveAngle::Positive),
+            FaceAngle::new(3)
+        );
+        assert_eq!(
+            FaceAngle::new(3).turned_by(MoveAngle::Positive),
+            FaceAngle::new(0)
+        );
     }
 }

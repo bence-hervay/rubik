@@ -10,40 +10,40 @@ pub enum Axis {
     Z,
 }
 
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Angle {
-    /// Positive quarter turn around the selected axis.
-    Positive,
-    /// Negative quarter turn around the selected axis.
-    Negative,
-    /// Double turn around the selected axis.
-    Double,
+pub enum MoveAngle {
+    Positive = 1,
+    Double = 2,
+    Negative = 3,
 }
 
-impl Angle {
+impl MoveAngle {
+    pub const ALL: [Self; 3] = [Self::Positive, Self::Double, Self::Negative];
+
+    pub const fn as_u8(self) -> u8 {
+        self as u8
+    }
+
     pub const fn quarter_turns(self) -> u8 {
-        match self {
-            Self::Positive => 1,
-            Self::Negative => 3,
-            Self::Double => 2,
-        }
+        self.as_u8()
     }
 
     pub const fn inverse(self) -> Self {
         match self {
             Self::Positive => Self::Negative,
-            Self::Negative => Self::Positive,
             Self::Double => Self::Double,
+            Self::Negative => Self::Positive,
         }
     }
 }
 
-impl fmt::Display for Angle {
+impl fmt::Display for MoveAngle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Positive => write!(f, "positive"),
-            Self::Negative => write!(f, "negative"),
             Self::Double => write!(f, "double"),
+            Self::Negative => write!(f, "negative"),
         }
     }
 }
@@ -52,11 +52,11 @@ impl fmt::Display for Angle {
 pub struct Move {
     pub axis: Axis,
     pub depth: usize,
-    pub angle: Angle,
+    pub angle: MoveAngle,
 }
 
 impl Move {
-    pub const fn new(axis: Axis, depth: usize, angle: Angle) -> Self {
+    pub const fn new(axis: Axis, depth: usize, angle: MoveAngle) -> Self {
         Self { axis, depth, angle }
     }
 
@@ -72,5 +72,24 @@ impl Move {
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}[{}] {}", self.axis, self.depth, self.angle)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MoveAngle;
+
+    #[test]
+    fn move_angles_have_fixed_integer_assignments() {
+        assert_eq!(MoveAngle::Positive.as_u8(), 1);
+        assert_eq!(MoveAngle::Double.as_u8(), 2);
+        assert_eq!(MoveAngle::Negative.as_u8(), 3);
+    }
+
+    #[test]
+    fn move_angle_inverse_flips_quarter_turns() {
+        assert_eq!(MoveAngle::Positive.inverse(), MoveAngle::Negative);
+        assert_eq!(MoveAngle::Double.inverse(), MoveAngle::Double);
+        assert_eq!(MoveAngle::Negative.inverse(), MoveAngle::Positive);
     }
 }

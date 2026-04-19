@@ -11,12 +11,12 @@ pub mod solver;
 pub mod storage;
 
 pub use cube::{ColorScheme, Cube};
-pub use face::{Face, FaceId, FaceRotation};
+pub use face::{Face, FaceAngle, FaceId};
 pub use facelet::Facelet;
 pub use history::MoveHistory;
 pub use line::{LineBuffer, LineKind, MoveScratch, StripSpec};
 pub use matrix::Matrix;
-pub use moves::{Angle, Axis, Move};
+pub use moves::{Axis, Move, MoveAngle};
 pub use random::{RandomSource, XorShift64};
 pub use solver::{MoveSequence, Solver};
 pub use storage::{ByteArray, FaceletArray, NibbleArray, Packed3Array};

@@ -7,7 +7,8 @@ use std::{
 };
 
 use rubik::{
-    Angle, Axis, ByteArray, ColorScheme, Cube, Facelet, Move, NibbleArray, Packed3Array, XorShift64,
+    Axis, ByteArray, ColorScheme, Cube, Facelet, Move, MoveAngle, NibbleArray, Packed3Array,
+    XorShift64,
 };
 
 const DEFAULT_MEMORY_SIDE_LENGTH: usize = 4096;
@@ -335,9 +336,9 @@ fn generate_moves(side_length: usize, count: usize, seed: u64) -> Vec<Move> {
         };
         let depth = (next_u64(&mut rng) as usize) % side_length;
         let angle = match next_u64(&mut rng) % 3 {
-            0 => Angle::Positive,
-            1 => Angle::Negative,
-            _ => Angle::Double,
+            0 => MoveAngle::Positive,
+            1 => MoveAngle::Double,
+            _ => MoveAngle::Negative,
         };
         moves.push(Move::new(axis, depth, angle));
     }
