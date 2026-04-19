@@ -347,7 +347,9 @@ impl<S: FaceletArray> fmt::Display for Cube<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Base6Array, ByteArray, FaceAngle, NibbleArray, Packed3Array};
+    use crate::{
+        Base6Array, ByteArray, FaceAngle, NibbleArray, Packed3Array, RandomSource, XorShift64,
+    };
 
     fn basic_singmaster_turn(side_length: usize, notation: &str) -> Move {
         let last = side_length - 1;
@@ -375,6 +377,50 @@ mod tests {
         }
     }
 
+    fn random_moves(side_length: usize, count: usize, seed: u64) -> Vec<Move> {
+        let mut rng = XorShift64::new(seed);
+        let mut moves = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            let axis = match rng.next_u64() % 3 {
+                0 => Axis::X,
+                1 => Axis::Y,
+                _ => Axis::Z,
+            };
+            let depth = (rng.next_u64() as usize) % side_length;
+            let angle = match rng.next_u64() % 3 {
+                0 => MoveAngle::Positive,
+                1 => MoveAngle::Double,
+                _ => MoveAngle::Negative,
+            };
+            moves.push(Move::new(axis, depth, angle));
+        }
+
+        moves
+    }
+
+    fn assert_cubes_match<A: FaceletArray, B: FaceletArray>(actual: &Cube<A>, expected: &Cube<B>) {
+        assert_eq!(actual.side_len(), expected.side_len());
+
+        for face in FaceId::ALL {
+            assert_eq!(
+                actual.face(face).rotation(),
+                expected.face(face).rotation(),
+                "face rotation mismatch on {face}"
+            );
+
+            for row in 0..actual.side_len() {
+                for col in 0..actual.side_len() {
+                    assert_eq!(
+                        actual.face(face).get(row, col),
+                        expected.face(face).get(row, col),
+                        "facelet mismatch on {face} at ({row}, {col})"
+                    );
+                }
+            }
+        }
+    }
+
     fn every_move_inverse_restores<S: FaceletArray>() {
         for n in 1..6 {
             for axis in [Axis::X, Axis::Y, Axis::Z] {
@@ -389,6 +435,14 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn exact_cube_storage_bytes<S: FaceletArray>(side_length: usize) -> usize {
+        side_length
+            .checked_mul(side_length)
+            .map(S::storage_bytes_for_len)
+            .and_then(|bytes_per_face| bytes_per_face.checked_mul(6))
+            .expect("test cube storage estimate overflowed usize")
     }
 
     #[test]
@@ -409,6 +463,48 @@ mod tests {
     #[test]
     fn inverse_restores_packed3_array() {
         every_move_inverse_restores::<Packed3Array>();
+    }
+
+    #[test]
+    fn cube_backends_agree_after_random_moves() {
+        let side_length = 6;
+        let moves = random_moves(side_length, 1_000, 0xC0DE_CAFE);
+
+        let mut byte = Cube::<ByteArray>::new_solved(side_length);
+        let mut base6 = Cube::<Base6Array>::new_solved(side_length);
+        let mut nibble = Cube::<NibbleArray>::new_solved(side_length);
+        let mut packed3 = Cube::<Packed3Array>::new_solved(side_length);
+
+        byte.apply_moves_untracked(moves.iter().copied());
+        base6.apply_moves_untracked(moves.iter().copied());
+        nibble.apply_moves_untracked(moves.iter().copied());
+        packed3.apply_moves_untracked(moves.iter().copied());
+
+        assert_cubes_match(&base6, &byte);
+        assert_cubes_match(&nibble, &byte);
+        assert_cubes_match(&packed3, &byte);
+    }
+
+    #[test]
+    fn cube_storage_estimates_are_exact() {
+        for side_length in [1usize, 2, 3, 4, 5, 8, 9, 10, 17] {
+            assert_eq!(
+                Cube::<ByteArray>::new_solved(side_length).estimated_storage_bytes(),
+                exact_cube_storage_bytes::<ByteArray>(side_length)
+            );
+            assert_eq!(
+                Cube::<Base6Array>::new_solved(side_length).estimated_storage_bytes(),
+                exact_cube_storage_bytes::<Base6Array>(side_length)
+            );
+            assert_eq!(
+                Cube::<NibbleArray>::new_solved(side_length).estimated_storage_bytes(),
+                exact_cube_storage_bytes::<NibbleArray>(side_length)
+            );
+            assert_eq!(
+                Cube::<Packed3Array>::new_solved(side_length).estimated_storage_bytes(),
+                exact_cube_storage_bytes::<Packed3Array>(side_length)
+            );
+        }
     }
 
     #[test]
