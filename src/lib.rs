@@ -19,4 +19,4 @@ pub use matrix::Matrix;
 pub use moves::{Axis, Move, MoveAngle};
 pub use random::{RandomSource, XorShift64};
 pub use solver::{MoveSequence, Solver};
-pub use storage::{Base6Array, ByteArray, FaceletArray, NibbleArray, Packed3Array};
+pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};

@@ -3,12 +3,12 @@ use crate::facelet::Facelet;
 use super::FaceletArray;
 
 #[derive(Clone, Debug, Default)]
-pub struct Packed3Array {
+pub struct ThreeBit {
     len: usize,
     words: Vec<u64>,
 }
 
-impl Packed3Array {
+impl ThreeBit {
     pub fn capacity_words(&self) -> usize {
         self.words.len()
     }
@@ -20,15 +20,15 @@ impl Packed3Array {
     fn bit_offset(index: usize) -> usize {
         index
             .checked_mul(3)
-            .expect("packed3 bit offset overflowed usize")
+            .expect("three_bit bit offset overflowed usize")
     }
 }
 
-impl FaceletArray for Packed3Array {
+impl FaceletArray for ThreeBit {
     fn with_len(len: usize, fill: Facelet) -> Self {
         let total_bits = len
             .checked_mul(3)
-            .expect("packed3 total bit length overflowed usize");
+            .expect("three_bit total bit length overflowed usize");
         let word_count = total_bits.div_ceil(64);
 
         let mut this = Self {
@@ -49,10 +49,10 @@ impl FaceletArray for Packed3Array {
 
     fn storage_bytes_for_len(len: usize) -> usize {
         len.checked_mul(3)
-            .expect("packed3 total bit length overflowed usize")
+            .expect("three_bit total bit length overflowed usize")
             .div_ceil(64)
             .checked_mul(8)
-            .expect("packed3 storage byte estimate overflowed usize")
+            .expect("three_bit storage byte estimate overflowed usize")
     }
 
     fn get(&self, index: usize) -> Facelet {

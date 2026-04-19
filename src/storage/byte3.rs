@@ -3,12 +3,12 @@ use crate::facelet::Facelet;
 use super::FaceletArray;
 
 #[derive(Clone, Debug, Default)]
-pub struct Base6Array {
+pub struct Byte3 {
     len: usize,
     data: Vec<u8>,
 }
 
-impl Base6Array {
+impl Byte3 {
     const FACELETS_PER_BYTE: usize = 3;
     const BASE: u8 = 6;
 
@@ -32,12 +32,12 @@ impl Base6Array {
             0 => 1,
             1 => Self::BASE,
             2 => Self::BASE * Self::BASE,
-            _ => unreachable!("base6 slot must be 0, 1, or 2"),
+            _ => unreachable!("byte3 slot must be 0, 1, or 2"),
         }
     }
 }
 
-impl FaceletArray for Base6Array {
+impl FaceletArray for Byte3 {
     fn with_len(len: usize, fill: Facelet) -> Self {
         let mut this = Self {
             len,

@@ -7,8 +7,7 @@ use std::{
 };
 
 use rubik::{
-    Axis, Base6Array, ByteArray, ColorScheme, Cube, Facelet, Move, MoveAngle, NibbleArray,
-    Packed3Array, XorShift64,
+    Axis, Byte, Byte3, ColorScheme, Cube, Facelet, Move, MoveAngle, Nibble, ThreeBit, XorShift64,
 };
 
 const DEFAULT_MEMORY_SIDE_LENGTH: usize = 10000;
@@ -16,31 +15,26 @@ const DEFAULT_RANDOM_MOVE_SIDE_LENGTH: usize = 5000;
 const DEFAULT_RANDOM_MOVE_COUNT: usize = 10_000;
 const DEFAULT_RANDOM_SEED: u64 = 0xC0BEE_CAFE_F00D;
 const METRIC_COLUMN_WIDTH: usize = 28;
-const STORAGE_COLUMN_WIDTH: usize = 12;
+const STORAGE_COLUMN_WIDTH: usize = 8;
 const STORAGE_KIND_COUNT: usize = 4;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum StorageKind {
     Byte,
-    BaseSixThreePerByte,
     Nibble,
-    PackedThreeBits,
+    ThreeBit,
+    Byte3,
 }
 
 impl StorageKind {
-    const ALL: [Self; STORAGE_KIND_COUNT] = [
-        Self::Byte,
-        Self::BaseSixThreePerByte,
-        Self::Nibble,
-        Self::PackedThreeBits,
-    ];
+    const ALL: [Self; STORAGE_KIND_COUNT] = [Self::Byte, Self::Nibble, Self::ThreeBit, Self::Byte3];
 
     fn as_str(self) -> &'static str {
         match self {
-            Self::Byte => "ByteArray",
-            Self::BaseSixThreePerByte => "Base6Array",
-            Self::Nibble => "NibbleArray",
-            Self::PackedThreeBits => "Packed3Array",
+            Self::Byte => "byte",
+            Self::Nibble => "nibble",
+            Self::ThreeBit => "3bit",
+            Self::Byte3 => "byte3",
         }
     }
 }
@@ -56,10 +50,10 @@ impl FromStr for StorageKind {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
-            "ByteArray" => Ok(Self::Byte),
-            "Base6Array" => Ok(Self::BaseSixThreePerByte),
-            "NibbleArray" => Ok(Self::Nibble),
-            "Packed3Array" => Ok(Self::PackedThreeBits),
+            "byte" => Ok(Self::Byte),
+            "nibble" => Ok(Self::Nibble),
+            "3bit" => Ok(Self::ThreeBit),
+            "byte3" => Ok(Self::Byte3),
             _ => Err(format!("unknown storage kind: {value}")),
         }
     }
@@ -208,10 +202,10 @@ fn run_memory_child() {
     let resident_memory_before = current_resident_set_size_bytes().unwrap_or(0);
     let start = Instant::now();
     let (resident_memory_after, peak_resident_memory, checksum) = match storage {
-        StorageKind::Byte => allocate_and_measure::<ByteArray>(side_length),
-        StorageKind::BaseSixThreePerByte => allocate_and_measure::<Base6Array>(side_length),
-        StorageKind::Nibble => allocate_and_measure::<NibbleArray>(side_length),
-        StorageKind::PackedThreeBits => allocate_and_measure::<Packed3Array>(side_length),
+        StorageKind::Byte => allocate_and_measure::<Byte>(side_length),
+        StorageKind::Nibble => allocate_and_measure::<Nibble>(side_length),
+        StorageKind::ThreeBit => allocate_and_measure::<ThreeBit>(side_length),
+        StorageKind::Byte3 => allocate_and_measure::<Byte3>(side_length),
     };
     let allocation_time = start.elapsed();
 
@@ -302,14 +296,10 @@ fn parse_memory_result(line: &str) -> MemoryResult {
 
 fn run_move_benchmark(storage: StorageKind, side_length: usize, moves: &[Move]) -> MoveResult {
     match storage {
-        StorageKind::Byte => run_move_benchmark_for::<ByteArray>(storage, side_length, moves),
-        StorageKind::BaseSixThreePerByte => {
-            run_move_benchmark_for::<Base6Array>(storage, side_length, moves)
-        }
-        StorageKind::Nibble => run_move_benchmark_for::<NibbleArray>(storage, side_length, moves),
-        StorageKind::PackedThreeBits => {
-            run_move_benchmark_for::<Packed3Array>(storage, side_length, moves)
-        }
+        StorageKind::Byte => run_move_benchmark_for::<Byte>(storage, side_length, moves),
+        StorageKind::Nibble => run_move_benchmark_for::<Nibble>(storage, side_length, moves),
+        StorageKind::ThreeBit => run_move_benchmark_for::<ThreeBit>(storage, side_length, moves),
+        StorageKind::Byte3 => run_move_benchmark_for::<Byte3>(storage, side_length, moves),
     }
 }
 
@@ -449,20 +439,20 @@ fn face_storage_bytes(storage: StorageKind, side_length: usize) -> usize {
         StorageKind::Byte => cells_per_face
             .checked_mul(6)
             .expect("byte storage size overflowed usize"),
-        StorageKind::BaseSixThreePerByte => cells_per_face
-            .div_ceil(3)
-            .checked_mul(6)
-            .expect("base six storage size overflowed usize"),
         StorageKind::Nibble => cells_per_face
             .div_ceil(2)
             .checked_mul(6)
             .expect("nibble storage size overflowed usize"),
-        StorageKind::PackedThreeBits => cells_per_face
+        StorageKind::ThreeBit => cells_per_face
             .checked_mul(3)
-            .expect("packed three bit count overflowed usize")
+            .expect("3bit storage bit count overflowed usize")
             .div_ceil(64)
             .checked_mul(8)
             .and_then(|bytes_per_face| bytes_per_face.checked_mul(6))
-            .expect("packed three storage size overflowed usize"),
+            .expect("3bit storage size overflowed usize"),
+        StorageKind::Byte3 => cells_per_face
+            .div_ceil(3)
+            .checked_mul(6)
+            .expect("byte3 storage size overflowed usize"),
     }
 }

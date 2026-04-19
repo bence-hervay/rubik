@@ -347,9 +347,7 @@ impl<S: FaceletArray> fmt::Display for Cube<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        Base6Array, ByteArray, FaceAngle, NibbleArray, Packed3Array, RandomSource, XorShift64,
-    };
+    use crate::{Byte, Byte3, FaceAngle, Nibble, RandomSource, ThreeBit, XorShift64};
 
     fn basic_singmaster_turn(side_length: usize, notation: &str) -> Move {
         let last = side_length - 1;
@@ -446,23 +444,23 @@ mod tests {
     }
 
     #[test]
-    fn inverse_restores_byte_array() {
-        every_move_inverse_restores::<ByteArray>();
+    fn inverse_restores_byte() {
+        every_move_inverse_restores::<Byte>();
     }
 
     #[test]
-    fn inverse_restores_base6_array() {
-        every_move_inverse_restores::<Base6Array>();
+    fn inverse_restores_byte3() {
+        every_move_inverse_restores::<Byte3>();
     }
 
     #[test]
-    fn inverse_restores_nibble_array() {
-        every_move_inverse_restores::<NibbleArray>();
+    fn inverse_restores_nibble() {
+        every_move_inverse_restores::<Nibble>();
     }
 
     #[test]
-    fn inverse_restores_packed3_array() {
-        every_move_inverse_restores::<Packed3Array>();
+    fn inverse_restores_three_bit() {
+        every_move_inverse_restores::<ThreeBit>();
     }
 
     #[test]
@@ -470,39 +468,39 @@ mod tests {
         let side_length = 6;
         let moves = random_moves(side_length, 1_000, 0xC0DE_CAFE);
 
-        let mut byte = Cube::<ByteArray>::new_solved(side_length);
-        let mut base6 = Cube::<Base6Array>::new_solved(side_length);
-        let mut nibble = Cube::<NibbleArray>::new_solved(side_length);
-        let mut packed3 = Cube::<Packed3Array>::new_solved(side_length);
+        let mut byte = Cube::<Byte>::new_solved(side_length);
+        let mut byte3 = Cube::<Byte3>::new_solved(side_length);
+        let mut nibble = Cube::<Nibble>::new_solved(side_length);
+        let mut three_bit = Cube::<ThreeBit>::new_solved(side_length);
 
         byte.apply_moves_untracked(moves.iter().copied());
-        base6.apply_moves_untracked(moves.iter().copied());
+        byte3.apply_moves_untracked(moves.iter().copied());
         nibble.apply_moves_untracked(moves.iter().copied());
-        packed3.apply_moves_untracked(moves.iter().copied());
+        three_bit.apply_moves_untracked(moves.iter().copied());
 
-        assert_cubes_match(&base6, &byte);
+        assert_cubes_match(&byte3, &byte);
         assert_cubes_match(&nibble, &byte);
-        assert_cubes_match(&packed3, &byte);
+        assert_cubes_match(&three_bit, &byte);
     }
 
     #[test]
     fn cube_storage_estimates_are_exact() {
         for side_length in [1usize, 2, 3, 4, 5, 8, 9, 10, 17] {
             assert_eq!(
-                Cube::<ByteArray>::new_solved(side_length).estimated_storage_bytes(),
-                exact_cube_storage_bytes::<ByteArray>(side_length)
+                Cube::<Byte>::new_solved(side_length).estimated_storage_bytes(),
+                exact_cube_storage_bytes::<Byte>(side_length)
             );
             assert_eq!(
-                Cube::<Base6Array>::new_solved(side_length).estimated_storage_bytes(),
-                exact_cube_storage_bytes::<Base6Array>(side_length)
+                Cube::<Byte3>::new_solved(side_length).estimated_storage_bytes(),
+                exact_cube_storage_bytes::<Byte3>(side_length)
             );
             assert_eq!(
-                Cube::<NibbleArray>::new_solved(side_length).estimated_storage_bytes(),
-                exact_cube_storage_bytes::<NibbleArray>(side_length)
+                Cube::<Nibble>::new_solved(side_length).estimated_storage_bytes(),
+                exact_cube_storage_bytes::<Nibble>(side_length)
             );
             assert_eq!(
-                Cube::<Packed3Array>::new_solved(side_length).estimated_storage_bytes(),
-                exact_cube_storage_bytes::<Packed3Array>(side_length)
+                Cube::<ThreeBit>::new_solved(side_length).estimated_storage_bytes(),
+                exact_cube_storage_bytes::<ThreeBit>(side_length)
             );
         }
     }
@@ -513,7 +511,7 @@ mod tests {
             for axis in [Axis::X, Axis::Y, Axis::Z] {
                 for depth in 0..n {
                     let mv = Move::new(axis, depth, MoveAngle::Positive);
-                    let mut cube = Cube::<ByteArray>::new_solved(n);
+                    let mut cube = Cube::<Byte>::new_solved(n);
                     for _ in 0..4 {
                         cube.apply_move_untracked(mv);
                     }
@@ -525,7 +523,7 @@ mod tests {
 
     #[test]
     fn tracked_moves_enter_history() {
-        let mut cube = Cube::<ByteArray>::new_solved(3);
+        let mut cube = Cube::<Byte>::new_solved(3);
         cube.apply_move(Move::new(Axis::Z, 2, MoveAngle::Positive));
         assert_eq!(cube.history().len(), 1);
     }
@@ -593,7 +591,7 @@ mod tests {
                 "{double} should be self-inverse"
             );
 
-            let mut cube = Cube::<ByteArray>::new_solved(side_length);
+            let mut cube = Cube::<Byte>::new_solved(side_length);
             cube.apply_move_untracked(turn_move);
             cube.apply_move_untracked(prime_move);
             assert!(
@@ -601,7 +599,7 @@ mod tests {
                 "{turn} followed by {prime} should restore"
             );
 
-            let mut cube = Cube::<ByteArray>::new_solved(side_length);
+            let mut cube = Cube::<Byte>::new_solved(side_length);
             cube.apply_move_untracked(double_move);
             cube.apply_move_untracked(double_move);
             assert!(cube.is_solved(), "{double} twice should restore");
@@ -610,7 +608,7 @@ mod tests {
 
     #[test]
     fn outer_face_rotation_tracks_move_angle_directly() {
-        let mut cube = Cube::<ByteArray>::new_solved(3);
+        let mut cube = Cube::<Byte>::new_solved(3);
 
         cube.apply_move_untracked(Move::new(Axis::Z, 2, MoveAngle::Positive));
         assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(1));
@@ -627,7 +625,7 @@ mod tests {
 
     #[test]
     fn face_rotation_accumulates_angles_modulo_four() {
-        let mut cube = Cube::<ByteArray>::new_solved(3);
+        let mut cube = Cube::<Byte>::new_solved(3);
 
         assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(0));
 
@@ -646,7 +644,7 @@ mod tests {
 
     #[test]
     fn net_uses_traditional_geometry() {
-        let cube = Cube::<ByteArray>::new_solved(2);
+        let cube = Cube::<Byte>::new_solved(2);
 
         assert_eq!(
             cube.net_string(),
@@ -666,7 +664,7 @@ mod tests {
 
     #[test]
     fn net_keeps_unfolded_face_orientations() {
-        let mut cube = Cube::<ByteArray>::new_solved(3);
+        let mut cube = Cube::<Byte>::new_solved(3);
 
         for row in 0..3 {
             for col in 0..3 {
@@ -706,7 +704,7 @@ mod tests {
 
     #[test]
     fn net_prints_full_small_faces() {
-        let cube = Cube::<ByteArray>::new_solved(4);
+        let cube = Cube::<Byte>::new_solved(4);
         let net = cube.net_string();
 
         assert!(!net.contains("..."));
@@ -716,7 +714,7 @@ mod tests {
 
     #[test]
     fn net_prints_full_large_faces_without_ellipsis_markers() {
-        let cube = Cube::<ByteArray>::new_solved(5);
+        let cube = Cube::<Byte>::new_solved(5);
         let net = cube.net_string();
 
         assert!(!net.contains("..."));

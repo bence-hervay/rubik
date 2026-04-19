@@ -1,13 +1,13 @@
-mod base6;
 mod byte;
+mod byte3;
 mod nibble;
-mod packed3;
+mod three_bit;
 mod traits;
 
-pub use base6::Base6Array;
-pub use byte::ByteArray;
-pub use nibble::NibbleArray;
-pub use packed3::Packed3Array;
+pub use byte::Byte;
+pub use byte3::Byte3;
+pub use nibble::Nibble;
+pub use three_bit::ThreeBit;
 pub use traits::FaceletArray;
 
 #[cfg(test)]
@@ -47,32 +47,32 @@ mod tests {
     }
 
     #[test]
-    fn byte_array_roundtrips() {
-        roundtrip::<ByteArray>();
+    fn byte_roundtrips() {
+        roundtrip::<Byte>();
     }
 
     #[test]
-    fn base6_array_roundtrips() {
-        roundtrip::<Base6Array>();
+    fn byte3_roundtrips() {
+        roundtrip::<Byte3>();
     }
 
     #[test]
-    fn base6_array_stores_three_facelets_per_byte() {
+    fn byte3_stores_three_facelets_per_byte() {
         for len in 0..16 {
-            let array = Base6Array::with_len(len, Facelet::White);
+            let array = Byte3::with_len(len, Facelet::White);
             assert_eq!(array.capacity_bytes(), len.div_ceil(3));
-            assert_eq!(Base6Array::storage_bytes_for_len(len), len.div_ceil(3));
+            assert_eq!(Byte3::storage_bytes_for_len(len), len.div_ceil(3));
         }
     }
 
     #[test]
-    fn nibble_array_roundtrips() {
-        roundtrip::<NibbleArray>();
+    fn nibble_roundtrips() {
+        roundtrip::<Nibble>();
     }
 
     #[test]
-    fn packed3_array_roundtrips() {
-        roundtrip::<Packed3Array>();
+    fn three_bit_roundtrips() {
+        roundtrip::<ThreeBit>();
     }
 
     #[test]
@@ -80,10 +80,10 @@ mod tests {
         let len = 257;
         let mut rng = XorShift64::new(0x51A7E_F00D);
         let mut reference = vec![Facelet::White; len];
-        let mut byte = ByteArray::with_len(len, Facelet::White);
-        let mut base6 = Base6Array::with_len(len, Facelet::White);
-        let mut nibble = NibbleArray::with_len(len, Facelet::White);
-        let mut packed3 = Packed3Array::with_len(len, Facelet::White);
+        let mut byte = Byte::with_len(len, Facelet::White);
+        let mut byte3 = Byte3::with_len(len, Facelet::White);
+        let mut nibble = Nibble::with_len(len, Facelet::White);
+        let mut three_bit = ThreeBit::with_len(len, Facelet::White);
 
         for _ in 0..10_000 {
             let index = (rng.next_u64() as usize) % len;
@@ -91,45 +91,39 @@ mod tests {
 
             reference[index] = value;
             byte.set(index, value);
-            base6.set(index, value);
+            byte3.set(index, value);
             nibble.set(index, value);
-            packed3.set(index, value);
+            three_bit.set(index, value);
         }
 
         assert_array_matches_reference(&byte, &reference);
-        assert_array_matches_reference(&base6, &reference);
+        assert_array_matches_reference(&byte3, &reference);
         assert_array_matches_reference(&nibble, &reference);
-        assert_array_matches_reference(&packed3, &reference);
+        assert_array_matches_reference(&three_bit, &reference);
     }
 
     #[test]
     fn storage_byte_estimates_are_exact() {
         for len in 0usize..200 {
-            assert_eq!(ByteArray::storage_bytes_for_len(len), len);
-            assert_eq!(Base6Array::storage_bytes_for_len(len), len.div_ceil(3));
-            assert_eq!(NibbleArray::storage_bytes_for_len(len), len.div_ceil(2));
+            assert_eq!(Byte::storage_bytes_for_len(len), len);
+            assert_eq!(Byte3::storage_bytes_for_len(len), len.div_ceil(3));
+            assert_eq!(Nibble::storage_bytes_for_len(len), len.div_ceil(2));
             assert_eq!(
-                Packed3Array::storage_bytes_for_len(len),
+                ThreeBit::storage_bytes_for_len(len),
                 len.checked_mul(3).unwrap().div_ceil(64) * 8
             );
 
-            let byte = ByteArray::with_len(len, Facelet::White);
-            let base6 = Base6Array::with_len(len, Facelet::White);
-            let nibble = NibbleArray::with_len(len, Facelet::White);
-            let packed3 = Packed3Array::with_len(len, Facelet::White);
+            let byte = Byte::with_len(len, Facelet::White);
+            let byte3 = Byte3::with_len(len, Facelet::White);
+            let nibble = Nibble::with_len(len, Facelet::White);
+            let three_bit = ThreeBit::with_len(len, Facelet::White);
 
-            assert_eq!(byte.as_slice().len(), ByteArray::storage_bytes_for_len(len));
+            assert_eq!(byte.as_slice().len(), Byte::storage_bytes_for_len(len));
+            assert_eq!(byte3.capacity_bytes(), Byte3::storage_bytes_for_len(len));
+            assert_eq!(nibble.capacity_bytes(), Nibble::storage_bytes_for_len(len));
             assert_eq!(
-                base6.capacity_bytes(),
-                Base6Array::storage_bytes_for_len(len)
-            );
-            assert_eq!(
-                nibble.capacity_bytes(),
-                NibbleArray::storage_bytes_for_len(len)
-            );
-            assert_eq!(
-                packed3.capacity_words() * core::mem::size_of::<u64>(),
-                Packed3Array::storage_bytes_for_len(len)
+                three_bit.capacity_words() * core::mem::size_of::<u64>(),
+                ThreeBit::storage_bytes_for_len(len)
             );
         }
     }

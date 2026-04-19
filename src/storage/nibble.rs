@@ -3,12 +3,12 @@ use crate::facelet::Facelet;
 use super::FaceletArray;
 
 #[derive(Clone, Debug, Default)]
-pub struct NibbleArray {
+pub struct Nibble {
     len: usize,
     data: Vec<u8>,
 }
 
-impl NibbleArray {
+impl Nibble {
     pub fn capacity_bytes(&self) -> usize {
         self.data.len()
     }
@@ -24,7 +24,7 @@ impl NibbleArray {
     }
 }
 
-impl FaceletArray for NibbleArray {
+impl FaceletArray for Nibble {
     fn with_len(len: usize, fill: Facelet) -> Self {
         let mut this = Self {
             len,

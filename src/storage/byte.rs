@@ -3,11 +3,11 @@ use crate::facelet::Facelet;
 use super::FaceletArray;
 
 #[derive(Clone, Debug, Default)]
-pub struct ByteArray {
+pub struct Byte {
     data: Vec<u8>,
 }
 
-impl ByteArray {
+impl Byte {
     pub fn as_slice(&self) -> &[u8] {
         &self.data
     }
@@ -17,7 +17,7 @@ impl ByteArray {
     }
 }
 
-impl FaceletArray for ByteArray {
+impl FaceletArray for Byte {
     fn with_len(len: usize, fill: Facelet) -> Self {
         Self {
             data: vec![fill.as_u8(); len],
