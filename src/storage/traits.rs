@@ -11,6 +11,16 @@ pub trait FaceletArray: Clone + core::fmt::Debug {
     where
         Self: Sized;
 
+    fn storage_bytes_for_len(len: usize) -> usize
+    where
+        Self: Sized,
+    {
+        len.checked_mul(Self::bits_per_facelet())
+            .and_then(|bits| bits.checked_add(7))
+            .map(|bits| bits / 8)
+            .expect("facelet storage byte estimate overflowed usize")
+    }
+
     fn is_empty(&self) -> bool {
         self.len() == 0
     }

@@ -195,15 +195,12 @@ impl<S: FaceletArray> Cube<S> {
     }
 
     pub fn estimated_storage_bytes(&self) -> usize {
-        let facelets = self
+        let cells_per_face = self
             .n
             .checked_mul(self.n)
-            .and_then(|cells| cells.checked_mul(6))
-            .expect("cube facelet count overflowed usize");
-        facelets
-            .checked_mul(S::bits_per_facelet())
-            .and_then(|bits| bits.checked_add(7))
-            .map(|bits| bits / 8)
+            .expect("cube face cell count overflowed usize");
+        S::storage_bytes_for_len(cells_per_face)
+            .checked_mul(6)
             .expect("cube storage estimate overflowed usize")
     }
 
@@ -350,7 +347,7 @@ impl<S: FaceletArray> fmt::Display for Cube<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ByteArray, FaceAngle, NibbleArray, Packed3Array};
+    use crate::{Base6Array, ByteArray, FaceAngle, NibbleArray, Packed3Array};
 
     fn basic_singmaster_turn(side_length: usize, notation: &str) -> Move {
         let last = side_length - 1;
@@ -397,6 +394,11 @@ mod tests {
     #[test]
     fn inverse_restores_byte_array() {
         every_move_inverse_restores::<ByteArray>();
+    }
+
+    #[test]
+    fn inverse_restores_base6_array() {
+        every_move_inverse_restores::<Base6Array>();
     }
 
     #[test]

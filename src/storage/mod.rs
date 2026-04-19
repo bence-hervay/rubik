@@ -1,8 +1,10 @@
+mod base6;
 mod byte;
 mod nibble;
 mod packed3;
 mod traits;
 
+pub use base6::Base6Array;
 pub use byte::ByteArray;
 pub use nibble::NibbleArray;
 pub use packed3::Packed3Array;
@@ -35,6 +37,20 @@ mod tests {
     #[test]
     fn byte_array_roundtrips() {
         roundtrip::<ByteArray>();
+    }
+
+    #[test]
+    fn base6_array_roundtrips() {
+        roundtrip::<Base6Array>();
+    }
+
+    #[test]
+    fn base6_array_stores_three_facelets_per_byte() {
+        for len in 0..16 {
+            let array = Base6Array::with_len(len, Facelet::White);
+            assert_eq!(array.capacity_bytes(), len.div_ceil(3));
+            assert_eq!(Base6Array::storage_bytes_for_len(len), len.div_ceil(3));
+        }
     }
 
     #[test]

@@ -47,6 +47,14 @@ impl FaceletArray for Packed3Array {
         3
     }
 
+    fn storage_bytes_for_len(len: usize) -> usize {
+        len.checked_mul(3)
+            .expect("packed3 total bit length overflowed usize")
+            .div_ceil(64)
+            .checked_mul(8)
+            .expect("packed3 storage byte estimate overflowed usize")
+    }
+
     fn get(&self, index: usize) -> Facelet {
         assert!(index < self.len);
 
