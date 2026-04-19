@@ -208,7 +208,13 @@ impl<S: FaceletArray> Face<S> {
         self.matrix.write_line_from(kind, index, reversed, src);
     }
 
-    pub fn read_line_into(&self, kind: LineKind, index: usize, reversed: bool, out: &mut LineBuffer) {
+    pub fn read_line_into(
+        &self,
+        kind: LineKind,
+        index: usize,
+        reversed: bool,
+        out: &mut LineBuffer,
+    ) {
         match kind {
             LineKind::Row => self.read_row_into(index, out),
             LineKind::Col => self.read_col_into(index, out),

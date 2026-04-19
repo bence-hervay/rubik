@@ -301,10 +301,7 @@ mod tests {
                         let mut cube = Cube::<S>::new_solved(n);
                         cube.apply_move_untracked(mv);
                         cube.apply_move_untracked(mv.inverse());
-                        assert!(
-                            cube.is_solved(),
-                            "inverse failed for n={n}, move={mv:?}"
-                        );
+                        assert!(cube.is_solved(), "inverse failed for n={n}, move={mv:?}");
                     }
                 }
             }

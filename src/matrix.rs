@@ -10,7 +10,9 @@ impl<S: FaceletArray> Matrix<S> {
     pub fn new_filled(n: usize, fill: Facelet) -> Self {
         assert!(n > 0, "matrix side length must be > 0");
 
-        let len = n.checked_mul(n).expect("matrix cell count overflowed usize");
+        let len = n
+            .checked_mul(n)
+            .expect("matrix cell count overflowed usize");
 
         Self {
             n,
@@ -20,7 +22,9 @@ impl<S: FaceletArray> Matrix<S> {
 
     pub fn from_storage(n: usize, data: S) -> Self {
         assert!(n > 0, "matrix side length must be > 0");
-        let len = n.checked_mul(n).expect("matrix cell count overflowed usize");
+        let len = n
+            .checked_mul(n)
+            .expect("matrix cell count overflowed usize");
         assert_eq!(len, data.len(), "storage length must equal n*n");
 
         Self { n, data }
