@@ -8,8 +8,8 @@ pub enum Facelet {
     Yellow = 1,
     Red = 2,
     Orange = 3,
-    Blue = 4,
-    Green = 5,
+    Green = 4,
+    Blue = 5,
 }
 
 impl Facelet {
@@ -18,8 +18,8 @@ impl Facelet {
         Self::Yellow,
         Self::Red,
         Self::Orange,
-        Self::Blue,
         Self::Green,
+        Self::Blue,
     ];
 
     pub const fn as_u8(self) -> u8 {
@@ -32,8 +32,8 @@ impl Facelet {
             1 => Self::Yellow,
             2 => Self::Red,
             3 => Self::Orange,
-            4 => Self::Blue,
-            5 => Self::Green,
+            4 => Self::Green,
+            5 => Self::Blue,
             _ => panic!("invalid facelet value {value}"),
         }
     }
@@ -44,8 +44,8 @@ impl Facelet {
             Self::Yellow => 'Y',
             Self::Red => 'R',
             Self::Orange => 'O',
-            Self::Blue => 'B',
             Self::Green => 'G',
+            Self::Blue => 'B',
         }
     }
 }
@@ -53,5 +53,30 @@ impl Facelet {
 impl fmt::Display for Facelet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_char())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Facelet;
+
+    #[test]
+    fn western_order_matches_face_id_order() {
+        assert_eq!(
+            Facelet::ALL,
+            [
+                Facelet::White,
+                Facelet::Yellow,
+                Facelet::Red,
+                Facelet::Orange,
+                Facelet::Green,
+                Facelet::Blue,
+            ]
+        );
+
+        for (index, facelet) in Facelet::ALL.iter().copied().enumerate() {
+            assert_eq!(Facelet::from_u8(index as u8), facelet);
+            assert_eq!(facelet.as_u8(), index as u8);
+        }
     }
 }
