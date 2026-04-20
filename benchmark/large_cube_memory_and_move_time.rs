@@ -7,19 +7,22 @@ use std::{
 };
 
 use rubik::{
-    line::cycle_four_line_arrays, Axis, Byte, Byte3, ColorScheme, Cube, Facelet, FaceletArray,
-    Move, MoveAngle, Nibble, ThreeBit, XorShift64,
+    line::{cycle_four_line_arrays, cycle_four_line_arrays_many_with_threads},
+    Axis, Byte, Byte3, ColorScheme, Cube, Facelet, FaceletArray, Move, MoveAngle, Nibble, ThreeBit,
+    XorShift64,
 };
 
 const DEFAULT_MEMORY_SIDE_LENGTH: usize = 10_000;
 const DEFAULT_RANDOM_MOVE_SIDE_LENGTH: usize = 10_000;
-const DEFAULT_RANDOM_MOVE_COUNT: usize = 5_000;
+const DEFAULT_RANDOM_MOVE_COUNT: usize = 1_000;
 const DEFAULT_SLICE_MOVE_SIDE_LENGTH: usize = 1_000_000;
 const DEFAULT_SLICE_MOVE_COUNT: usize = 100;
 const DEFAULT_RANDOM_SEED: u64 = 0xC0BEE_CAFE_F00D;
 const METRIC_COLUMN_WIDTH: usize = 28;
 const STORAGE_COLUMN_WIDTH: usize = 8;
 const STORAGE_KIND_COUNT: usize = 4;
+const PARALLEL_THREAD_COUNT_COUNT: usize = 5;
+const PARALLEL_THREAD_COUNTS: [usize; PARALLEL_THREAD_COUNT_COUNT] = [2, 4, 8, 16, 32];
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum StorageKind {
@@ -81,11 +84,23 @@ struct MoveResult {
 }
 
 #[derive(Copy, Clone, Debug)]
+struct MoveSpeedupResult {
+    baseline: MoveResult,
+    ratios: [f64; PARALLEL_THREAD_COUNT_COUNT],
+}
+
+#[derive(Copy, Clone, Debug)]
 struct SliceMoveResult {
     side_length: usize,
     move_count: usize,
     slice_storage_bytes: usize,
     elapsed: Duration,
+}
+
+#[derive(Copy, Clone, Debug)]
+struct SliceMoveSpeedupResult {
+    baseline: SliceMoveResult,
+    ratios: [f64; PARALLEL_THREAD_COUNT_COUNT],
 }
 
 fn main() {
@@ -169,44 +184,10 @@ fn main() {
 
         let moves = generate_moves(random_move_side_length, random_move_count, random_seed);
         let move_results = StorageKind::ALL
-            .map(|storage| run_move_benchmark(storage, random_move_side_length, &moves));
+            .map(|storage| run_move_speedup_benchmark(storage, random_move_side_length, &moves));
 
         print_table_header();
-        print_table_row(
-            "side_length",
-            move_results.map(|result| result.side_length.to_string()),
-        );
-        print_table_row(
-            "move_count",
-            move_results.map(|result| result.move_count.to_string()),
-        );
-        print_table_row(
-            "face_storage",
-            move_results.map(|result| format_bytes(result.face_storage_bytes)),
-        );
-        print_table_row(
-            "elapsed_milliseconds",
-            move_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
-        );
-        print_table_row(
-            "moves_per_second",
-            move_results.map(|result| {
-                format!("{:.1}", moves_per_second(result.move_count, result.elapsed))
-            }),
-        );
-        print_table_row(
-            "ns_per_line_cell",
-            move_results.map(|result| {
-                format!(
-                    "{:.3}",
-                    nanoseconds_per_line_cell(
-                        result.side_length,
-                        result.move_count,
-                        result.elapsed
-                    )
-                )
-            }),
-        );
+        print_move_speedup_results(move_results);
     }
 
     println!();
@@ -214,39 +195,10 @@ fn main() {
 
     let angles = generate_angles(slice_move_count, random_seed);
     let slice_move_results = StorageKind::ALL
-        .map(|storage| run_slice_move_benchmark(storage, slice_move_side_length, &angles));
+        .map(|storage| run_slice_move_speedup_benchmark(storage, slice_move_side_length, &angles));
 
     print_table_header();
-    print_table_row(
-        "side_length",
-        slice_move_results.map(|result| result.side_length.to_string()),
-    );
-    print_table_row(
-        "move_count",
-        slice_move_results.map(|result| result.move_count.to_string()),
-    );
-    print_table_row(
-        "linear_storage",
-        slice_move_results.map(|result| format_bytes(result.slice_storage_bytes)),
-    );
-    print_table_row(
-        "elapsed_milliseconds",
-        slice_move_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
-    );
-    print_table_row(
-        "moves_per_second",
-        slice_move_results
-            .map(|result| format!("{:.1}", moves_per_second(result.move_count, result.elapsed))),
-    );
-    print_table_row(
-        "ns_per_line_cell",
-        slice_move_results.map(|result| {
-            format!(
-                "{:.3}",
-                nanoseconds_per_line_cell(result.side_length, result.move_count, result.elapsed)
-            )
-        }),
-    );
+    print_slice_move_speedup_results(slice_move_results);
 }
 
 fn print_table_header() {
@@ -271,6 +223,90 @@ fn print_table_row(metric: &str, values: [String; STORAGE_KIND_COUNT]) {
         print!(" | {:>width$}", value, width = STORAGE_COLUMN_WIDTH);
     }
     println!();
+}
+
+fn print_move_speedup_results(results: [MoveSpeedupResult; STORAGE_KIND_COUNT]) {
+    let baseline_results = results.map(|result| result.baseline);
+
+    print_table_row(
+        "side_length",
+        baseline_results.map(|result| result.side_length.to_string()),
+    );
+    print_table_row(
+        "move_count",
+        baseline_results.map(|result| result.move_count.to_string()),
+    );
+    print_table_row(
+        "face_storage",
+        baseline_results.map(|result| format_bytes(result.face_storage_bytes)),
+    );
+    print_table_row(
+        "elapsed_milliseconds",
+        baseline_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
+    );
+    print_table_row(
+        "moves_per_second",
+        baseline_results
+            .map(|result| format!("{:.1}", moves_per_second(result.move_count, result.elapsed))),
+    );
+    print_table_row(
+        "ns_per_line_cell",
+        baseline_results.map(|result| {
+            format!(
+                "{:.3}",
+                nanoseconds_per_line_cell(result.side_length, result.move_count, result.elapsed)
+            )
+        }),
+    );
+
+    print_speedup_rows(results.map(|result| result.ratios));
+}
+
+fn print_slice_move_speedup_results(results: [SliceMoveSpeedupResult; STORAGE_KIND_COUNT]) {
+    let baseline_results = results.map(|result| result.baseline);
+
+    print_table_row(
+        "side_length",
+        baseline_results.map(|result| result.side_length.to_string()),
+    );
+    print_table_row(
+        "move_count",
+        baseline_results.map(|result| result.move_count.to_string()),
+    );
+    print_table_row(
+        "linear_storage",
+        baseline_results.map(|result| format_bytes(result.slice_storage_bytes)),
+    );
+    print_table_row(
+        "elapsed_milliseconds",
+        baseline_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
+    );
+    print_table_row(
+        "moves_per_second",
+        baseline_results
+            .map(|result| format!("{:.1}", moves_per_second(result.move_count, result.elapsed))),
+    );
+    print_table_row(
+        "ns_per_line_cell",
+        baseline_results.map(|result| {
+            format!(
+                "{:.3}",
+                nanoseconds_per_line_cell(result.side_length, result.move_count, result.elapsed)
+            )
+        }),
+    );
+
+    print_speedup_rows(results.map(|result| result.ratios));
+}
+
+fn print_speedup_rows(ratios: [[f64; PARALLEL_THREAD_COUNT_COUNT]; STORAGE_KIND_COUNT]) {
+    for (ratio_index, thread_count) in PARALLEL_THREAD_COUNTS.iter().copied().enumerate() {
+        let label = format!("{thread_count}_threads_speedup");
+        print_table_row(
+            &label,
+            ratios.map(|storage_ratios| format!("{:.3}", storage_ratios[ratio_index])),
+        );
+    }
 }
 
 fn run_memory_child() {
@@ -378,12 +414,39 @@ fn parse_memory_result(line: &str) -> MemoryResult {
     }
 }
 
-fn run_move_benchmark(storage: StorageKind, side_length: usize, moves: &[Move]) -> MoveResult {
+fn run_move_speedup_benchmark(
+    storage: StorageKind,
+    side_length: usize,
+    moves: &[Move],
+) -> MoveSpeedupResult {
+    let baseline = run_move_benchmark(storage, side_length, moves, 1);
+    let ratios = PARALLEL_THREAD_COUNTS.map(|thread_count| {
+        let result = run_move_benchmark(storage, side_length, moves, thread_count);
+        speedup_ratio(baseline.elapsed, result.elapsed)
+    });
+
+    MoveSpeedupResult { baseline, ratios }
+}
+
+fn run_move_benchmark(
+    storage: StorageKind,
+    side_length: usize,
+    moves: &[Move],
+    thread_count: usize,
+) -> MoveResult {
     match storage {
-        StorageKind::Byte => run_move_benchmark_for::<Byte>(storage, side_length, moves),
-        StorageKind::Nibble => run_move_benchmark_for::<Nibble>(storage, side_length, moves),
-        StorageKind::ThreeBit => run_move_benchmark_for::<ThreeBit>(storage, side_length, moves),
-        StorageKind::Byte3 => run_move_benchmark_for::<Byte3>(storage, side_length, moves),
+        StorageKind::Byte => {
+            run_move_benchmark_for::<Byte>(storage, side_length, moves, thread_count)
+        }
+        StorageKind::Nibble => {
+            run_move_benchmark_for::<Nibble>(storage, side_length, moves, thread_count)
+        }
+        StorageKind::ThreeBit => {
+            run_move_benchmark_for::<ThreeBit>(storage, side_length, moves, thread_count)
+        }
+        StorageKind::Byte3 => {
+            run_move_benchmark_for::<Byte3>(storage, side_length, moves, thread_count)
+        }
     }
 }
 
@@ -391,13 +454,21 @@ fn run_move_benchmark_for<S: rubik::FaceletArray>(
     storage: StorageKind,
     side_length: usize,
     moves: &[Move],
+    thread_count: usize,
 ) -> MoveResult {
     let mut cube = Cube::<S>::new_solved(side_length);
     let face_storage_bytes = face_storage_bytes(storage, side_length);
 
     let start = Instant::now();
-    for mv in moves.iter().copied() {
-        cube.apply_move_untracked(black_box(mv));
+    if thread_count == 1 {
+        for mv in moves.iter().copied() {
+            cube.apply_move_untracked(black_box(mv));
+        }
+    } else {
+        cube.apply_moves_untracked_with_threads(
+            moves.iter().copied().map(|mv| black_box(mv)),
+            thread_count,
+        );
     }
     let elapsed = start.elapsed();
 
@@ -411,18 +482,39 @@ fn run_move_benchmark_for<S: rubik::FaceletArray>(
     }
 }
 
+fn run_slice_move_speedup_benchmark(
+    storage: StorageKind,
+    side_length: usize,
+    angles: &[MoveAngle],
+) -> SliceMoveSpeedupResult {
+    let baseline = run_slice_move_benchmark(storage, side_length, angles, 1);
+    let ratios = PARALLEL_THREAD_COUNTS.map(|thread_count| {
+        let result = run_slice_move_benchmark(storage, side_length, angles, thread_count);
+        speedup_ratio(baseline.elapsed, result.elapsed)
+    });
+
+    SliceMoveSpeedupResult { baseline, ratios }
+}
+
 fn run_slice_move_benchmark(
     storage: StorageKind,
     side_length: usize,
     angles: &[MoveAngle],
+    thread_count: usize,
 ) -> SliceMoveResult {
     match storage {
-        StorageKind::Byte => run_slice_move_benchmark_for::<Byte>(storage, side_length, angles),
-        StorageKind::Nibble => run_slice_move_benchmark_for::<Nibble>(storage, side_length, angles),
-        StorageKind::ThreeBit => {
-            run_slice_move_benchmark_for::<ThreeBit>(storage, side_length, angles)
+        StorageKind::Byte => {
+            run_slice_move_benchmark_for::<Byte>(storage, side_length, angles, thread_count)
         }
-        StorageKind::Byte3 => run_slice_move_benchmark_for::<Byte3>(storage, side_length, angles),
+        StorageKind::Nibble => {
+            run_slice_move_benchmark_for::<Nibble>(storage, side_length, angles, thread_count)
+        }
+        StorageKind::ThreeBit => {
+            run_slice_move_benchmark_for::<ThreeBit>(storage, side_length, angles, thread_count)
+        }
+        StorageKind::Byte3 => {
+            run_slice_move_benchmark_for::<Byte3>(storage, side_length, angles, thread_count)
+        }
     }
 }
 
@@ -430,6 +522,7 @@ fn run_slice_move_benchmark_for<S: rubik::FaceletArray>(
     storage: StorageKind,
     side_length: usize,
     angles: &[MoveAngle],
+    thread_count: usize,
 ) -> SliceMoveResult {
     let mut line0 = patterned_line::<S>(side_length, 0);
     let mut line1 = patterned_line::<S>(side_length, 1);
@@ -438,13 +531,24 @@ fn run_slice_move_benchmark_for<S: rubik::FaceletArray>(
     let slice_storage_bytes = line_storage_bytes(storage, side_length);
 
     let start = Instant::now();
-    for angle in angles.iter().copied() {
-        cycle_four_line_arrays(
+    if thread_count == 1 {
+        for angle in angles.iter().copied() {
+            cycle_four_line_arrays(
+                &mut line0,
+                &mut line1,
+                &mut line2,
+                &mut line3,
+                black_box(angle),
+            );
+        }
+    } else {
+        cycle_four_line_arrays_many_with_threads(
             &mut line0,
             &mut line1,
             &mut line2,
             &mut line3,
-            black_box(angle),
+            angles.iter().copied().map(|angle| black_box(angle)),
+            thread_count,
         );
     }
     let elapsed = start.elapsed();
@@ -600,6 +704,10 @@ fn format_bytes(bytes: usize) -> String {
 
 fn milliseconds(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000.0
+}
+
+fn speedup_ratio(baseline: Duration, elapsed: Duration) -> f64 {
+    baseline.as_secs_f64() / elapsed.as_secs_f64()
 }
 
 fn moves_per_second(moves: usize, duration: Duration) -> f64 {

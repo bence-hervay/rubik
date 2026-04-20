@@ -1,6 +1,6 @@
 use crate::facelet::Facelet;
 
-use super::FaceletArray;
+use super::{FaceletArray, StoragePtr};
 
 #[derive(Clone, Debug, Default)]
 pub struct Nibble {
@@ -26,6 +26,8 @@ impl Nibble {
 }
 
 impl FaceletArray for Nibble {
+    type RawStorage = StoragePtr<u8>;
+
     fn with_len(len: usize, fill: Facelet) -> Self {
         let mut this = Self {
             len,
@@ -59,6 +61,15 @@ impl FaceletArray for Nibble {
         self.data[byte] = (self.data[byte] & clear_mask) | (value.as_u8() << shift);
     }
 
+    fn storage_unit_range(index: usize) -> (usize, usize) {
+        let (byte, _) = Self::byte_and_shift(index);
+        (byte, byte)
+    }
+
+    fn raw_storage(&mut self) -> Self::RawStorage {
+        StoragePtr::new(self.data.as_mut_ptr())
+    }
+
     #[inline(always)]
     unsafe fn get_unchecked_raw(&self, index: usize) -> u8 {
         let (byte, shift) = Self::byte_and_shift(index);
@@ -69,6 +80,20 @@ impl FaceletArray for Nibble {
     unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
         let (byte, shift) = Self::byte_and_shift(index);
         let slot = self.data.get_unchecked_mut(byte);
+        let clear_mask = !(0x0Fu8 << shift);
+        *slot = (*slot & clear_mask) | (value << shift);
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked_raw_from(storage: Self::RawStorage, index: usize) -> u8 {
+        let (byte, shift) = Self::byte_and_shift(index);
+        (*storage.ptr().add(byte) >> shift) & 0x0F
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked_raw_in(storage: Self::RawStorage, index: usize, value: u8) {
+        let (byte, shift) = Self::byte_and_shift(index);
+        let slot = storage.ptr().add(byte);
         let clear_mask = !(0x0Fu8 << shift);
         *slot = (*slot & clear_mask) | (value << shift);
     }

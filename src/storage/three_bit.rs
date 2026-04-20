@@ -1,6 +1,6 @@
 use crate::facelet::Facelet;
 
-use super::FaceletArray;
+use super::{FaceletArray, StoragePtr};
 
 #[derive(Clone, Debug, Default)]
 pub struct ThreeBit {
@@ -31,6 +31,8 @@ impl ThreeBit {
 }
 
 impl FaceletArray for ThreeBit {
+    type RawStorage = StoragePtr<u64>;
+
     fn with_len(len: usize, fill: Facelet) -> Self {
         let total_bits = len
             .checked_mul(3)
@@ -105,6 +107,22 @@ impl FaceletArray for ThreeBit {
         }
     }
 
+    fn storage_unit_range(index: usize) -> (usize, usize) {
+        let bit = Self::bit_offset_unchecked(index);
+        let word = bit / 64;
+        let shift = bit % 64;
+
+        if shift <= 61 {
+            (word, word)
+        } else {
+            (word, word + 1)
+        }
+    }
+
+    fn raw_storage(&mut self) -> Self::RawStorage {
+        StoragePtr::new(self.words.as_mut_ptr())
+    }
+
     #[inline(always)]
     unsafe fn get_unchecked_raw(&self, index: usize) -> u8 {
         let bit = Self::bit_offset_unchecked(index);
@@ -146,6 +164,53 @@ impl FaceletArray for ThreeBit {
             let high_part_mask = (1u64 << high_bits) - 1;
             let high_mask = !high_part_mask;
             let high_slot = self.words.get_unchecked_mut(word + 1);
+            *high_slot = (*high_slot & high_mask) | (raw >> low_bits);
+        }
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked_raw_from(storage: Self::RawStorage, index: usize) -> u8 {
+        let bit = Self::bit_offset_unchecked(index);
+        let word = bit / 64;
+        let shift = bit % 64;
+        let words = storage.ptr();
+
+        let raw = if shift <= 61 {
+            (*words.add(word) >> shift) & 0b111
+        } else {
+            let low = *words.add(word) >> shift;
+            let high_bits = shift + 3 - 64;
+            let high = *words.add(word + 1) & ((1u64 << high_bits) - 1);
+            low | (high << (64 - shift))
+        };
+
+        raw as u8
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked_raw_in(storage: Self::RawStorage, index: usize, value: u8) {
+        let bit = Self::bit_offset_unchecked(index);
+        let word = bit / 64;
+        let shift = bit % 64;
+        let raw = (value & 0b111) as u64;
+        let words = storage.ptr();
+
+        if shift <= 61 {
+            let slot = words.add(word);
+            let mask = !(0b111u64 << shift);
+            *slot = (*slot & mask) | (raw << shift);
+        } else {
+            let low_bits = 64 - shift;
+            let high_bits = 3 - low_bits;
+
+            let low_part_mask = (1u64 << low_bits) - 1;
+            let low_mask = !(low_part_mask << shift);
+            let low_slot = words.add(word);
+            *low_slot = (*low_slot & low_mask) | ((raw & low_part_mask) << shift);
+
+            let high_part_mask = (1u64 << high_bits) - 1;
+            let high_mask = !high_part_mask;
+            let high_slot = words.add(word + 1);
             *high_slot = (*high_slot & high_mask) | (raw >> low_bits);
         }
     }

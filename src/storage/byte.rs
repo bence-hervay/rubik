@@ -1,6 +1,6 @@
 use crate::facelet::Facelet;
 
-use super::FaceletArray;
+use super::{FaceletArray, StoragePtr};
 
 #[derive(Clone, Debug, Default)]
 pub struct Byte {
@@ -18,6 +18,8 @@ impl Byte {
 }
 
 impl FaceletArray for Byte {
+    type RawStorage = StoragePtr<u8>;
+
     fn with_len(len: usize, fill: Facelet) -> Self {
         Self {
             data: vec![fill.as_u8(); len],
@@ -40,6 +42,14 @@ impl FaceletArray for Byte {
         self.data[index] = value.as_u8();
     }
 
+    fn storage_unit_range(index: usize) -> (usize, usize) {
+        (index, index)
+    }
+
+    fn raw_storage(&mut self) -> Self::RawStorage {
+        StoragePtr::new(self.data.as_mut_ptr())
+    }
+
     #[inline(always)]
     unsafe fn get_unchecked_raw(&self, index: usize) -> u8 {
         *self.data.get_unchecked(index)
@@ -48,6 +58,16 @@ impl FaceletArray for Byte {
     #[inline(always)]
     unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
         *self.data.get_unchecked_mut(index) = value;
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked_raw_from(storage: Self::RawStorage, index: usize) -> u8 {
+        *storage.ptr().add(index)
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked_raw_in(storage: Self::RawStorage, index: usize, value: u8) {
+        *storage.ptr().add(index) = value;
     }
 
     #[inline(always)]

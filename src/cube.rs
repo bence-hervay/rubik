@@ -6,7 +6,10 @@ use crate::{
     facelet::Facelet,
     geometry,
     history::MoveHistory,
-    line::{cycle_four_lines, StripSpec},
+    line::{
+        cycle_four_lines, cycle_four_lines_with_threads, with_line_cycle_runner, LineCycleRunner,
+        StripSpec,
+    },
     moves::{Axis, Move, MoveAngle},
     random::RandomSource,
     storage::FaceletArray,
@@ -106,11 +109,30 @@ impl<S: FaceletArray> Cube<S> {
         self.history.push(mv);
     }
 
+    pub fn apply_move_with_threads(&mut self, mv: Move, thread_count: usize) {
+        self.apply_move_untracked_with_threads(mv, thread_count);
+        self.history.push(mv);
+    }
+
     pub fn apply_move_untracked(&mut self, mv: Move) {
         self.validate_move(mv);
         let specs = self.plan_move(mv);
         self.rotate_outer_face_meta(mv);
         self.apply_side_cycle(specs, mv.angle);
+    }
+
+    pub fn apply_move_untracked_with_threads(&mut self, mv: Move, thread_count: usize) {
+        assert!(thread_count > 0, "thread count must be greater than zero");
+
+        if thread_count == 1 {
+            self.apply_move_untracked(mv);
+            return;
+        }
+
+        self.validate_move(mv);
+        let specs = self.plan_move(mv);
+        self.rotate_outer_face_meta(mv);
+        self.apply_side_cycle_with_threads(specs, mv.angle, thread_count);
     }
 
     pub fn apply_moves<I>(&mut self, moves: I)
@@ -129,6 +151,26 @@ impl<S: FaceletArray> Cube<S> {
         for mv in moves {
             self.apply_move_untracked(mv);
         }
+    }
+
+    pub fn apply_moves_untracked_with_threads<I>(&mut self, moves: I, thread_count: usize)
+    where
+        I: IntoIterator<Item = Move>,
+    {
+        assert!(thread_count > 0, "thread count must be greater than zero");
+
+        if thread_count == 1 {
+            for mv in moves {
+                self.apply_move_untracked(mv);
+            }
+            return;
+        }
+
+        with_line_cycle_runner::<S, _, _>(self.n, thread_count, |runner| {
+            for mv in moves {
+                self.apply_move_untracked_with_runner(mv, runner);
+            }
+        });
     }
 
     pub fn plan_move(&self, mv: Move) -> [StripSpec; 4] {
@@ -324,6 +366,115 @@ impl<S: FaceletArray> Cube<S> {
             angle,
         );
     }
+
+    #[inline]
+    fn apply_side_cycle_with_threads(
+        &mut self,
+        specs: [StripSpec; 4],
+        angle: MoveAngle,
+        thread_count: usize,
+    ) {
+        let traversals = [
+            self.faces[specs[0].face.index()].line_traversal(
+                specs[0].kind,
+                specs[0].index,
+                specs[0].reversed,
+            ),
+            self.faces[specs[1].face.index()].line_traversal(
+                specs[1].kind,
+                specs[1].index,
+                specs[1].reversed,
+            ),
+            self.faces[specs[2].face.index()].line_traversal(
+                specs[2].kind,
+                specs[2].index,
+                specs[2].reversed,
+            ),
+            self.faces[specs[3].face.index()].line_traversal(
+                specs[3].kind,
+                specs[3].index,
+                specs[3].reversed,
+            ),
+        ];
+        let face_indices = [
+            specs[0].face.index(),
+            specs[1].face.index(),
+            specs[2].face.index(),
+            specs[3].face.index(),
+        ];
+        let (face0, face1, face2, face3) = faces4_mut(&mut self.faces, face_indices);
+
+        cycle_four_lines_with_threads(
+            face0.matrix_mut().storage_mut(),
+            traversals[0],
+            face1.matrix_mut().storage_mut(),
+            traversals[1],
+            face2.matrix_mut().storage_mut(),
+            traversals[2],
+            face3.matrix_mut().storage_mut(),
+            traversals[3],
+            self.n,
+            angle,
+            thread_count,
+        );
+    }
+
+    fn apply_move_untracked_with_runner(&mut self, mv: Move, runner: &mut LineCycleRunner<'_, S>) {
+        self.validate_move(mv);
+        let specs = self.plan_move(mv);
+        self.rotate_outer_face_meta(mv);
+        self.apply_side_cycle_with_runner(specs, mv.angle, runner);
+    }
+
+    #[inline]
+    fn apply_side_cycle_with_runner(
+        &mut self,
+        specs: [StripSpec; 4],
+        angle: MoveAngle,
+        runner: &mut LineCycleRunner<'_, S>,
+    ) {
+        let traversals = [
+            self.faces[specs[0].face.index()].line_traversal(
+                specs[0].kind,
+                specs[0].index,
+                specs[0].reversed,
+            ),
+            self.faces[specs[1].face.index()].line_traversal(
+                specs[1].kind,
+                specs[1].index,
+                specs[1].reversed,
+            ),
+            self.faces[specs[2].face.index()].line_traversal(
+                specs[2].kind,
+                specs[2].index,
+                specs[2].reversed,
+            ),
+            self.faces[specs[3].face.index()].line_traversal(
+                specs[3].kind,
+                specs[3].index,
+                specs[3].reversed,
+            ),
+        ];
+        let face_indices = [
+            specs[0].face.index(),
+            specs[1].face.index(),
+            specs[2].face.index(),
+            specs[3].face.index(),
+        ];
+        let (face0, face1, face2, face3) = faces4_mut(&mut self.faces, face_indices);
+
+        runner.cycle(
+            face0.matrix_mut().storage_mut(),
+            traversals[0],
+            face1.matrix_mut().storage_mut(),
+            traversals[1],
+            face2.matrix_mut().storage_mut(),
+            traversals[2],
+            face3.matrix_mut().storage_mut(),
+            traversals[3],
+            angle,
+        );
+    }
 }
 
 #[inline]
@@ -450,6 +601,21 @@ mod tests {
         }
     }
 
+    fn threaded_moves_match_linear<S: FaceletArray>() {
+        let side_length = 65;
+        let moves = random_moves(side_length, 12, 0x7A11_DA7A);
+        let mut expected = Cube::<S>::new_solved(side_length);
+
+        expected.apply_moves_untracked(moves.iter().copied());
+
+        for thread_count in [1usize, 2, 4, 16] {
+            let mut actual = Cube::<S>::new_solved(side_length);
+            actual.apply_moves_untracked_with_threads(moves.iter().copied(), thread_count);
+
+            assert_cubes_match(&actual, &expected);
+        }
+    }
+
     fn every_move_inverse_restores<S: FaceletArray>() {
         for n in 1..6 {
             for axis in [Axis::X, Axis::Y, Axis::Z] {
@@ -512,6 +678,26 @@ mod tests {
         assert_cubes_match(&byte3, &byte);
         assert_cubes_match(&nibble, &byte);
         assert_cubes_match(&three_bit, &byte);
+    }
+
+    #[test]
+    fn threaded_byte_moves_match_linear() {
+        threaded_moves_match_linear::<Byte>();
+    }
+
+    #[test]
+    fn threaded_nibble_moves_match_linear() {
+        threaded_moves_match_linear::<Nibble>();
+    }
+
+    #[test]
+    fn threaded_three_bit_moves_match_linear() {
+        threaded_moves_match_linear::<ThreeBit>();
+    }
+
+    #[test]
+    fn threaded_byte3_moves_match_linear() {
+        threaded_moves_match_linear::<Byte3>();
     }
 
     #[test]

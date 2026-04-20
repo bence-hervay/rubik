@@ -8,7 +8,7 @@ pub use byte::Byte;
 pub use byte3::Byte3;
 pub use nibble::Nibble;
 pub use three_bit::ThreeBit;
-pub use traits::FaceletArray;
+pub use traits::{FaceletArray, StoragePtr};
 
 #[cfg(test)]
 mod tests {

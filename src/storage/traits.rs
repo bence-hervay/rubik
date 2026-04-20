@@ -1,6 +1,9 @@
 use crate::facelet::Facelet;
 
-pub trait FaceletArray: Clone + core::fmt::Debug {
+pub trait FaceletArray: Clone + core::fmt::Debug + Send {
+    /// Backend-specific raw storage handle used by chunked threaded moves.
+    type RawStorage: Copy + Send;
+
     fn with_len(len: usize, fill: Facelet) -> Self
     where
         Self: Sized;
@@ -29,6 +32,16 @@ pub trait FaceletArray: Clone + core::fmt::Debug {
 
     fn set(&mut self, index: usize, value: Facelet);
 
+    /// Inclusive range of raw storage units touched by reading or writing one
+    /// facelet. Packed backends return the packed byte/word containing `index`.
+    fn storage_unit_range(index: usize) -> (usize, usize)
+    where
+        Self: Sized;
+
+    /// Raw handle to the backing storage. Threaded moves use this only after
+    /// splitting line chunks on storage-unit boundaries.
+    fn raw_storage(&mut self) -> Self::RawStorage;
+
     /// # Safety
     ///
     /// `index` must be in bounds for this storage.
@@ -44,6 +57,22 @@ pub trait FaceletArray: Clone + core::fmt::Debug {
     unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
         self.set(index, Facelet::from_u8(value));
     }
+
+    /// # Safety
+    ///
+    /// `index` must be in bounds for the storage used to create `storage`.
+    unsafe fn get_unchecked_raw_from(storage: Self::RawStorage, index: usize) -> u8
+    where
+        Self: Sized;
+
+    /// # Safety
+    ///
+    /// `index` must be in bounds for the storage used to create `storage`, and
+    /// `value` must encode a valid facelet. Concurrent callers must operate on
+    /// storage-safe disjoint chunks.
+    unsafe fn set_unchecked_raw_in(storage: Self::RawStorage, index: usize, value: u8)
+    where
+        Self: Sized;
 
     /// # Safety
     ///
@@ -90,5 +119,30 @@ pub trait FaceletArray: Clone + core::fmt::Debug {
         for (offset, value) in src.iter().copied().enumerate() {
             self.set(start + offset, value);
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct StoragePtr<T> {
+    ptr: *mut T,
+}
+
+impl<T> Copy for StoragePtr<T> {}
+
+impl<T> Clone for StoragePtr<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+unsafe impl<T> Send for StoragePtr<T> {}
+
+impl<T> StoragePtr<T> {
+    pub(crate) fn new(ptr: *mut T) -> Self {
+        Self { ptr }
+    }
+
+    pub(crate) fn ptr(self) -> *mut T {
+        self.ptr
     }
 }

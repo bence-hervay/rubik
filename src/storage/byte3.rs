@@ -1,6 +1,6 @@
 use crate::facelet::Facelet;
 
-use super::FaceletArray;
+use super::{FaceletArray, StoragePtr};
 
 #[derive(Clone, Debug, Default)]
 pub struct Byte3 {
@@ -50,6 +50,8 @@ impl Byte3 {
 }
 
 impl FaceletArray for Byte3 {
+    type RawStorage = StoragePtr<u8>;
+
     fn with_len(len: usize, fill: Facelet) -> Self {
         let mut this = Self {
             len,
@@ -92,6 +94,15 @@ impl FaceletArray for Byte3 {
         Self::replace_slot(&mut self.data[byte], slot, value.as_u8());
     }
 
+    fn storage_unit_range(index: usize) -> (usize, usize) {
+        let (byte, _) = Self::byte_and_slot(index);
+        (byte, byte)
+    }
+
+    fn raw_storage(&mut self) -> Self::RawStorage {
+        StoragePtr::new(self.data.as_mut_ptr())
+    }
+
     #[inline(always)]
     unsafe fn get_unchecked_raw(&self, index: usize) -> u8 {
         let (byte, slot) = Self::byte_and_slot(index);
@@ -108,6 +119,25 @@ impl FaceletArray for Byte3 {
     unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
         let (byte, slot) = Self::byte_and_slot(index);
         let slot_byte = self.data.get_unchecked_mut(byte);
+        Self::replace_slot(slot_byte, slot, value);
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked_raw_from(storage: Self::RawStorage, index: usize) -> u8 {
+        let (byte, slot) = Self::byte_and_slot(index);
+        let packed = *storage.ptr().add(byte);
+        match slot {
+            0 => packed % Self::BASE,
+            1 => (packed / Self::BASE) % Self::BASE,
+            2 => packed / (Self::BASE * Self::BASE),
+            _ => unreachable!("byte3 slot must be 0, 1, or 2"),
+        }
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked_raw_in(storage: Self::RawStorage, index: usize, value: u8) {
+        let (byte, slot) = Self::byte_and_slot(index);
+        let slot_byte = &mut *storage.ptr().add(byte);
         Self::replace_slot(slot_byte, slot, value);
     }
 
