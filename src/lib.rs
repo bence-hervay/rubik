@@ -11,7 +11,9 @@ pub mod solver;
 pub mod storage;
 pub(crate) mod threading;
 
-pub use cube::{ColorScheme, Cube, FaceCommutator, FaceletLocation, FaceletUpdate};
+pub use cube::{
+    ColorScheme, Cube, FaceCommutator, FaceletLocation, FaceletUpdate, DEFAULT_SCRAMBLE_ROUNDS,
+};
 pub use face::{Face, FaceAngle, FaceId};
 pub use facelet::Facelet;
 pub use history::MoveHistory;

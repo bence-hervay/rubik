@@ -8,12 +8,12 @@ use std::{
 use rubik::{
     default_thread_count, Axis, Byte, Byte3, CenterCommutatorTable, CenterReductionStage, Cube,
     FaceId, Facelet, FaceletArray, Move, MoveAngle, MoveStats, Nibble, RandomSource, SolveContext,
-    SolveOptions, SolverStage, ThreeBit, XorShift64, GENERATED_CENTER_SCHEDULE,
+    SolveOptions, SolverStage, ThreeBit, XorShift64, DEFAULT_SCRAMBLE_ROUNDS,
+    GENERATED_CENTER_SCHEDULE,
 };
 
 const DEFAULT_SIDE_POWERS: &[usize] = &[10, 11];
 const DEFAULT_RANDOM_SEED: u64 = 0x57A6_EBEE_F00D;
-const DEFAULT_SCRAMBLE_MOVES_PER_SIDE_LAYER: usize = 4;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum StorageKind {
@@ -141,18 +141,18 @@ fn main() {
         ScrambleKind::RandomMoves,
     );
     let random_seed = environment_u64("RUBIK_STAGE_BENCHMARK_RANDOM_SEED", DEFAULT_RANDOM_SEED);
-    let scramble_multiplier = environment_usize(
-        "RUBIK_STAGE_BENCHMARK_SCRAMBLE_MOVES_PER_SIDE_LAYER",
-        DEFAULT_SCRAMBLE_MOVES_PER_SIDE_LAYER,
+    let scramble_rounds = environment_usize(
+        "RUBIK_STAGE_BENCHMARK_SCRAMBLE_ROUNDS",
+        DEFAULT_SCRAMBLE_ROUNDS,
     );
-    let explicit_scramble_moves =
-        env::var("RUBIK_STAGE_BENCHMARK_SCRAMBLE_MOVES")
-            .ok()
-            .map(|value| {
-                value
-                    .parse::<usize>()
-                    .expect("RUBIK_STAGE_BENCHMARK_SCRAMBLE_MOVES must be a usize")
-            });
+    let explicit_commutator_scrambles = env::var("RUBIK_STAGE_BENCHMARK_CENTER_COMMUTATORS")
+        .or_else(|_| env::var("RUBIK_STAGE_BENCHMARK_SCRAMBLE_MOVES"))
+        .ok()
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .expect("RUBIK_STAGE_BENCHMARK_CENTER_COMMUTATORS must be a usize")
+        });
     let allocation_threads = environment_usize(
         "RUBIK_STAGE_BENCHMARK_ALLOCATION_THREADS",
         default_thread_count(),
@@ -174,8 +174,8 @@ fn main() {
     println!("  storage={storage_kinds:?}");
     println!("  scramble_kind={scramble_kind}");
     println!("  random_seed={random_seed}");
-    println!("  scramble_moves_per_side_layer={scramble_multiplier}");
-    println!("  explicit_scramble_moves={explicit_scramble_moves:?}");
+    println!("  scramble_rounds={scramble_rounds}");
+    println!("  explicit_center_commutators={explicit_commutator_scrambles:?}");
     println!("  allocation_threads={allocation_threads}");
     println!("  move_threads={move_threads}");
     println!();
@@ -186,8 +186,12 @@ fn main() {
         let side_length = 1usize
             .checked_shl(power as u32)
             .expect("side length power overflowed usize");
-        let scramble_operation_count =
-            explicit_scramble_moves.unwrap_or(side_length * scramble_multiplier);
+        let scramble_operation_count = match scramble_kind {
+            ScrambleKind::RandomMoves => scramble_rounds,
+            ScrambleKind::CenterCommutators => {
+                explicit_commutator_scrambles.unwrap_or(side_length * scramble_rounds)
+            }
+        };
         let scramble_plan = generate_scramble_plan(
             scramble_kind,
             side_length,
@@ -463,40 +467,57 @@ fn result_cells(result: &StageBenchmarkResult) -> [String; TABLE_HEADERS.len()] 
 fn generate_scramble_plan(
     kind: ScrambleKind,
     side_length: usize,
-    count: usize,
+    operation_count: usize,
     seed: u64,
 ) -> ScramblePlan {
     match kind {
         ScrambleKind::RandomMoves => {
-            ScramblePlan::RandomMoves(generate_scramble_moves(side_length, count, seed))
+            ScramblePlan::RandomMoves(generate_scramble_moves(side_length, operation_count, seed))
         }
         ScrambleKind::CenterCommutators => ScramblePlan::CenterCommutators(
-            generate_center_commutator_scrambles(side_length, count, seed),
+            generate_center_commutator_scrambles(side_length, operation_count, seed),
         ),
     }
 }
 
-fn generate_scramble_moves(side_length: usize, count: usize, seed: u64) -> Vec<Move> {
+fn generate_scramble_moves(side_length: usize, rounds: usize, seed: u64) -> Vec<Move> {
     let mut rng = XorShift64::new(seed);
-    let mut moves = Vec::with_capacity(count);
+    let mut moves = Vec::with_capacity(rounds * (side_length + FaceId::ALL.len()));
 
-    for _ in 0..count {
-        let axis = match (rng.next_u64() % 3) as u8 {
-            0 => Axis::X,
-            1 => Axis::Y,
-            _ => Axis::Z,
-        };
-        let depth = (rng.next_u64() as usize) % side_length;
-        let angle = match (rng.next_u64() % 3) as u8 {
-            0 => MoveAngle::Positive,
-            1 => MoveAngle::Double,
-            _ => MoveAngle::Negative,
-        };
+    for _ in 0..rounds {
+        for _ in 0..side_length {
+            moves.push(random_move(side_length, &mut rng));
+        }
 
-        moves.push(Move::new(axis, depth, angle));
+        for face in FaceId::ALL {
+            moves.push(face_outer_move(
+                side_length,
+                face,
+                random_move_angle(&mut rng),
+            ));
+        }
     }
 
     moves
+}
+
+fn random_move(side_length: usize, rng: &mut impl RandomSource) -> Move {
+    let axis = match (rng.next_u64() % 3) as u8 {
+        0 => Axis::X,
+        1 => Axis::Y,
+        _ => Axis::Z,
+    };
+    let depth = (rng.next_u64() as usize) % side_length;
+
+    Move::new(axis, depth, random_move_angle(rng))
+}
+
+fn random_move_angle(rng: &mut impl RandomSource) -> MoveAngle {
+    match (rng.next_u64() % 3) as u8 {
+        0 => MoveAngle::Positive,
+        1 => MoveAngle::Double,
+        _ => MoveAngle::Negative,
+    }
 }
 
 fn generate_center_commutator_scrambles(

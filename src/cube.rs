@@ -16,6 +16,8 @@ use crate::{
     threading::default_thread_count,
 };
 
+pub const DEFAULT_SCRAMBLE_ROUNDS: usize = 6;
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ColorScheme {
     pub u: Facelet,
@@ -276,17 +278,29 @@ impl<S: FaceletArray> Cube<S> {
         };
 
         let depth = (rng.next_u64() as usize) % self.n;
-
-        let angle = match (rng.next_u64() % 3) as u8 {
-            0 => MoveAngle::Positive,
-            1 => MoveAngle::Double,
-            _ => MoveAngle::Negative,
-        };
-
-        Move::new(axis, depth, angle)
+        Move::new(axis, depth, random_move_angle(rng))
     }
 
-    pub fn scramble<R: RandomSource>(&mut self, rng: &mut R, count: usize) {
+    pub fn random_outer_face_move<R: RandomSource>(&self, face: FaceId, rng: &mut R) -> Move {
+        face_layer_move(self.n, face, 0, random_move_angle(rng))
+    }
+
+    pub fn scramble<R: RandomSource>(&mut self, rng: &mut R) {
+        self.scramble_with_rounds(rng, DEFAULT_SCRAMBLE_ROUNDS);
+    }
+
+    pub fn scramble_with_rounds<R: RandomSource>(&mut self, rng: &mut R, rounds: usize) {
+        for _ in 0..rounds {
+            self.scramble_random_moves(rng, self.n);
+
+            for face in FaceId::ALL {
+                let mv = self.random_outer_face_move(face, rng);
+                self.apply_move(mv);
+            }
+        }
+    }
+
+    pub fn scramble_random_moves<R: RandomSource>(&mut self, rng: &mut R, count: usize) {
         for _ in 0..count {
             let mv = self.random_move(rng);
             self.apply_move(mv);
@@ -1479,6 +1493,14 @@ fn face_layer_move(n: usize, face: FaceId, depth_from_face: usize, angle: MoveAn
     }
 }
 
+fn random_move_angle<R: RandomSource>(rng: &mut R) -> MoveAngle {
+    match (rng.next_u64() % 3) as u8 {
+        0 => MoveAngle::Positive,
+        1 => MoveAngle::Double,
+        _ => MoveAngle::Negative,
+    }
+}
+
 fn opposite_face(face: FaceId) -> FaceId {
     match face {
         FaceId::U => FaceId::D,
@@ -2252,23 +2274,29 @@ mod tests {
     }
 
     #[test]
-    fn scramble_applies_requested_number_of_random_moves() {
+    fn scramble_applies_six_rounds_of_random_moves_and_outer_face_turns() {
         let side_length = 5;
-        let count = 37;
         let seed = 0x5C4A_2B1E;
 
         let mut actual = Cube::<Byte>::new_solved(side_length);
         let mut actual_rng = XorShift64::new(seed);
-        actual.scramble(&mut actual_rng, count);
+        actual.scramble(&mut actual_rng);
 
         let mut expected = Cube::<Byte>::new_solved(side_length);
         let mut expected_rng = XorShift64::new(seed);
-        for _ in 0..count {
-            let mv = expected.random_move(&mut expected_rng);
-            expected.apply_move(mv);
+        for _ in 0..DEFAULT_SCRAMBLE_ROUNDS {
+            expected.scramble_random_moves(&mut expected_rng, side_length);
+
+            for face in FaceId::ALL {
+                let mv = expected.random_outer_face_move(face, &mut expected_rng);
+                expected.apply_move(mv);
+            }
         }
 
-        assert_eq!(actual.history().len(), count);
+        assert_eq!(
+            actual.history().len(),
+            DEFAULT_SCRAMBLE_ROUNDS * (side_length + FaceId::ALL.len())
+        );
         assert_cubes_match(&actual, &expected);
         assert_eq!(actual.history().as_slice(), expected.history().as_slice());
     }
