@@ -93,6 +93,19 @@ impl FaceCommutator {
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct FaceletLocation {
+    pub face: FaceId,
+    pub row: usize,
+    pub col: usize,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct FaceletUpdate {
+    pub from: FaceletLocation,
+    pub to: FaceletLocation,
+}
+
 #[derive(Clone, Debug)]
 pub struct Cube<S: FaceletArray> {
     n: usize,
@@ -341,6 +354,20 @@ impl<S: FaceletArray> Cube<S> {
     ) {
         self.validate_face_commutator(commutator.destination, commutator.helper, rows, columns);
         self.apply_face_commutator_untracked_direct(commutator, rows, columns);
+    }
+
+    pub fn face_commutator_sparse_updates(
+        &self,
+        commutator: FaceCommutator,
+        row: usize,
+        column: usize,
+    ) -> [FaceletUpdate; 3] {
+        self.validate_face_commutator(commutator.destination, commutator.helper, &[row], &[column]);
+
+        commutator.template.updates.map(|update| FaceletUpdate {
+            from: facelet_location(update.from.eval(self.n, row, column)),
+            to: facelet_location(update.to.eval(self.n, row, column)),
+        })
     }
 
     /// Reference implementation for `apply_face_commutator_untracked`.
@@ -712,6 +739,14 @@ struct FacePosition {
     face: FaceId,
     row: usize,
     col: usize,
+}
+
+fn facelet_location(position: FacePosition) -> FaceletLocation {
+    FaceletLocation {
+        face: position.face,
+        row: position.row,
+        col: position.col,
+    }
 }
 
 const COMMUTATOR_TEMPLATE_N: usize = 101;
