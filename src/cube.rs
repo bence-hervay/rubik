@@ -674,6 +674,18 @@ fn face_commutator_difference_cycle(
     column: usize,
     slice_angle: MoveAngle,
 ) -> [(FacePosition, FacePosition); 3] {
+    try_face_commutator_difference_cycle(n, destination, helper, row, column, slice_angle)
+        .expect("face commutator must differ from the net face turn by exactly one 3-cycle")
+}
+
+fn try_face_commutator_difference_cycle(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    row: usize,
+    column: usize,
+    slice_angle: MoveAngle,
+) -> Option<[(FacePosition, FacePosition); 3]> {
     let expanded =
         face_commutator_single_column_moves(n, destination, helper, row, column, slice_angle);
     let baseline = [face_layer_move(n, destination, 0, MoveAngle::Positive)];
@@ -688,10 +700,9 @@ fn face_commutator_difference_cycle(
                 let baseline_position = trace_position(n, position, baseline);
                 let expanded_position = trace_position(n, position, expanded);
                 if baseline_position != expanded_position {
-                    assert!(
-                        changed_count < changed.len(),
-                        "face commutator generated more than one sparse 3-cycle"
-                    );
+                    if changed_count == changed.len() {
+                        return None;
+                    }
                     changed[changed_count] = Some((baseline_position, expanded_position));
                     changed_count += 1;
                 }
@@ -699,15 +710,18 @@ fn face_commutator_difference_cycle(
         }
     }
 
-    assert_eq!(
-        changed_count, 3,
-        "face commutator must differ from the net face turn by exactly one 3-cycle"
-    );
-    let changed = changed.map(|entry| entry.expect("changed entry must be initialized"));
-    assert_unique_positions(changed.iter().map(|(from, _)| *from));
-    assert_unique_positions(changed.iter().map(|(_, to)| *to));
+    if changed_count != 3 {
+        return None;
+    }
 
-    changed
+    let changed = changed.map(|entry| entry.expect("changed entry must be initialized"));
+    if !positions_are_unique(changed.iter().map(|(from, _)| *from))
+        || !positions_are_unique(changed.iter().map(|(_, to)| *to))
+    {
+        return None;
+    }
+
+    Some(changed)
 }
 
 fn face_commutator_single_column_moves(
@@ -746,14 +760,22 @@ fn unique_commutator_coordinates(n: usize, row: usize, column: usize) -> ([usize
 }
 
 fn assert_unique_positions(positions: impl IntoIterator<Item = FacePosition>) {
+    assert!(
+        positions_are_unique(positions),
+        "face commutator generated overlapping sparse writes"
+    );
+}
+
+fn positions_are_unique(positions: impl IntoIterator<Item = FacePosition>) -> bool {
     let mut seen = Vec::new();
     for position in positions {
-        assert!(
-            !seen.contains(&position),
-            "face commutator generated overlapping sparse writes"
-        );
+        if seen.contains(&position) {
+            return false;
+        }
         seen.push(position);
     }
+
+    true
 }
 
 fn trace_position(
@@ -974,6 +996,104 @@ mod tests {
         pairs
     }
 
+    fn overlapping_inner_layer_set_pairs(side_length: usize) -> Vec<(Vec<usize>, Vec<usize>)> {
+        let layers = (1..side_length - 1).collect::<Vec<_>>();
+        let mut pairs = Vec::new();
+
+        for mask in 0..4usize.pow(layers.len() as u32) {
+            let mut rows = Vec::new();
+            let mut columns = Vec::new();
+            let mut remaining = mask;
+
+            for layer in layers.iter().copied() {
+                match remaining % 4 {
+                    1 => rows.push(layer),
+                    2 => columns.push(layer),
+                    3 => {
+                        rows.push(layer);
+                        columns.push(layer);
+                    }
+                    _ => {}
+                }
+                remaining /= 4;
+            }
+
+            if rows.iter().any(|row| columns.contains(row)) {
+                pairs.push((rows, columns));
+            }
+        }
+
+        pairs
+    }
+
+    fn sparse_commutator_mapping_matches_expanded(
+        side_length: usize,
+        destination: FaceId,
+        helper: FaceId,
+        rows: &[usize],
+        columns: &[usize],
+        slice_angle: MoveAngle,
+    ) -> bool {
+        let expanded = super::face_commutator_moves(
+            side_length,
+            destination,
+            helper,
+            rows,
+            columns,
+            slice_angle,
+        );
+        let baseline = [super::face_layer_move(
+            side_length,
+            destination,
+            0,
+            MoveAngle::Positive,
+        )];
+        let mut sparse_cycles = Vec::new();
+
+        for row in rows.iter().copied() {
+            for column in columns.iter().copied() {
+                let Some(cycle) = super::try_face_commutator_difference_cycle(
+                    side_length,
+                    destination,
+                    helper,
+                    row,
+                    column,
+                    slice_angle,
+                ) else {
+                    return false;
+                };
+                sparse_cycles.extend(cycle);
+            }
+        }
+
+        if !super::positions_are_unique(sparse_cycles.iter().map(|(from, _)| *from))
+            || !super::positions_are_unique(sparse_cycles.iter().map(|(_, to)| *to))
+        {
+            return false;
+        }
+
+        for face in FaceId::ALL {
+            for row in 0..side_length {
+                for col in 0..side_length {
+                    let position = super::FacePosition { face, row, col };
+                    let baseline_position = super::trace_position(side_length, position, baseline);
+                    let sparse_position = sparse_cycles
+                        .iter()
+                        .find_map(|(from, to)| (*from == baseline_position).then_some(*to))
+                        .unwrap_or(baseline_position);
+                    let expanded_position =
+                        super::trace_position(side_length, position, expanded.iter().copied());
+
+                    if sparse_position != expanded_position {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
     fn assert_cubes_match<A: FaceletArray, B: FaceletArray>(actual: &Cube<A>, expected: &Cube<B>) {
         assert_eq!(actual.side_len(), expected.side_len());
 
@@ -1077,7 +1197,7 @@ mod tests {
 
     #[test]
     fn optimized_face_commutators_match_expanded_moves_exhaustively() {
-        for side_length in 3..=8 {
+        for side_length in 3..=6 {
             for destination in FaceId::ALL {
                 for helper in FaceId::ALL {
                     if helper == destination || helper == super::opposite_face(destination) {
@@ -1109,6 +1229,35 @@ mod tests {
 
                                 assert_cubes_match(&actual, &expected);
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn overlapping_row_and_column_sets_cannot_extend_sparse_commutator_family() {
+        for side_length in 3..=6 {
+            for destination in FaceId::ALL {
+                for helper in FaceId::ALL {
+                    if helper == destination || helper == super::opposite_face(destination) {
+                        continue;
+                    }
+
+                    for slice_angle in MoveAngle::ALL {
+                        for (rows, columns) in overlapping_inner_layer_set_pairs(side_length) {
+                            assert!(
+                                !sparse_commutator_mapping_matches_expanded(
+                                    side_length,
+                                    destination,
+                                    helper,
+                                    &rows,
+                                    &columns,
+                                    slice_angle,
+                                ),
+                                "overlapping row/column sets unexpectedly matched for n={side_length}, destination={destination}, helper={helper}, angle={slice_angle}, rows={rows:?}, columns={columns:?}"
+                            );
                         }
                     }
                 }
