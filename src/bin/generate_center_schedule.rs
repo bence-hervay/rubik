@@ -1,8 +1,8 @@
 use std::{env, fs, io};
 
 use rubik::{
-    Byte, CenterCoordExpr, CenterLocationExpr, CenterQuadrant, CenterScheduleStep, Cube,
-    FaceCommutator, FaceId, FaceletLocation, MoveAngle,
+    Byte, CenterCoordExpr, CenterLocationExpr, CenterScheduleStep, Cube, FaceCommutator, FaceId,
+    FaceletLocation, MoveAngle,
 };
 
 const TEMPLATE_N: usize = 101;
@@ -40,20 +40,14 @@ fn generate() -> String {
                         continue;
                     }
 
-                    for row_quadrant in CenterQuadrant::ALL {
-                        for column_quadrant in CenterQuadrant::ALL {
-                            candidates.push(CenterScheduleStep {
-                                destination,
-                                source: update.from.face,
-                                helper,
-                                angle,
-                                row_quadrant,
-                                column_quadrant,
-                                source_location: location_expr(update.from),
-                                destination_location: location_expr(final_destination),
-                            });
-                        }
-                    }
+                    candidates.push(CenterScheduleStep {
+                        destination,
+                        source: update.from.face,
+                        helper,
+                        angle,
+                        source_location: location_expr(update.from),
+                        destination_location: location_expr(final_destination),
+                    });
                 }
             }
         }
@@ -61,14 +55,14 @@ fn generate() -> String {
 
     let mut ordered = Vec::new();
     for destination in FaceId::ALL {
-        for row_quadrant in CenterQuadrant::ALL {
-            for column_quadrant in CenterQuadrant::ALL {
-                for source in FaceId::ALL {
+        for source in FaceId::ALL {
+            for helper in FaceId::ALL {
+                for angle in MoveAngle::ALL {
                     for candidate in candidates.iter().copied() {
                         if candidate.destination == destination
-                            && candidate.row_quadrant == row_quadrant
-                            && candidate.column_quadrant == column_quadrant
                             && candidate.source == source
+                            && candidate.helper == helper
+                            && candidate.angle == angle
                             && !ordered.contains(&candidate)
                         {
                             ordered.push(candidate);
@@ -90,7 +84,6 @@ fn render(steps: &[CenterScheduleStep]) -> String {
     out.push_str("use super::{\n");
     out.push_str("    CenterCoordExpr::{Column, ReverseColumn, ReverseRow, Row},\n");
     out.push_str("    CenterLocationExpr as Location,\n");
-    out.push_str("    CenterQuadrant::{BottomLeft, BottomRight, TopLeft, TopRight},\n");
     out.push_str("    CenterScheduleStep as Step,\n");
     out.push_str("};\n");
     out.push_str("use crate::{\n");
@@ -108,14 +101,6 @@ fn render(steps: &[CenterScheduleStep]) -> String {
         out.push_str(&format!("        source: {},\n", face_name(step.source)));
         out.push_str(&format!("        helper: {},\n", face_name(step.helper)));
         out.push_str(&format!("        angle: {},\n", angle_name(step.angle)));
-        out.push_str(&format!(
-            "        row_quadrant: {},\n",
-            quadrant_name(step.row_quadrant)
-        ));
-        out.push_str(&format!(
-            "        column_quadrant: {},\n",
-            quadrant_name(step.column_quadrant)
-        ));
         out.push_str(&format!(
             "        source_location: {},\n",
             location_expr_text(step.source_location)
@@ -218,15 +203,6 @@ fn angle_name(angle: MoveAngle) -> &'static str {
         MoveAngle::Positive => "Positive",
         MoveAngle::Double => "Double",
         MoveAngle::Negative => "Negative",
-    }
-}
-
-fn quadrant_name(quadrant: CenterQuadrant) -> &'static str {
-    match quadrant {
-        CenterQuadrant::TopLeft => "TopLeft",
-        CenterQuadrant::TopRight => "TopRight",
-        CenterQuadrant::BottomLeft => "BottomLeft",
-        CenterQuadrant::BottomRight => "BottomRight",
     }
 }
 

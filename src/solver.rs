@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub use center_schedule::{
-    CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterQuadrant, CenterScheduleStep,
+    CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterScheduleStep,
     GENERATED_CENTER_SCHEDULE,
 };
 
@@ -450,6 +450,7 @@ fn solve_centers_with_schedule<S: FaceletArray>(
     let max_passes = total_center_count(cube.side_len())
         .checked_mul(2)
         .expect("center schedule pass limit overflowed usize");
+    let mut column_buffer = Vec::with_capacity(cube.side_len().saturating_sub(2));
 
     for _ in 0..max_passes {
         if centers_are_solved(cube) {
@@ -458,7 +459,7 @@ fn solve_centers_with_schedule<S: FaceletArray>(
 
         let mut changed = false;
         for step in schedule {
-            changed |= apply_center_schedule_step(cube, context, *step);
+            changed |= apply_center_schedule_step(cube, context, *step, &mut column_buffer);
         }
 
         if !changed {
@@ -480,6 +481,7 @@ fn apply_center_schedule_step<S: FaceletArray>(
     cube: &mut Cube<S>,
     context: &mut SolveContext,
     step: CenterScheduleStep,
+    columns: &mut Vec<usize>,
 ) -> bool {
     let side_length = cube.side_len();
     let target = target_center_color(step.destination);
@@ -492,8 +494,10 @@ fn apply_center_schedule_step<S: FaceletArray>(
     };
     let mut changed = false;
 
-    for row in step.row_quadrant.rows(side_length) {
-        for column in step.column_quadrant.columns(side_length) {
+    for row in 1..side_length - 1 {
+        columns.clear();
+
+        for column in 1..side_length - 1 {
             if row == column {
                 continue;
             }
@@ -507,23 +511,27 @@ fn apply_center_schedule_step<S: FaceletArray>(
                     .get(destination.row, destination.column)
                     != target
             {
-                apply_normalized_center_commutator_parts(context, cube, commutator, row, column);
-                changed = true;
+                columns.push(column);
             }
+        }
+
+        if !columns.is_empty() {
+            apply_normalized_center_commutator_row(context, cube, commutator, row, &columns);
+            changed = true;
         }
     }
 
     changed
 }
 
-fn apply_normalized_center_commutator_parts<S: FaceletArray>(
+fn apply_normalized_center_commutator_row<S: FaceletArray>(
     context: &mut SolveContext,
     cube: &mut Cube<S>,
     commutator: FaceCommutator,
     row: usize,
-    column: usize,
+    columns: &[usize],
 ) {
-    context.apply_center_commutator(cube, commutator, &[row], &[column]);
+    context.apply_center_commutator(cube, commutator, &[row], columns);
     context.apply_move(
         cube,
         face_outer_move(
@@ -854,13 +862,8 @@ mod tests {
         while applied < count {
             let step = GENERATED_CENTER_SCHEDULE
                 [(rng.next_u64() as usize) % GENERATED_CENTER_SCHEDULE.len()];
-            let rows = step.row_quadrant.rows(cube.side_len()).collect::<Vec<_>>();
-            let columns = step
-                .column_quadrant
-                .columns(cube.side_len())
-                .collect::<Vec<_>>();
-            let row = rows[(rng.next_u64() as usize) % rows.len()];
-            let column = columns[(rng.next_u64() as usize) % columns.len()];
+            let row = 1 + (rng.next_u64() as usize) % (cube.side_len() - 2);
+            let column = 1 + (rng.next_u64() as usize) % (cube.side_len() - 2);
 
             if row == column {
                 continue;
@@ -898,8 +901,8 @@ mod tests {
     }
 
     #[test]
-    fn generated_center_schedule_is_ordered_by_face_quadrant_and_source() {
-        assert_eq!(GENERATED_CENTER_SCHEDULE.len(), 1_152);
+    fn generated_center_schedule_is_compact_and_ordered_by_face_pair() {
+        assert_eq!(GENERATED_CENTER_SCHEDULE.len(), 72);
 
         for window in GENERATED_CENTER_SCHEDULE.windows(2) {
             let left = center_schedule_sort_key(window[0]);
@@ -915,14 +918,25 @@ mod tests {
 
     fn center_schedule_sort_key(
         step: CenterScheduleStep,
-    ) -> (usize, usize, usize, usize, usize, usize) {
+    ) -> (usize, usize, usize, usize, usize, usize, usize, usize) {
         (
             step.destination.index(),
-            step.row_quadrant.index(),
-            step.column_quadrant.index(),
             step.source.index(),
             step.helper.index(),
             step.angle.as_u8() as usize,
+            center_coord_expr_sort_key(step.source_location.row),
+            center_coord_expr_sort_key(step.source_location.column),
+            center_coord_expr_sort_key(step.destination_location.row),
+            center_coord_expr_sort_key(step.destination_location.column),
         )
+    }
+
+    fn center_coord_expr_sort_key(expr: CenterCoordExpr) -> usize {
+        match expr {
+            CenterCoordExpr::Row => 0,
+            CenterCoordExpr::Column => 1,
+            CenterCoordExpr::ReverseRow => 2,
+            CenterCoordExpr::ReverseColumn => 3,
+        }
     }
 }

@@ -1,69 +1,4 @@
-use core::ops::Range;
-
 use crate::{face::FaceId, moves::MoveAngle};
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum CenterQuadrant {
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
-
-impl CenterQuadrant {
-    pub const ALL: [Self; 4] = [
-        Self::TopLeft,
-        Self::TopRight,
-        Self::BottomLeft,
-        Self::BottomRight,
-    ];
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::TopLeft => "top_left",
-            Self::TopRight => "top_right",
-            Self::BottomLeft => "bottom_left",
-            Self::BottomRight => "bottom_right",
-        }
-    }
-
-    pub const fn index(self) -> usize {
-        match self {
-            Self::TopLeft => 0,
-            Self::TopRight => 1,
-            Self::BottomLeft => 2,
-            Self::BottomRight => 3,
-        }
-    }
-
-    pub fn rows(self, side_length: usize) -> Range<usize> {
-        assert!(
-            side_length >= 4,
-            "center quadrant requires side length >= 4"
-        );
-        let middle_low = side_length / 2;
-        let middle_high = side_length.div_ceil(2);
-
-        match self {
-            Self::TopLeft | Self::TopRight => 1..middle_low,
-            Self::BottomLeft | Self::BottomRight => middle_high..side_length - 1,
-        }
-    }
-
-    pub fn columns(self, side_length: usize) -> Range<usize> {
-        assert!(
-            side_length >= 4,
-            "center quadrant requires side length >= 4"
-        );
-        let middle_low = side_length / 2;
-        let middle_high = side_length.div_ceil(2);
-
-        match self {
-            Self::TopLeft | Self::BottomLeft => 1..middle_low,
-            Self::TopRight | Self::BottomRight => middle_high..side_length - 1,
-        }
-    }
-}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum CenterCoordExpr {
@@ -114,8 +49,6 @@ pub struct CenterScheduleStep {
     pub source: FaceId,
     pub helper: FaceId,
     pub angle: MoveAngle,
-    pub row_quadrant: CenterQuadrant,
-    pub column_quadrant: CenterQuadrant,
     pub source_location: CenterLocationExpr,
     pub destination_location: CenterLocationExpr,
 }
