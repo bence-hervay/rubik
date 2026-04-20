@@ -1,4 +1,5 @@
 use core::fmt;
+use std::collections::{HashSet, VecDeque};
 
 mod center_schedule;
 
@@ -433,38 +434,47 @@ impl<S: FaceletArray> SolverStage<S> for CenterReductionStage {
     }
 
     fn run(&mut self, cube: &mut Cube<S>, context: &mut SolveContext) -> SolveResult<()> {
-        solve_centers_with_schedule(cube, context, self.schedule, "center reduction")
+        solve_centers_with_transfers(
+            cube,
+            context,
+            &self.transfers,
+            self.schedule,
+            "center reduction",
+        )
     }
 }
 
-fn solve_centers_with_schedule<S: FaceletArray>(
+fn solve_centers_with_transfers<S: FaceletArray>(
     cube: &mut Cube<S>,
     context: &mut SolveContext,
+    transfers: &[CenterTransferSpec],
     schedule: &[CenterScheduleStep],
     stage_name: &'static str,
 ) -> SolveResult<()> {
+    if centers_are_solved(cube) {
+        return Ok(());
+    }
+
+    align_true_centers(cube, context, stage_name)?;
+
     if cube.side_len() < 4 || centers_are_solved(cube) {
         return Ok(());
     }
 
-    let max_passes = total_center_count(cube.side_len())
-        .checked_mul(2)
-        .expect("center schedule pass limit overflowed usize");
     let mut column_buffer = Vec::with_capacity(cube.side_len().saturating_sub(2));
 
-    for _ in 0..max_passes {
+    for transfer in transfers.iter().copied() {
         if centers_are_solved(cube) {
             return Ok(());
         }
-
-        let mut changed = false;
-        for step in schedule {
-            changed |= apply_center_schedule_step(cube, context, *step, &mut column_buffer);
-        }
-
-        if !changed {
-            break;
-        }
+        push_center_transfer(
+            cube,
+            context,
+            transfer,
+            schedule,
+            &mut column_buffer,
+            stage_name,
+        )?;
     }
 
     if centers_are_solved(cube) {
@@ -477,51 +487,265 @@ fn solve_centers_with_schedule<S: FaceletArray>(
     }
 }
 
-fn apply_center_schedule_step<S: FaceletArray>(
+fn align_true_centers<S: FaceletArray>(
     cube: &mut Cube<S>,
     context: &mut SolveContext,
+    stage_name: &'static str,
+) -> SolveResult<()> {
+    let side_length = cube.side_len();
+    if side_length < 3 || side_length % 2 == 0 {
+        return Ok(());
+    }
+
+    let mid = side_length / 2;
+    let start = center_orientation(cube, mid);
+    let target = solved_center_orientation();
+    if start == target {
+        return Ok(());
+    }
+
+    let Some(moves) = center_alignment_moves(start, target, mid) else {
+        return Err(SolveError::StageFailed {
+            stage: stage_name,
+            reason: "could not align true centers",
+        });
+    };
+
+    context.apply_moves(cube, moves);
+    Ok(())
+}
+
+fn center_orientation<S: FaceletArray>(cube: &Cube<S>, mid: usize) -> [Facelet; 6] {
+    FaceId::ALL.map(|face| cube.face(face).get(mid, mid))
+}
+
+fn solved_center_orientation() -> [Facelet; 6] {
+    FaceId::ALL.map(target_center_color)
+}
+
+fn center_alignment_moves(
+    start: [Facelet; 6],
+    target: [Facelet; 6],
+    middle_depth: usize,
+) -> Option<Vec<Move>> {
+    let generators = [
+        Move::new(Axis::X, middle_depth, MoveAngle::Positive),
+        Move::new(Axis::X, middle_depth, MoveAngle::Negative),
+        Move::new(Axis::X, middle_depth, MoveAngle::Double),
+        Move::new(Axis::Y, middle_depth, MoveAngle::Positive),
+        Move::new(Axis::Y, middle_depth, MoveAngle::Negative),
+        Move::new(Axis::Y, middle_depth, MoveAngle::Double),
+        Move::new(Axis::Z, middle_depth, MoveAngle::Positive),
+        Move::new(Axis::Z, middle_depth, MoveAngle::Negative),
+        Move::new(Axis::Z, middle_depth, MoveAngle::Double),
+    ];
+    let mut seen = HashSet::new();
+    let mut queue = VecDeque::new();
+
+    seen.insert(start);
+    queue.push_back((start, Vec::new()));
+
+    while let Some((state, moves)) = queue.pop_front() {
+        if state == target {
+            return Some(moves);
+        }
+
+        for mv in generators {
+            let next = center_orientation_after_move(state, mv);
+            if !seen.insert(next) {
+                continue;
+            }
+
+            let mut next_moves = moves.clone();
+            next_moves.push(mv);
+            queue.push_back((next, next_moves));
+        }
+    }
+
+    None
+}
+
+fn center_orientation_after_move(mut state: [Facelet; 6], mv: Move) -> [Facelet; 6] {
+    let original = state;
+
+    match (mv.axis, mv.angle) {
+        (Axis::X, MoveAngle::Positive) => {
+            state[FaceId::U.index()] = original[FaceId::F.index()];
+            state[FaceId::D.index()] = original[FaceId::B.index()];
+            state[FaceId::F.index()] = original[FaceId::D.index()];
+            state[FaceId::B.index()] = original[FaceId::U.index()];
+        }
+        (Axis::X, MoveAngle::Negative) => {
+            state[FaceId::U.index()] = original[FaceId::B.index()];
+            state[FaceId::D.index()] = original[FaceId::F.index()];
+            state[FaceId::F.index()] = original[FaceId::U.index()];
+            state[FaceId::B.index()] = original[FaceId::D.index()];
+        }
+        (Axis::X, MoveAngle::Double) => {
+            state[FaceId::U.index()] = original[FaceId::D.index()];
+            state[FaceId::D.index()] = original[FaceId::U.index()];
+            state[FaceId::F.index()] = original[FaceId::B.index()];
+            state[FaceId::B.index()] = original[FaceId::F.index()];
+        }
+        (Axis::Y, MoveAngle::Positive) => {
+            state[FaceId::R.index()] = original[FaceId::B.index()];
+            state[FaceId::L.index()] = original[FaceId::F.index()];
+            state[FaceId::F.index()] = original[FaceId::R.index()];
+            state[FaceId::B.index()] = original[FaceId::L.index()];
+        }
+        (Axis::Y, MoveAngle::Negative) => {
+            state[FaceId::R.index()] = original[FaceId::F.index()];
+            state[FaceId::L.index()] = original[FaceId::B.index()];
+            state[FaceId::F.index()] = original[FaceId::L.index()];
+            state[FaceId::B.index()] = original[FaceId::R.index()];
+        }
+        (Axis::Y, MoveAngle::Double) => {
+            state[FaceId::R.index()] = original[FaceId::L.index()];
+            state[FaceId::L.index()] = original[FaceId::R.index()];
+            state[FaceId::F.index()] = original[FaceId::B.index()];
+            state[FaceId::B.index()] = original[FaceId::F.index()];
+        }
+        (Axis::Z, MoveAngle::Positive) => {
+            state[FaceId::U.index()] = original[FaceId::L.index()];
+            state[FaceId::D.index()] = original[FaceId::R.index()];
+            state[FaceId::R.index()] = original[FaceId::U.index()];
+            state[FaceId::L.index()] = original[FaceId::D.index()];
+        }
+        (Axis::Z, MoveAngle::Negative) => {
+            state[FaceId::U.index()] = original[FaceId::R.index()];
+            state[FaceId::D.index()] = original[FaceId::L.index()];
+            state[FaceId::R.index()] = original[FaceId::D.index()];
+            state[FaceId::L.index()] = original[FaceId::U.index()];
+        }
+        (Axis::Z, MoveAngle::Double) => {
+            state[FaceId::U.index()] = original[FaceId::D.index()];
+            state[FaceId::D.index()] = original[FaceId::U.index()];
+            state[FaceId::R.index()] = original[FaceId::L.index()];
+            state[FaceId::L.index()] = original[FaceId::R.index()];
+        }
+    }
+
+    state
+}
+
+fn push_center_transfer<S: FaceletArray>(
+    cube: &mut Cube<S>,
+    context: &mut SolveContext,
+    transfer: CenterTransferSpec,
+    schedule: &[CenterScheduleStep],
+    columns: &mut Vec<usize>,
+    stage_name: &'static str,
+) -> SolveResult<()> {
+    let steps = schedule
+        .iter()
+        .copied()
+        .filter(|step| step.source == transfer.source && step.destination == transfer.destination)
+        .collect::<Vec<_>>();
+
+    if steps.is_empty() {
+        return Err(SolveError::StageFailed {
+            stage: stage_name,
+            reason: "missing center transfer route",
+        });
+    }
+
+    let mut remaining = face_center_color_count(cube, transfer.source, transfer.color);
+    while remaining > 0 {
+        let before = remaining;
+
+        for _ in 0..4 {
+            for step in steps.iter().copied() {
+                apply_center_transfer_step(cube, context, transfer, step, columns);
+                remaining = face_center_color_count(cube, transfer.source, transfer.color);
+                if remaining == 0 {
+                    return Ok(());
+                }
+            }
+
+            context.apply_move(
+                cube,
+                face_outer_move(cube.side_len(), transfer.source, MoveAngle::Positive),
+            );
+        }
+
+        remaining = face_center_color_count(cube, transfer.source, transfer.color);
+        if remaining >= before {
+            return Err(SolveError::StageFailed {
+                stage: stage_name,
+                reason: "center transfer made no further progress",
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_center_transfer_step<S: FaceletArray>(
+    cube: &mut Cube<S>,
+    context: &mut SolveContext,
+    transfer: CenterTransferSpec,
     step: CenterScheduleStep,
     columns: &mut Vec<usize>,
-) -> bool {
+) {
     let side_length = cube.side_len();
-    let target = target_center_color(step.destination);
     let Some(commutator) =
         context
             .center_commutators()
             .get(step.destination, step.helper, step.angle)
     else {
-        return false;
+        return;
     };
-    let mut changed = false;
 
     for row in 1..side_length - 1 {
-        columns.clear();
+        let mut destination_rotations = 0;
 
-        for column in 1..side_length - 1 {
-            if row == column {
+        loop {
+            let mut source_piece_count = 0;
+            columns.clear();
+
+            for column in 1..side_length - 1 {
+                if row == column {
+                    continue;
+                }
+
+                let source = step.source_location.eval(side_length, row, column);
+                let destination = step.destination_location.eval(side_length, row, column);
+
+                debug_assert_eq!(source.face, transfer.source);
+                debug_assert_eq!(destination.face, transfer.destination);
+
+                if cube.face(source.face).get(source.row, source.column) == transfer.color {
+                    source_piece_count += 1;
+                    if cube
+                        .face(destination.face)
+                        .get(destination.row, destination.column)
+                        != transfer.color
+                    {
+                        columns.push(column);
+                    }
+                }
+            }
+
+            if source_piece_count == 0 {
+                break;
+            }
+
+            if columns.is_empty() {
+                if destination_rotations == 4 {
+                    break;
+                }
+                context.apply_move(
+                    cube,
+                    face_outer_move(side_length, transfer.destination, MoveAngle::Positive),
+                );
+                destination_rotations += 1;
                 continue;
             }
 
-            let source = step.source_location.eval(side_length, row, column);
-            let destination = step.destination_location.eval(side_length, row, column);
-
-            if cube.face(source.face).get(source.row, source.column) == target
-                && cube
-                    .face(destination.face)
-                    .get(destination.row, destination.column)
-                    != target
-            {
-                columns.push(column);
-            }
-        }
-
-        if !columns.is_empty() {
-            apply_normalized_center_commutator_row(context, cube, commutator, row, &columns);
-            changed = true;
+            apply_normalized_center_commutator_row(context, cube, commutator, row, columns);
+            destination_rotations = 0;
         }
     }
-
-    changed
 }
 
 fn apply_normalized_center_commutator_row<S: FaceletArray>(
@@ -565,6 +789,19 @@ fn face_centers_are_solved<S: FaceletArray>(cube: &Cube<S>, face: FaceId) -> boo
     true
 }
 
+fn face_center_color_count<S: FaceletArray>(cube: &Cube<S>, face: FaceId, color: Facelet) -> usize {
+    let mut count = 0;
+
+    for row in 1..cube.side_len().saturating_sub(1) {
+        for column in 1..cube.side_len().saturating_sub(1) {
+            count += usize::from(cube.face(face).get(row, column) == color);
+        }
+    }
+
+    count
+}
+
+#[cfg(test)]
 fn total_center_count(side_length: usize) -> usize {
     let centers_per_face = side_length.saturating_sub(2);
     centers_per_face * centers_per_face * FaceId::ALL.len()
@@ -851,6 +1088,93 @@ mod tests {
         }
     }
 
+    #[test]
+    fn center_stage_solves_random_move_scrambled_centers() {
+        for side_length in 4..=8 {
+            for seed in [0xA11_CE57u64, 0xBADC_0DEu64] {
+                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut rng = XorShift64::new(seed ^ side_length as u64);
+                let moves = (0..120)
+                    .map(|_| cube.random_move(&mut rng))
+                    .collect::<Vec<_>>();
+                cube.apply_moves_untracked_with_threads(moves, 1);
+
+                let mut stage = CenterReductionStage::western_default();
+                let mut context = SolveContext::new(SolveOptions {
+                    thread_count: 1,
+                    record_moves: false,
+                });
+
+                <CenterReductionStage as SolverStage<Byte>>::run(
+                    &mut stage,
+                    &mut cube,
+                    &mut context,
+                )
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "center stage failed for random-move scramble n={side_length}, seed={seed:#x}, score={}/{}: {error}\n{}",
+                        center_score(&cube),
+                        total_center_count(side_length),
+                        cube.net_string(),
+                    )
+                });
+
+                assert!(
+                    centers_are_solved(&cube),
+                    "centers not solved for random-move scramble n={side_length}, seed={seed:#x}, score={}/{}",
+                    center_score(&cube),
+                    total_center_count(side_length),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn center_stage_solves_dense_batched_commutator_scramble() {
+        let side_length = 8;
+        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        scramble_dense_center_route(&mut cube);
+
+        let mut stage = CenterReductionStage::western_default();
+        let mut context = SolveContext::new(SolveOptions {
+            thread_count: 1,
+            record_moves: false,
+        });
+
+        <CenterReductionStage as SolverStage<Byte>>::run(&mut stage, &mut cube, &mut context)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "center stage failed for dense batched scramble, score={}/{}: {error}\n{}",
+                    center_score(&cube),
+                    total_center_count(side_length),
+                    cube.net_string(),
+                )
+            });
+
+        assert!(centers_are_solved(&cube));
+    }
+
+    #[test]
+    fn true_center_alignment_model_matches_middle_slice_moves() {
+        let side_length = 5;
+        let middle = side_length / 2;
+        let start = solved_center_orientation();
+
+        for axis in [Axis::X, Axis::Y, Axis::Z] {
+            for angle in MoveAngle::ALL {
+                let mv = Move::new(axis, middle, angle);
+                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                cube.apply_move_untracked_with_threads(mv, 1);
+
+                assert_eq!(
+                    center_orientation_after_move(start, mv),
+                    center_orientation(&cube, middle),
+                    "center alignment model differs for {mv}",
+                );
+            }
+        }
+    }
+
     fn scramble_centers_with_normalized_commutators(
         cube: &mut Cube<Byte>,
         rng: &mut XorShift64,
@@ -881,6 +1205,29 @@ mod tests {
                 );
             }
             applied += 1;
+        }
+    }
+
+    fn scramble_dense_center_route(cube: &mut Cube<Byte>) {
+        let table = CenterCommutatorTable::new();
+        let step = GENERATED_CENTER_SCHEDULE[0];
+        let commutator = table
+            .get(step.destination, step.helper, step.angle)
+            .expect("generated step must have a commutator");
+        let side_length = cube.side_len();
+        let mut columns = Vec::with_capacity(side_length.saturating_sub(3));
+
+        for row in 1..side_length - 1 {
+            columns.clear();
+            columns.extend((1..side_length - 1).filter(|column| *column != row));
+
+            for _ in 0..2 {
+                cube.apply_face_commutator_plan_untracked(commutator, &[row], &columns);
+                cube.apply_move_untracked_with_threads(
+                    face_outer_move(side_length, step.destination, MoveAngle::Positive).inverse(),
+                    1,
+                );
+            }
         }
     }
 
