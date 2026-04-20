@@ -129,7 +129,7 @@ impl EdgeCubieLocation {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct EdgeThreeCycle {
-    row: usize,
+    kind: EdgeThreeCycleKind,
 }
 
 impl EdgeThreeCycle {
@@ -140,15 +140,54 @@ impl EdgeThreeCycle {
     /// odd cubes the exact middle row is not a wing row and is rejected when a
     /// plan is built.
     pub const fn front_right_wing(row: usize) -> Self {
-        Self { row }
+        Self {
+            kind: EdgeThreeCycleKind::FrontRightWing { row },
+        }
     }
 
-    pub const fn row(self) -> usize {
-        self.row
+    /// An exact middle-edge 3-cycle in the canonical front/right working area.
+    pub const fn front_right_middle(direction: EdgeThreeCycleDirection) -> Self {
+        Self {
+            kind: EdgeThreeCycleKind::FrontRightMiddle { direction },
+        }
+    }
+
+    pub const fn kind(self) -> EdgeThreeCycleKind {
+        self.kind
+    }
+
+    pub const fn row(self) -> Option<usize> {
+        match self.kind {
+            EdgeThreeCycleKind::FrontRightWing { row } => Some(row),
+            EdgeThreeCycleKind::FrontRightMiddle { .. } => None,
+        }
     }
 
     pub fn moves(self, side_length: usize) -> Vec<Move> {
         edge_three_cycle_moves(side_length, self)
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum EdgeThreeCycleKind {
+    FrontRightWing { row: usize },
+    FrontRightMiddle { direction: EdgeThreeCycleDirection },
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum EdgeThreeCycleDirection {
+    Positive,
+    Negative,
+}
+
+impl EdgeThreeCycleDirection {
+    pub const ALL: [Self; 2] = [Self::Positive, Self::Negative];
+
+    pub const fn inverse(self) -> Self {
+        match self {
+            Self::Positive => Self::Negative,
+            Self::Negative => Self::Positive,
+        }
     }
 }
 
@@ -1654,24 +1693,39 @@ fn face_layer_move(n: usize, face: FaceId, depth_from_face: usize, angle: MoveAn
 }
 
 fn validate_edge_three_cycle(n: usize, cycle: EdgeThreeCycle) {
-    assert!(
-        n >= 4,
-        "front-right wing edge three-cycles require side length at least 4"
-    );
-    assert!(
-        cycle.row > 0 && cycle.row + 1 < n,
-        "edge three-cycle row must be an inner layer"
-    );
-    assert!(
-        n % 2 == 0 || cycle.row != n / 2,
-        "front-right wing edge three-cycle row cannot be the middle layer on odd cubes"
-    );
+    match cycle.kind {
+        EdgeThreeCycleKind::FrontRightWing { row } => {
+            assert!(
+                n >= 4,
+                "front-right wing edge three-cycles require side length at least 4"
+            );
+            assert!(
+                row > 0 && row + 1 < n,
+                "edge three-cycle row must be an inner layer"
+            );
+            assert!(
+                n % 2 == 0 || row != n / 2,
+                "front-right wing edge three-cycle row cannot be the middle layer on odd cubes"
+            );
+        }
+        EdgeThreeCycleKind::FrontRightMiddle { .. } => {
+            assert!(
+                n >= 3 && n % 2 == 1,
+                "front-right middle edge three-cycles require odd side length"
+            );
+        }
+    }
 }
 
 fn edge_three_cycle_moves(n: usize, cycle: EdgeThreeCycle) -> Vec<Move> {
     validate_edge_three_cycle(n, cycle);
 
-    edge_wing_three_cycle_moves(n, cycle.row)
+    match cycle.kind {
+        EdgeThreeCycleKind::FrontRightWing { row } => edge_wing_three_cycle_moves(n, row),
+        EdgeThreeCycleKind::FrontRightMiddle { direction } => {
+            edge_middle_three_cycle_moves(n, direction)
+        }
+    }
 }
 
 fn edge_wing_three_cycle_moves(n: usize, row: usize) -> Vec<Move> {
@@ -1684,6 +1738,35 @@ fn edge_wing_three_cycle_moves(n: usize, row: usize) -> Vec<Move> {
     moves.extend(unflip_right_edge_moves(n));
     moves.push(face_layer_move(n, FaceId::D, mirror, MoveAngle::Negative));
     moves
+}
+
+fn edge_middle_three_cycle_moves(n: usize, direction: EdgeThreeCycleDirection) -> Vec<Move> {
+    let base = edge_middle_three_cycle_base_moves(n, direction);
+    [base.clone(), base].concat()
+}
+
+fn edge_middle_three_cycle_base_moves(n: usize, direction: EdgeThreeCycleDirection) -> Vec<Move> {
+    let middle = n / 2;
+    match direction {
+        EdgeThreeCycleDirection::Positive => vec![
+            face_layer_move(n, FaceId::L, middle, MoveAngle::Double),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Positive),
+            face_layer_move(n, FaceId::L, middle, MoveAngle::Negative),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::L, middle, MoveAngle::Positive),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Positive),
+            face_layer_move(n, FaceId::L, middle, MoveAngle::Double),
+        ],
+        EdgeThreeCycleDirection::Negative => vec![
+            face_layer_move(n, FaceId::L, middle, MoveAngle::Double),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Negative),
+            face_layer_move(n, FaceId::L, middle, MoveAngle::Positive),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::L, middle, MoveAngle::Negative),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Negative),
+            face_layer_move(n, FaceId::L, middle, MoveAngle::Double),
+        ],
+    }
 }
 
 fn flip_right_edge_moves(n: usize) -> [Move; 7] {
@@ -2284,15 +2367,19 @@ mod tests {
     fn edge_three_cycle_specs(side_length: usize) -> Vec<EdgeThreeCycle> {
         let mut specs = Vec::new();
 
-        if side_length < 4 {
-            return specs;
+        if side_length % 2 == 1 && side_length >= 3 {
+            for direction in EdgeThreeCycleDirection::ALL {
+                specs.push(EdgeThreeCycle::front_right_middle(direction));
+            }
         }
 
-        for row in 1..side_length - 1 {
-            if side_length % 2 == 1 && row == side_length / 2 {
-                continue;
+        if side_length >= 4 {
+            for row in 1..side_length - 1 {
+                if side_length % 2 == 1 && row == side_length / 2 {
+                    continue;
+                }
+                specs.push(EdgeThreeCycle::front_right_wing(row));
             }
-            specs.push(EdgeThreeCycle::front_right_wing(row));
         }
 
         specs
@@ -2564,6 +2651,26 @@ mod tests {
     }
 
     #[test]
+    fn front_right_middle_edge_three_cycles_match_expanded_moves_for_larger_odd_sizes() {
+        for side_length in [7usize, 9] {
+            let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+
+            for direction in EdgeThreeCycleDirection::ALL {
+                let cycle = EdgeThreeCycle::front_right_middle(direction);
+                let plan = probe.edge_three_cycle_plan(cycle);
+
+                let mut expected = patterned_cube::<Byte>(side_length, 31);
+                expected.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+
+                let mut actual = patterned_cube::<Byte>(side_length, 31);
+                actual.apply_edge_three_cycle_plan_untracked(&plan);
+
+                assert_cubes_match(&actual, &expected);
+            }
+        }
+    }
+
+    #[test]
     fn edge_three_cycle_direct_updates_only_declared_edge_cubies() {
         for side_length in 3..=6 {
             for plan in move_defined_edge_three_cycle_plans(side_length) {
@@ -2611,24 +2718,25 @@ mod tests {
 
     #[test]
     fn edge_three_cycles_work_for_all_storage_backends() {
-        let side_length = 6;
-        let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        for side_length in [5usize, 6] {
+            let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
 
-        for cycle in edge_three_cycle_specs(side_length) {
-            let plan = probe.edge_three_cycle_plan(cycle);
-            let mut byte = patterned_cube::<Byte>(side_length, 29);
-            let mut byte3 = patterned_cube::<Byte3>(side_length, 29);
-            let mut nibble = patterned_cube::<Nibble>(side_length, 29);
-            let mut three_bit = patterned_cube::<ThreeBit>(side_length, 29);
+            for cycle in edge_three_cycle_specs(side_length) {
+                let plan = probe.edge_three_cycle_plan(cycle);
+                let mut byte = patterned_cube::<Byte>(side_length, 29);
+                let mut byte3 = patterned_cube::<Byte3>(side_length, 29);
+                let mut nibble = patterned_cube::<Nibble>(side_length, 29);
+                let mut three_bit = patterned_cube::<ThreeBit>(side_length, 29);
 
-            byte.apply_edge_three_cycle_plan_untracked(&plan);
-            byte3.apply_edge_three_cycle_plan_untracked(&plan);
-            nibble.apply_edge_three_cycle_plan_untracked(&plan);
-            three_bit.apply_edge_three_cycle_plan_untracked(&plan);
+                byte.apply_edge_three_cycle_plan_untracked(&plan);
+                byte3.apply_edge_three_cycle_plan_untracked(&plan);
+                nibble.apply_edge_three_cycle_plan_untracked(&plan);
+                three_bit.apply_edge_three_cycle_plan_untracked(&plan);
 
-            assert_cubes_match(&byte3, &byte);
-            assert_cubes_match(&nibble, &byte);
-            assert_cubes_match(&three_bit, &byte);
+                assert_cubes_match(&byte3, &byte);
+                assert_cubes_match(&nibble, &byte);
+                assert_cubes_match(&three_bit, &byte);
+            }
         }
     }
 
@@ -2647,6 +2755,14 @@ mod tests {
     fn edge_three_cycle_rejects_odd_middle_row() {
         let cube = Cube::<Byte>::new_solved_with_threads(5, 1);
         let cycle = EdgeThreeCycle::front_right_wing(2);
+        cube.edge_three_cycle_plan(cycle);
+    }
+
+    #[test]
+    #[should_panic(expected = "front-right middle edge three-cycles require odd side length")]
+    fn edge_three_cycle_rejects_even_middle_cycle() {
+        let cube = Cube::<Byte>::new_solved_with_threads(6, 1);
+        let cycle = EdgeThreeCycle::front_right_middle(EdgeThreeCycleDirection::Positive);
         cube.edge_three_cycle_plan(cycle);
     }
 

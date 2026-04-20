@@ -12,8 +12,9 @@ pub mod storage;
 pub(crate) mod threading;
 
 pub use cube::{
-    ColorScheme, Cube, EdgeCubieLocation, EdgeThreeCycle, EdgeThreeCyclePlan, FaceCommutator,
-    FaceletLocation, FaceletUpdate, DEFAULT_SCRAMBLE_ROUNDS,
+    ColorScheme, Cube, EdgeCubieLocation, EdgeThreeCycle, EdgeThreeCycleDirection,
+    EdgeThreeCycleKind, EdgeThreeCyclePlan, FaceCommutator, FaceletLocation, FaceletUpdate,
+    DEFAULT_SCRAMBLE_ROUNDS,
 };
 pub use face::{Face, FaceAngle, FaceId};
 pub use facelet::Facelet;
