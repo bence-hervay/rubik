@@ -1819,6 +1819,40 @@ mod tests {
     }
 
     #[test]
+    fn random_move_stays_within_cube_bounds() {
+        let side_length = 11;
+        let cube = Cube::<Byte>::new_solved(side_length);
+        let mut rng = XorShift64::new(0x5C4A_4B1E);
+
+        for _ in 0..1_000 {
+            let mv = cube.random_move(&mut rng);
+            assert!(mv.depth < side_length, "random move depth out of bounds");
+        }
+    }
+
+    #[test]
+    fn scramble_applies_requested_number_of_random_moves() {
+        let side_length = 5;
+        let count = 37;
+        let seed = 0x5C4A_2B1E;
+
+        let mut actual = Cube::<Byte>::new_solved(side_length);
+        let mut actual_rng = XorShift64::new(seed);
+        actual.scramble(&mut actual_rng, count);
+
+        let mut expected = Cube::<Byte>::new_solved(side_length);
+        let mut expected_rng = XorShift64::new(seed);
+        for _ in 0..count {
+            let mv = expected.random_move(&mut expected_rng);
+            expected.apply_move(mv);
+        }
+
+        assert_eq!(actual.history().len(), count);
+        assert_cubes_match(&actual, &expected);
+        assert_eq!(actual.history().as_slice(), expected.history().as_slice());
+    }
+
+    #[test]
     fn basic_singmaster_turns_match_our_move_notation() {
         let side_length = 5;
         let last = side_length - 1;
