@@ -9,6 +9,7 @@ pub mod moves;
 pub mod random;
 pub mod solver;
 pub mod storage;
+pub(crate) mod threading;
 
 pub use cube::{ColorScheme, Cube};
 pub use face::{Face, FaceAngle, FaceId};
@@ -19,6 +20,5 @@ pub use matrix::Matrix;
 pub use moves::{Axis, Move, MoveAngle};
 pub use random::{RandomSource, XorShift64};
 pub use solver::{MoveSequence, Solver};
-pub use storage::{
-    Byte, Byte3, FaceletArray, Nibble, ThreeBit, DEFAULT_INITIALIZATION_THREAD_COUNT,
-};
+pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};
+pub use threading::default_thread_count;

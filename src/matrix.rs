@@ -1,7 +1,5 @@
 use crate::{
-    facelet::Facelet,
-    line::LineBuffer,
-    storage::{FaceletArray, DEFAULT_INITIALIZATION_THREAD_COUNT},
+    facelet::Facelet, line::LineBuffer, storage::FaceletArray, threading::default_thread_count,
 };
 
 #[derive(Clone, Debug)]
@@ -12,7 +10,7 @@ pub struct Matrix<S: FaceletArray> {
 
 impl<S: FaceletArray> Matrix<S> {
     pub fn new_filled(n: usize, fill: Facelet) -> Self {
-        Self::new_filled_with_threads(n, fill, DEFAULT_INITIALIZATION_THREAD_COUNT)
+        Self::new_filled_with_threads(n, fill, default_thread_count())
     }
 
     pub fn new_filled_with_threads(n: usize, fill: Facelet, thread_count: usize) -> Self {

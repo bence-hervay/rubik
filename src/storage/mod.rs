@@ -7,7 +7,6 @@ mod traits;
 
 pub use byte::Byte;
 pub use byte3::Byte3;
-pub use init::DEFAULT_INITIALIZATION_THREAD_COUNT;
 pub use nibble::Nibble;
 pub use three_bit::ThreeBit;
 pub use traits::{FaceletArray, StoragePtr};

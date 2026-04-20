@@ -1,6 +1,7 @@
 use crate::facelet::Facelet;
+use crate::threading::default_thread_count;
 
-use super::{init, FaceletArray, StoragePtr, DEFAULT_INITIALIZATION_THREAD_COUNT};
+use super::{init, FaceletArray, StoragePtr};
 
 #[derive(Clone, Debug, Default)]
 pub struct Nibble {
@@ -45,7 +46,7 @@ impl FaceletArray for Nibble {
     type RawStorage = StoragePtr<u8>;
 
     fn with_len(len: usize, fill: Facelet) -> Self {
-        Self::with_len_with_threads(len, fill, DEFAULT_INITIALIZATION_THREAD_COUNT)
+        Self::with_len_with_threads(len, fill, default_thread_count())
     }
 
     fn with_len_with_threads(len: usize, fill: Facelet, thread_count: usize) -> Self {
@@ -82,7 +83,7 @@ impl FaceletArray for Nibble {
     }
 
     fn fill(&mut self, value: Facelet) {
-        self.fill_with_threads(value, DEFAULT_INITIALIZATION_THREAD_COUNT);
+        self.fill_with_threads(value, default_thread_count());
     }
 
     fn fill_with_threads(&mut self, value: Facelet, thread_count: usize) {

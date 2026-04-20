@@ -12,7 +12,8 @@ use crate::{
     },
     moves::{Axis, Move, MoveAngle},
     random::RandomSource,
-    storage::{FaceletArray, DEFAULT_INITIALIZATION_THREAD_COUNT},
+    storage::FaceletArray,
+    threading::default_thread_count,
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -60,7 +61,7 @@ pub struct Cube<S: FaceletArray> {
 
 impl<S: FaceletArray> Cube<S> {
     pub fn new_solved(n: usize) -> Self {
-        Self::new_solved_with_threads(n, DEFAULT_INITIALIZATION_THREAD_COUNT)
+        Self::new_solved_with_threads(n, default_thread_count())
     }
 
     pub fn new_solved_with_threads(n: usize, thread_count: usize) -> Self {
@@ -68,7 +69,7 @@ impl<S: FaceletArray> Cube<S> {
     }
 
     pub fn new_with_scheme(n: usize, scheme: ColorScheme) -> Self {
-        Self::new_with_scheme_with_threads(n, scheme, DEFAULT_INITIALIZATION_THREAD_COUNT)
+        Self::new_with_scheme_with_threads(n, scheme, default_thread_count())
     }
 
     pub fn new_with_scheme_with_threads(
@@ -128,17 +129,14 @@ impl<S: FaceletArray> Cube<S> {
     }
 
     pub fn apply_move_untracked(&mut self, mv: Move) {
-        self.validate_move(mv);
-        let specs = self.plan_move(mv);
-        self.rotate_outer_face_meta(mv);
-        self.apply_side_cycle(specs, mv.angle);
+        self.apply_move_untracked_with_threads(mv, default_thread_count());
     }
 
     pub fn apply_move_untracked_with_threads(&mut self, mv: Move, thread_count: usize) {
         assert!(thread_count > 0, "thread count must be greater than zero");
 
         if thread_count == 1 {
-            self.apply_move_untracked(mv);
+            self.apply_move_untracked_linear(mv);
             return;
         }
 
@@ -146,6 +144,13 @@ impl<S: FaceletArray> Cube<S> {
         let specs = self.plan_move(mv);
         self.rotate_outer_face_meta(mv);
         self.apply_side_cycle_with_threads(specs, mv.angle, thread_count);
+    }
+
+    fn apply_move_untracked_linear(&mut self, mv: Move) {
+        self.validate_move(mv);
+        let specs = self.plan_move(mv);
+        self.rotate_outer_face_meta(mv);
+        self.apply_side_cycle(specs, mv.angle);
     }
 
     pub fn apply_moves<I>(&mut self, moves: I)
@@ -161,9 +166,7 @@ impl<S: FaceletArray> Cube<S> {
     where
         I: IntoIterator<Item = Move>,
     {
-        for mv in moves {
-            self.apply_move_untracked(mv);
-        }
+        self.apply_moves_untracked_with_threads(moves, default_thread_count());
     }
 
     pub fn apply_moves_untracked_with_threads<I>(&mut self, moves: I, thread_count: usize)
@@ -174,7 +177,7 @@ impl<S: FaceletArray> Cube<S> {
 
         if thread_count == 1 {
             for mv in moves {
-                self.apply_move_untracked(mv);
+                self.apply_move_untracked_linear(mv);
             }
             return;
         }

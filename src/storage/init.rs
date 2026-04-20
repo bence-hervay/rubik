@@ -1,7 +1,5 @@
 use core::mem::MaybeUninit;
 
-pub const DEFAULT_INITIALIZATION_THREAD_COUNT: usize = 16;
-
 const MIN_PARALLEL_INIT_UNITS: usize = 16 * 1024;
 
 pub(crate) fn filled_vec<T>(len: usize, value: T, thread_count: usize) -> Vec<T>
