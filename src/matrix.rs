@@ -1,4 +1,8 @@
-use crate::{facelet::Facelet, line::LineBuffer, storage::FaceletArray};
+use crate::{
+    facelet::Facelet,
+    line::LineBuffer,
+    storage::{FaceletArray, DEFAULT_INITIALIZATION_THREAD_COUNT},
+};
 
 #[derive(Clone, Debug)]
 pub struct Matrix<S: FaceletArray> {
@@ -8,7 +12,12 @@ pub struct Matrix<S: FaceletArray> {
 
 impl<S: FaceletArray> Matrix<S> {
     pub fn new_filled(n: usize, fill: Facelet) -> Self {
+        Self::new_filled_with_threads(n, fill, DEFAULT_INITIALIZATION_THREAD_COUNT)
+    }
+
+    pub fn new_filled_with_threads(n: usize, fill: Facelet, thread_count: usize) -> Self {
         assert!(n > 0, "matrix side length must be > 0");
+        assert!(thread_count > 0, "thread count must be greater than zero");
 
         let len = n
             .checked_mul(n)
@@ -16,7 +25,7 @@ impl<S: FaceletArray> Matrix<S> {
 
         Self {
             n,
-            data: S::with_len(len, fill),
+            data: S::with_len_with_threads(len, fill, thread_count),
         }
     }
 

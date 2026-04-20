@@ -1,6 +1,6 @@
 use crate::facelet::Facelet;
 
-use super::{FaceletArray, StoragePtr};
+use super::{init, FaceletArray, StoragePtr, DEFAULT_INITIALIZATION_THREAD_COUNT};
 
 #[derive(Clone, Debug, Default)]
 pub struct Byte {
@@ -21,8 +21,12 @@ impl FaceletArray for Byte {
     type RawStorage = StoragePtr<u8>;
 
     fn with_len(len: usize, fill: Facelet) -> Self {
+        Self::with_len_with_threads(len, fill, DEFAULT_INITIALIZATION_THREAD_COUNT)
+    }
+
+    fn with_len_with_threads(len: usize, fill: Facelet, thread_count: usize) -> Self {
         Self {
-            data: vec![fill.as_u8(); len],
+            data: init::filled_vec(len, fill.as_u8(), thread_count),
         }
     }
 
@@ -40,6 +44,14 @@ impl FaceletArray for Byte {
 
     fn set(&mut self, index: usize, value: Facelet) {
         self.data[index] = value.as_u8();
+    }
+
+    fn fill(&mut self, value: Facelet) {
+        self.fill_with_threads(value, DEFAULT_INITIALIZATION_THREAD_COUNT);
+    }
+
+    fn fill_with_threads(&mut self, value: Facelet, thread_count: usize) {
+        init::fill_slice(&mut self.data, value.as_u8(), thread_count);
     }
 
     fn storage_unit_range(index: usize) -> (usize, usize) {

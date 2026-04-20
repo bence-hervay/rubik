@@ -8,6 +8,14 @@ pub trait FaceletArray: Clone + core::fmt::Debug + Send {
     where
         Self: Sized;
 
+    fn with_len_with_threads(len: usize, fill: Facelet, thread_count: usize) -> Self
+    where
+        Self: Sized,
+    {
+        assert!(thread_count > 0, "thread count must be greater than zero");
+        Self::with_len(len, fill)
+    }
+
     fn len(&self) -> usize;
 
     fn bits_per_facelet() -> usize
@@ -94,6 +102,11 @@ pub trait FaceletArray: Clone + core::fmt::Debug + Send {
         for i in 0..self.len() {
             self.set(i, value);
         }
+    }
+
+    fn fill_with_threads(&mut self, value: Facelet, thread_count: usize) {
+        assert!(thread_count > 0, "thread count must be greater than zero");
+        self.fill(value);
     }
 
     fn swap(&mut self, a: usize, b: usize) {

@@ -12,7 +12,7 @@ use crate::{
     },
     moves::{Axis, Move, MoveAngle},
     random::RandomSource,
-    storage::FaceletArray,
+    storage::{FaceletArray, DEFAULT_INITIALIZATION_THREAD_COUNT},
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -60,21 +60,34 @@ pub struct Cube<S: FaceletArray> {
 
 impl<S: FaceletArray> Cube<S> {
     pub fn new_solved(n: usize) -> Self {
-        Self::new_with_scheme(n, ColorScheme::default())
+        Self::new_solved_with_threads(n, DEFAULT_INITIALIZATION_THREAD_COUNT)
+    }
+
+    pub fn new_solved_with_threads(n: usize, thread_count: usize) -> Self {
+        Self::new_with_scheme_with_threads(n, ColorScheme::default(), thread_count)
     }
 
     pub fn new_with_scheme(n: usize, scheme: ColorScheme) -> Self {
+        Self::new_with_scheme_with_threads(n, scheme, DEFAULT_INITIALIZATION_THREAD_COUNT)
+    }
+
+    pub fn new_with_scheme_with_threads(
+        n: usize,
+        scheme: ColorScheme,
+        thread_count: usize,
+    ) -> Self {
         assert!(n > 0, "cube side length must be > 0");
+        assert!(thread_count > 0, "thread count must be greater than zero");
 
         Self {
             n,
             faces: [
-                Face::new(FaceId::U, n, scheme.u),
-                Face::new(FaceId::D, n, scheme.d),
-                Face::new(FaceId::R, n, scheme.r),
-                Face::new(FaceId::L, n, scheme.l),
-                Face::new(FaceId::F, n, scheme.f),
-                Face::new(FaceId::B, n, scheme.b),
+                Face::new_with_threads(FaceId::U, n, scheme.u, thread_count),
+                Face::new_with_threads(FaceId::D, n, scheme.d, thread_count),
+                Face::new_with_threads(FaceId::R, n, scheme.r, thread_count),
+                Face::new_with_threads(FaceId::L, n, scheme.l, thread_count),
+                Face::new_with_threads(FaceId::F, n, scheme.f, thread_count),
+                Face::new_with_threads(FaceId::B, n, scheme.b, thread_count),
             ],
             history: MoveHistory::new(),
         }

@@ -1,6 +1,6 @@
 use crate::facelet::Facelet;
 
-use super::{FaceletArray, StoragePtr};
+use super::{init, FaceletArray, StoragePtr, DEFAULT_INITIALIZATION_THREAD_COUNT};
 
 #[derive(Clone, Debug, Default)]
 pub struct ThreeBit {
@@ -28,12 +28,54 @@ impl ThreeBit {
     fn bit_offset_unchecked(index: usize) -> usize {
         index * 3
     }
+
+    fn filled_word(word_index: usize, fill: Facelet) -> u64 {
+        let raw = fill.as_u8() & 0b111;
+        let mut word = 0u64;
+        let mut raw_bit = word_index % 3;
+
+        for bit in 0..64 {
+            if (raw >> raw_bit) & 1 == 1 {
+                word |= 1u64 << bit;
+            }
+
+            raw_bit += 1;
+            if raw_bit == 3 {
+                raw_bit = 0;
+            }
+        }
+
+        word
+    }
+
+    fn clear_unused_bits(&mut self) {
+        let used_bits = self
+            .len
+            .checked_mul(3)
+            .expect("three_bit total bit length overflowed usize")
+            % 64;
+
+        if used_bits == 0 {
+            return;
+        }
+
+        let mask = (1u64 << used_bits) - 1;
+        let last = self
+            .words
+            .last_mut()
+            .expect("non-zero bit remainder must have a storage word");
+        *last &= mask;
+    }
 }
 
 impl FaceletArray for ThreeBit {
     type RawStorage = StoragePtr<u64>;
 
     fn with_len(len: usize, fill: Facelet) -> Self {
+        Self::with_len_with_threads(len, fill, DEFAULT_INITIALIZATION_THREAD_COUNT)
+    }
+
+    fn with_len_with_threads(len: usize, fill: Facelet, thread_count: usize) -> Self {
         let total_bits = len
             .checked_mul(3)
             .expect("three_bit total bit length overflowed usize");
@@ -41,9 +83,11 @@ impl FaceletArray for ThreeBit {
 
         let mut this = Self {
             len,
-            words: vec![0; word_count],
+            words: init::initialized_vec(word_count, thread_count, |index| {
+                Self::filled_word(index, fill)
+            }),
         };
-        this.fill(fill);
+        this.clear_unused_bits();
         this
     }
 
@@ -105,6 +149,17 @@ impl FaceletArray for ThreeBit {
             let high_mask = !high_part_mask;
             self.words[word + 1] = (self.words[word + 1] & high_mask) | (raw >> low_bits);
         }
+    }
+
+    fn fill(&mut self, value: Facelet) {
+        self.fill_with_threads(value, DEFAULT_INITIALIZATION_THREAD_COUNT);
+    }
+
+    fn fill_with_threads(&mut self, value: Facelet, thread_count: usize) {
+        init::initialize_slice(&mut self.words, thread_count, |index| {
+            Self::filled_word(index, value)
+        });
+        self.clear_unused_bits();
     }
 
     fn storage_unit_range(index: usize) -> (usize, usize) {

@@ -1,6 +1,6 @@
 use crate::facelet::Facelet;
 
-use super::{FaceletArray, StoragePtr};
+use super::{init, FaceletArray, StoragePtr, DEFAULT_INITIALIZATION_THREAD_COUNT};
 
 #[derive(Clone, Debug, Default)]
 pub struct Nibble {
@@ -23,17 +23,37 @@ impl Nibble {
         let shift = if index % 2 == 0 { 0 } else { 4 };
         (byte, shift)
     }
+
+    #[inline(always)]
+    fn packed_byte(fill: Facelet) -> u8 {
+        let raw = fill.as_u8();
+        raw | (raw << 4)
+    }
+
+    fn clear_unused_slots(&mut self) {
+        if self.len % 2 == 1 {
+            let last = self
+                .data
+                .last_mut()
+                .expect("odd non-zero length must have a storage byte");
+            *last &= 0x0F;
+        }
+    }
 }
 
 impl FaceletArray for Nibble {
     type RawStorage = StoragePtr<u8>;
 
     fn with_len(len: usize, fill: Facelet) -> Self {
+        Self::with_len_with_threads(len, fill, DEFAULT_INITIALIZATION_THREAD_COUNT)
+    }
+
+    fn with_len_with_threads(len: usize, fill: Facelet, thread_count: usize) -> Self {
         let mut this = Self {
             len,
-            data: vec![0; len.div_ceil(2)],
+            data: init::filled_vec(len.div_ceil(2), Self::packed_byte(fill), thread_count),
         };
-        this.fill(fill);
+        this.clear_unused_slots();
         this
     }
 
@@ -59,6 +79,15 @@ impl FaceletArray for Nibble {
         let (byte, shift) = Self::byte_and_shift(index);
         let clear_mask = !(0x0Fu8 << shift);
         self.data[byte] = (self.data[byte] & clear_mask) | (value.as_u8() << shift);
+    }
+
+    fn fill(&mut self, value: Facelet) {
+        self.fill_with_threads(value, DEFAULT_INITIALIZATION_THREAD_COUNT);
+    }
+
+    fn fill_with_threads(&mut self, value: Facelet, thread_count: usize) {
+        init::fill_slice(&mut self.data, Self::packed_byte(value), thread_count);
+        self.clear_unused_slots();
     }
 
     fn storage_unit_range(index: usize) -> (usize, usize) {

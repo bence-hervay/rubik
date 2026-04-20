@@ -5,7 +5,7 @@ use crate::{
     line::{LineBuffer, LineKind, LineTraversal},
     matrix::Matrix,
     moves::MoveAngle,
-    storage::FaceletArray,
+    storage::{FaceletArray, DEFAULT_INITIALIZATION_THREAD_COUNT},
 };
 
 #[repr(u8)]
@@ -78,9 +78,13 @@ pub struct Face<S: FaceletArray> {
 
 impl<S: FaceletArray> Face<S> {
     pub fn new(id: FaceId, n: usize, fill: Facelet) -> Self {
+        Self::new_with_threads(id, n, fill, DEFAULT_INITIALIZATION_THREAD_COUNT)
+    }
+
+    pub fn new_with_threads(id: FaceId, n: usize, fill: Facelet, thread_count: usize) -> Self {
         Self {
             id,
-            matrix: Matrix::new_filled(n, fill),
+            matrix: Matrix::new_filled_with_threads(n, fill, thread_count),
             rotation: FaceAngle::default(),
         }
     }

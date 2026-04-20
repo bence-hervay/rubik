@@ -1,6 +1,6 @@
 use crate::facelet::Facelet;
 
-use super::{FaceletArray, StoragePtr};
+use super::{init, FaceletArray, StoragePtr, DEFAULT_INITIALIZATION_THREAD_COUNT};
 
 #[derive(Clone, Debug, Default)]
 pub struct Byte3 {
@@ -47,17 +47,45 @@ impl Byte3 {
             _ => unreachable!("byte3 slot must be 0, 1, or 2"),
         }
     }
+
+    #[inline(always)]
+    fn packed_byte(fill: Facelet) -> u8 {
+        let raw = fill.as_u8();
+        raw + raw * Self::BASE + raw * Self::BASE * Self::BASE
+    }
+
+    fn clear_unused_slots(&mut self) {
+        let Some(last) = self.data.last_mut() else {
+            return;
+        };
+
+        let raw = *last;
+        *last = match self.len % Self::FACELETS_PER_BYTE {
+            0 => raw,
+            1 => raw % Self::BASE,
+            2 => raw % (Self::BASE * Self::BASE),
+            _ => unreachable!("byte3 remainder must be 0, 1, or 2"),
+        };
+    }
 }
 
 impl FaceletArray for Byte3 {
     type RawStorage = StoragePtr<u8>;
 
     fn with_len(len: usize, fill: Facelet) -> Self {
+        Self::with_len_with_threads(len, fill, DEFAULT_INITIALIZATION_THREAD_COUNT)
+    }
+
+    fn with_len_with_threads(len: usize, fill: Facelet, thread_count: usize) -> Self {
         let mut this = Self {
             len,
-            data: vec![0; len.div_ceil(Self::FACELETS_PER_BYTE)],
+            data: init::filled_vec(
+                len.div_ceil(Self::FACELETS_PER_BYTE),
+                Self::packed_byte(fill),
+                thread_count,
+            ),
         };
-        this.fill(fill);
+        this.clear_unused_slots();
         this
     }
 
@@ -92,6 +120,15 @@ impl FaceletArray for Byte3 {
 
         let (byte, slot) = Self::byte_and_slot(index);
         Self::replace_slot(&mut self.data[byte], slot, value.as_u8());
+    }
+
+    fn fill(&mut self, value: Facelet) {
+        self.fill_with_threads(value, DEFAULT_INITIALIZATION_THREAD_COUNT);
+    }
+
+    fn fill_with_threads(&mut self, value: Facelet, thread_count: usize) {
+        init::fill_slice(&mut self.data, Self::packed_byte(value), thread_count);
+        self.clear_unused_slots();
     }
 
     fn storage_unit_range(index: usize) -> (usize, usize) {

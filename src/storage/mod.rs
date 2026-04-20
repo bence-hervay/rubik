@@ -1,11 +1,13 @@
 mod byte;
 mod byte3;
+mod init;
 mod nibble;
 mod three_bit;
 mod traits;
 
 pub use byte::Byte;
 pub use byte3::Byte3;
+pub use init::DEFAULT_INITIALIZATION_THREAD_COUNT;
 pub use nibble::Nibble;
 pub use three_bit::ThreeBit;
 pub use traits::{FaceletArray, StoragePtr};
@@ -34,6 +36,25 @@ mod tests {
         }
     }
 
+    fn threaded_initialization<A: FaceletArray>() {
+        for len in [0usize, 1, 2, 3, 4, 5, 7, 21, 22, 63, 64, 65, 129, 20_000] {
+            for fill in Facelet::ALL {
+                for thread_count in [1usize, 2, 16] {
+                    let array = A::with_len_with_threads(len, fill, thread_count);
+
+                    assert_eq!(array.len(), len);
+                    for index in 0..len {
+                        assert_eq!(
+                            array.get(index),
+                            fill,
+                            "initialization mismatch at index {index}, len {len}, threads {thread_count}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     fn assert_array_matches_reference<A: FaceletArray>(array: &A, reference: &[Facelet]) {
         assert_eq!(array.len(), reference.len());
 
@@ -49,11 +70,13 @@ mod tests {
     #[test]
     fn byte_roundtrips() {
         roundtrip::<Byte>();
+        threaded_initialization::<Byte>();
     }
 
     #[test]
     fn byte3_roundtrips() {
         roundtrip::<Byte3>();
+        threaded_initialization::<Byte3>();
     }
 
     #[test]
@@ -68,11 +91,31 @@ mod tests {
     #[test]
     fn nibble_roundtrips() {
         roundtrip::<Nibble>();
+        threaded_initialization::<Nibble>();
     }
 
     #[test]
     fn three_bit_roundtrips() {
         roundtrip::<ThreeBit>();
+        threaded_initialization::<ThreeBit>();
+    }
+
+    #[test]
+    fn packed_initialization_leaves_unused_storage_zeroed() {
+        let nibble = Nibble::with_len_with_threads(3, Facelet::Blue, 16);
+        assert_eq!(nibble.as_packed_slice()[1] >> 4, 0);
+
+        let byte3_one_extra = Byte3::with_len_with_threads(4, Facelet::Blue, 16);
+        assert_eq!(byte3_one_extra.as_packed_slice()[1], Facelet::Blue.as_u8());
+
+        let byte3_two_extra = Byte3::with_len_with_threads(5, Facelet::Blue, 16);
+        assert_eq!(
+            byte3_two_extra.as_packed_slice()[1],
+            Facelet::Blue.as_u8() + Facelet::Blue.as_u8() * 6
+        );
+
+        let three_bit = ThreeBit::with_len_with_threads(1, Facelet::Blue, 16);
+        assert_eq!(three_bit.as_packed_words()[0] & !0b111, 0);
     }
 
     #[test]

@@ -19,4 +19,6 @@ pub use matrix::Matrix;
 pub use moves::{Axis, Move, MoveAngle};
 pub use random::{RandomSource, XorShift64};
 pub use solver::{MoveSequence, Solver};
-pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};
+pub use storage::{
+    Byte, Byte3, FaceletArray, Nibble, ThreeBit, DEFAULT_INITIALIZATION_THREAD_COUNT,
+};
