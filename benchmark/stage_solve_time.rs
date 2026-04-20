@@ -545,7 +545,7 @@ fn apply_scramble_plan<S: FaceletArray>(
 fn apply_center_commutator_scrambles<S: FaceletArray>(
     cube: &mut Cube<S>,
     operations: &[CenterCommutatorScramble],
-    move_threads: usize,
+    _move_threads: usize,
 ) -> MoveStats {
     let table = CenterCommutatorTable::new();
     let mut stats = MoveStats::default();
@@ -555,24 +555,20 @@ fn apply_center_commutator_scrambles<S: FaceletArray>(
         let commutator = table
             .get(step.destination, step.helper, step.angle)
             .expect("generated center schedule step must have a commutator");
-        let outer_inverse =
-            face_outer_move(cube.side_len(), step.destination, MoveAngle::Positive).inverse();
 
         for _ in 0..2 {
-            record_center_commutator_move_stats(
+            record_normalized_center_commutator_move_stats(
                 &mut stats,
                 cube.side_len(),
                 commutator,
                 &[operation.row],
                 &[operation.column],
             );
-            cube.apply_face_commutator_plan_untracked(
+            cube.apply_normalized_face_commutator_plan_untracked(
                 commutator,
                 &[operation.row],
                 &[operation.column],
             );
-            stats.record(outer_inverse, cube.side_len());
-            cube.apply_move_untracked_with_threads(outer_inverse, move_threads);
         }
     }
 
@@ -640,6 +636,20 @@ fn record_center_commutator_move_stats(
             side_length,
         );
     }
+}
+
+fn record_normalized_center_commutator_move_stats(
+    stats: &mut MoveStats,
+    side_length: usize,
+    commutator: rubik::FaceCommutator,
+    rows: &[usize],
+    columns: &[usize],
+) {
+    record_center_commutator_move_stats(stats, side_length, commutator, rows, columns);
+    stats.record(
+        face_outer_move(side_length, commutator.destination(), MoveAngle::Positive).inverse(),
+        side_length,
+    );
 }
 
 fn face_outer_move(side_length: usize, face: FaceId, angle: MoveAngle) -> Move {

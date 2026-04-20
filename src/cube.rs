@@ -57,7 +57,8 @@ pub struct FaceCommutator {
     destination: FaceId,
     helper: FaceId,
     slice_angle: MoveAngle,
-    template: CenterCommutatorTemplate,
+    expanded_template: CenterCommutatorTemplate,
+    normalized_template: CenterCommutatorTemplate,
 }
 
 impl FaceCommutator {
@@ -76,7 +77,12 @@ impl FaceCommutator {
             destination,
             helper,
             slice_angle,
-            template: CenterCommutatorTemplate::new(destination, helper, slice_angle),
+            expanded_template: CenterCommutatorTemplate::expanded(destination, helper, slice_angle),
+            normalized_template: CenterCommutatorTemplate::normalized(
+                destination,
+                helper,
+                slice_angle,
+            ),
         }
     }
 
@@ -327,6 +333,23 @@ impl<S: FaceletArray> Cube<S> {
         face_commutator_moves(self.n, destination, helper, rows, columns, slice_angle)
     }
 
+    /// Returns the literal move sequence represented by
+    /// `apply_normalized_face_commutator_untracked`.
+    ///
+    /// This is the expanded face commutator followed by the inverse of its net
+    /// destination outer-face turn.
+    pub fn normalized_face_commutator_moves(
+        &self,
+        destination: FaceId,
+        helper: FaceId,
+        rows: &[usize],
+        columns: &[usize],
+        slice_angle: MoveAngle,
+    ) -> Vec<Move> {
+        self.validate_face_commutator(destination, helper, rows, columns);
+        normalized_face_commutator_moves(self.n, destination, helper, rows, columns, slice_angle)
+    }
+
     /// Applies the exact state change of the expanded face commutator while
     /// avoiding the per-column full-slice moves.
     ///
@@ -356,6 +379,34 @@ impl<S: FaceletArray> Cube<S> {
         self.apply_face_commutator_untracked_direct(commutator, rows, columns);
     }
 
+    /// Applies the expanded face commutator followed by the inverse destination
+    /// outer-face turn, but performs only the sparse center delta.
+    pub fn apply_normalized_face_commutator_untracked(
+        &mut self,
+        destination: FaceId,
+        helper: FaceId,
+        rows: &[usize],
+        columns: &[usize],
+        slice_angle: MoveAngle,
+    ) {
+        let commutator = FaceCommutator::new(destination, helper, slice_angle);
+        self.apply_normalized_face_commutator_plan_untracked(commutator, rows, columns);
+    }
+
+    pub fn apply_normalized_face_commutator_plan_untracked(
+        &mut self,
+        commutator: FaceCommutator,
+        rows: &[usize],
+        columns: &[usize],
+    ) {
+        self.validate_face_commutator(commutator.destination, commutator.helper, rows, columns);
+        self.apply_sparse_commutator_template_untracked(
+            commutator.normalized_template,
+            rows,
+            columns,
+        );
+    }
+
     pub fn face_commutator_sparse_updates(
         &self,
         commutator: FaceCommutator,
@@ -364,10 +415,30 @@ impl<S: FaceletArray> Cube<S> {
     ) -> [FaceletUpdate; 3] {
         self.validate_face_commutator(commutator.destination, commutator.helper, &[row], &[column]);
 
-        commutator.template.updates.map(|update| FaceletUpdate {
-            from: facelet_location(update.from.eval(self.n, row, column)),
-            to: facelet_location(update.to.eval(self.n, row, column)),
-        })
+        commutator
+            .expanded_template
+            .updates
+            .map(|update| FaceletUpdate {
+                from: facelet_location(update.from.eval(self.n, row, column)),
+                to: facelet_location(update.to.eval(self.n, row, column)),
+            })
+    }
+
+    pub fn normalized_face_commutator_sparse_updates(
+        &self,
+        commutator: FaceCommutator,
+        row: usize,
+        column: usize,
+    ) -> [FaceletUpdate; 3] {
+        self.validate_face_commutator(commutator.destination, commutator.helper, &[row], &[column]);
+
+        commutator
+            .normalized_template
+            .updates
+            .map(|update| FaceletUpdate {
+                from: facelet_location(update.from.eval(self.n, row, column)),
+                to: facelet_location(update.to.eval(self.n, row, column)),
+            })
     }
 
     /// Reference implementation for `apply_face_commutator_untracked`.
@@ -390,7 +461,7 @@ impl<S: FaceletArray> Cube<S> {
         let mut writes = Vec::with_capacity(rows.len() * columns.len() * 3);
         for row in rows.iter().copied() {
             for column in columns.iter().copied() {
-                for (from, to) in face_commutator_difference_cycle(
+                for (from, to) in expanded_face_commutator_difference_cycle(
                     self.n,
                     destination,
                     helper,
@@ -422,10 +493,27 @@ impl<S: FaceletArray> Cube<S> {
             return;
         }
 
+        self.apply_sparse_commutator_template_untracked(
+            commutator.expanded_template,
+            rows,
+            columns,
+        );
+    }
+
+    fn apply_sparse_commutator_template_untracked(
+        &mut self,
+        template: CenterCommutatorTemplate,
+        rows: &[usize],
+        columns: &[usize],
+    ) {
+        if rows.is_empty() || columns.is_empty() {
+            return;
+        }
+
         let storages = raw_face_storages(&mut self.faces);
 
         for row in rows.iter().copied() {
-            let bound = commutator.template.bind(&self.faces, self.n, row);
+            let bound = template.bind(&self.faces, self.n, row);
             unsafe {
                 bound.apply_columns::<S>(&storages, columns);
             }
@@ -802,8 +890,25 @@ struct CenterCommutatorTemplate {
 }
 
 impl CenterCommutatorTemplate {
-    fn new(destination: FaceId, helper: FaceId, slice_angle: MoveAngle) -> Self {
-        let updates = face_commutator_difference_cycle(
+    fn expanded(destination: FaceId, helper: FaceId, slice_angle: MoveAngle) -> Self {
+        let updates = expanded_face_commutator_difference_cycle(
+            COMMUTATOR_TEMPLATE_N,
+            destination,
+            helper,
+            COMMUTATOR_TEMPLATE_ROW,
+            COMMUTATOR_TEMPLATE_COLUMN,
+            slice_angle,
+        )
+        .map(|(from, to)| PositionUpdateExpr {
+            from: classify_template_position(from),
+            to: classify_template_position(to),
+        });
+
+        Self { updates }
+    }
+
+    fn normalized(destination: FaceId, helper: FaceId, slice_angle: MoveAngle) -> Self {
+        let updates = normalized_face_commutator_difference_cycle(
             COMMUTATOR_TEMPLATE_N,
             destination,
             helper,
@@ -1077,6 +1182,19 @@ fn face_commutator_moves(
     moves
 }
 
+fn normalized_face_commutator_moves(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    rows: &[usize],
+    columns: &[usize],
+    slice_angle: MoveAngle,
+) -> Vec<Move> {
+    let mut moves = face_commutator_moves(n, destination, helper, rows, columns, slice_angle);
+    moves.push(face_layer_move(n, destination, 0, MoveAngle::Positive).inverse());
+    moves
+}
+
 fn validate_inner_layer_set(n: usize, layers: &[usize], name: &str) {
     let mut previous = None;
     for layer in layers.iter().copied() {
@@ -1106,7 +1224,7 @@ fn sorted_layer_sets_are_disjoint(left: &[usize], right: &[usize]) -> bool {
     true
 }
 
-fn face_commutator_difference_cycle(
+fn expanded_face_commutator_difference_cycle(
     n: usize,
     destination: FaceId,
     helper: FaceId,
@@ -1114,11 +1232,30 @@ fn face_commutator_difference_cycle(
     column: usize,
     slice_angle: MoveAngle,
 ) -> [(FacePosition, FacePosition); 3] {
-    try_face_commutator_difference_cycle(n, destination, helper, row, column, slice_angle)
+    try_expanded_face_commutator_difference_cycle(n, destination, helper, row, column, slice_angle)
         .expect("face commutator must differ from the net face turn by exactly one 3-cycle")
 }
 
-fn try_face_commutator_difference_cycle(
+fn normalized_face_commutator_difference_cycle(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    row: usize,
+    column: usize,
+    slice_angle: MoveAngle,
+) -> [(FacePosition, FacePosition); 3] {
+    try_normalized_face_commutator_difference_cycle(
+        n,
+        destination,
+        helper,
+        row,
+        column,
+        slice_angle,
+    )
+    .expect("normalized face commutator must differ from identity by exactly one 3-cycle")
+}
+
+fn try_expanded_face_commutator_difference_cycle(
     n: usize,
     destination: FaceId,
     helper: FaceId,
@@ -1129,6 +1266,40 @@ fn try_face_commutator_difference_cycle(
     let expanded =
         face_commutator_single_column_moves(n, destination, helper, row, column, slice_angle);
     let baseline = [face_layer_move(n, destination, 0, MoveAngle::Positive)];
+    try_difference_cycle(n, row, column, &baseline, &expanded)
+}
+
+fn try_normalized_face_commutator_difference_cycle(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    row: usize,
+    column: usize,
+    slice_angle: MoveAngle,
+) -> Option<[(FacePosition, FacePosition); 3]> {
+    let expanded =
+        face_commutator_single_column_moves(n, destination, helper, row, column, slice_angle);
+    let normalizing_inverse = face_layer_move(n, destination, 0, MoveAngle::Positive).inverse();
+    let normalized = [
+        expanded[0],
+        expanded[1],
+        expanded[2],
+        expanded[3],
+        expanded[4],
+        expanded[5],
+        expanded[6],
+        normalizing_inverse,
+    ];
+    try_difference_cycle(n, row, column, &[], &normalized)
+}
+
+fn try_difference_cycle(
+    n: usize,
+    row: usize,
+    column: usize,
+    baseline: &[Move],
+    expanded: &[Move],
+) -> Option<[(FacePosition, FacePosition); 3]> {
     let (coordinates, coordinate_count) = unique_commutator_coordinates(n, row, column);
     let mut changed = [None; 3];
     let mut changed_count = 0;
@@ -1137,8 +1308,8 @@ fn try_face_commutator_difference_cycle(
         for row in coordinates.iter().take(coordinate_count).copied() {
             for col in coordinates.iter().take(coordinate_count).copied() {
                 let position = FacePosition { face, row, col };
-                let baseline_position = trace_position(n, position, baseline);
-                let expanded_position = trace_position(n, position, expanded);
+                let baseline_position = trace_position(n, position, baseline.iter().copied());
+                let expanded_position = trace_position(n, position, expanded.iter().copied());
                 if baseline_position != expanded_position {
                     if changed_count == changed.len() {
                         return None;
@@ -1509,7 +1680,7 @@ mod tests {
 
         for row in rows.iter().copied() {
             for column in columns.iter().copied() {
-                let Some(cycle) = super::try_face_commutator_difference_cycle(
+                let Some(cycle) = super::try_expanded_face_commutator_difference_cycle(
                     side_length,
                     destination,
                     helper,
@@ -1538,6 +1709,67 @@ mod tests {
                         .iter()
                         .find_map(|(from, to)| (*from == baseline_position).then_some(*to))
                         .unwrap_or(baseline_position);
+                    let expanded_position =
+                        super::trace_position(side_length, position, expanded.iter().copied());
+
+                    if sparse_position != expanded_position {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
+    fn sparse_commutator_mapping_matches_normalized(
+        side_length: usize,
+        destination: FaceId,
+        helper: FaceId,
+        rows: &[usize],
+        columns: &[usize],
+        slice_angle: MoveAngle,
+    ) -> bool {
+        let expanded = super::normalized_face_commutator_moves(
+            side_length,
+            destination,
+            helper,
+            rows,
+            columns,
+            slice_angle,
+        );
+        let mut sparse_cycles = Vec::new();
+
+        for row in rows.iter().copied() {
+            for column in columns.iter().copied() {
+                let Some(cycle) = super::try_normalized_face_commutator_difference_cycle(
+                    side_length,
+                    destination,
+                    helper,
+                    row,
+                    column,
+                    slice_angle,
+                ) else {
+                    return false;
+                };
+                sparse_cycles.extend(cycle);
+            }
+        }
+
+        if !super::positions_are_unique(sparse_cycles.iter().map(|(from, _)| *from))
+            || !super::positions_are_unique(sparse_cycles.iter().map(|(_, to)| *to))
+        {
+            return false;
+        }
+
+        for face in FaceId::ALL {
+            for row in 0..side_length {
+                for col in 0..side_length {
+                    let position = super::FacePosition { face, row, col };
+                    let sparse_position = sparse_cycles
+                        .iter()
+                        .find_map(|(from, to)| (*from == position).then_some(*to))
+                        .unwrap_or(position);
                     let expanded_position =
                         super::trace_position(side_length, position, expanded.iter().copied());
 
@@ -1695,6 +1927,33 @@ mod tests {
                                 );
 
                                 assert_cubes_match(&actual, &expected);
+
+                                let mut normalized_expected =
+                                    patterned_cube::<Byte>(side_length, seed);
+                                let normalized_moves = normalized_expected
+                                    .normalized_face_commutator_moves(
+                                        destination,
+                                        helper,
+                                        &rows,
+                                        &columns,
+                                        slice_angle,
+                                    );
+                                normalized_expected.apply_moves_untracked_with_threads(
+                                    normalized_moves.iter().copied(),
+                                    1,
+                                );
+
+                                let mut normalized_actual =
+                                    patterned_cube::<Byte>(side_length, seed);
+                                normalized_actual.apply_normalized_face_commutator_untracked(
+                                    destination,
+                                    helper,
+                                    &rows,
+                                    &columns,
+                                    slice_angle,
+                                );
+
+                                assert_cubes_match(&normalized_actual, &normalized_expected);
                             }
                         }
                     }
@@ -1730,6 +1989,96 @@ mod tests {
                     assert_cubes_match(&byte3, &byte);
                     assert_cubes_match(&nibble, &byte);
                     assert_cubes_match(&three_bit, &byte);
+
+                    let mut byte = patterned_cube::<Byte>(side_length, 5);
+                    let mut byte3 = patterned_cube::<Byte3>(side_length, 5);
+                    let mut nibble = patterned_cube::<Nibble>(side_length, 5);
+                    let mut three_bit = patterned_cube::<ThreeBit>(side_length, 5);
+
+                    byte.apply_normalized_face_commutator_plan_untracked(
+                        commutator, &rows, &columns,
+                    );
+                    byte3.apply_normalized_face_commutator_plan_untracked(
+                        commutator, &rows, &columns,
+                    );
+                    nibble.apply_normalized_face_commutator_plan_untracked(
+                        commutator, &rows, &columns,
+                    );
+                    three_bit.apply_normalized_face_commutator_plan_untracked(
+                        commutator, &rows, &columns,
+                    );
+
+                    assert_cubes_match(&byte3, &byte);
+                    assert_cubes_match(&nibble, &byte);
+                    assert_cubes_match(&three_bit, &byte);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn normalized_face_commutator_only_changes_declared_center_positions() {
+        let side_length = 9;
+        let rows = [1usize, 4, 7];
+        let columns = [2usize, 3, 5, 6];
+
+        for destination in FaceId::ALL {
+            for helper in FaceId::ALL {
+                if helper == destination || helper == super::opposite_face(destination) {
+                    continue;
+                }
+
+                for slice_angle in MoveAngle::ALL {
+                    let commutator = FaceCommutator::new(destination, helper, slice_angle);
+                    let before = patterned_cube::<Byte>(side_length, 9);
+                    let mut after = before.clone();
+                    let mut affected = std::collections::HashSet::new();
+
+                    for row in rows {
+                        for column in columns {
+                            let updates = before
+                                .normalized_face_commutator_sparse_updates(commutator, row, column);
+                            for update in updates {
+                                for location in [update.from, update.to] {
+                                    assert!(
+                                        location.row > 0
+                                            && location.row + 1 < side_length
+                                            && location.col > 0
+                                            && location.col + 1 < side_length,
+                                        "normalized commutator touched a non-center location: {location:?}"
+                                    );
+                                    affected.insert(location);
+                                }
+                            }
+                        }
+                    }
+
+                    assert_eq!(affected.len(), rows.len() * columns.len() * 3);
+
+                    after.apply_normalized_face_commutator_plan_untracked(
+                        commutator, &rows, &columns,
+                    );
+
+                    for face in FaceId::ALL {
+                        assert_eq!(
+                            after.face(face).rotation(),
+                            before.face(face).rotation(),
+                            "normalized commutator changed face rotation metadata"
+                        );
+
+                        for row in 0..side_length {
+                            for col in 0..side_length {
+                                let location = FaceletLocation { face, row, col };
+                                if !affected.contains(&location) {
+                                    assert_eq!(
+                                        after.face(face).get(row, col),
+                                        before.face(face).get(row, col),
+                                        "normalized commutator changed undeclared location {location:?}"
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1757,6 +2106,17 @@ mod tests {
                                 ),
                                 "overlapping row/column sets unexpectedly matched for n={side_length}, destination={destination}, helper={helper}, angle={slice_angle}, rows={rows:?}, columns={columns:?}"
                             );
+                            assert!(
+                                !sparse_commutator_mapping_matches_normalized(
+                                    side_length,
+                                    destination,
+                                    helper,
+                                    &rows,
+                                    &columns,
+                                    slice_angle,
+                                ),
+                                "overlapping row/column sets unexpectedly matched normalized commutator for n={side_length}, destination={destination}, helper={helper}, angle={slice_angle}, rows={rows:?}, columns={columns:?}"
+                            );
                         }
                     }
                 }
@@ -1772,10 +2132,36 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "destination and helper faces must be perpendicular")]
+    fn normalized_face_commutator_rejects_parallel_helper_face() {
+        let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+        cube.apply_normalized_face_commutator_untracked(
+            FaceId::U,
+            FaceId::D,
+            &[1],
+            &[2],
+            MoveAngle::Positive,
+        );
+    }
+
+    #[test]
     #[should_panic(expected = "commutator row and column layer sets must be disjoint")]
     fn face_commutator_rejects_same_row_and_column_layer() {
         let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
         cube.apply_face_commutator_untracked(FaceId::U, FaceId::R, &[1], &[1], MoveAngle::Positive);
+    }
+
+    #[test]
+    #[should_panic(expected = "commutator row and column layer sets must be disjoint")]
+    fn normalized_face_commutator_rejects_same_row_and_column_layer() {
+        let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+        cube.apply_normalized_face_commutator_untracked(
+            FaceId::U,
+            FaceId::R,
+            &[1],
+            &[1],
+            MoveAngle::Positive,
+        );
     }
 
     #[test]

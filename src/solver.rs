@@ -231,6 +231,37 @@ impl SolveContext {
 
         cube.apply_face_commutator_plan_untracked(commutator, rows, columns);
     }
+
+    pub fn apply_normalized_center_commutator<S: FaceletArray>(
+        &mut self,
+        cube: &mut Cube<S>,
+        commutator: FaceCommutator,
+        rows: &[usize],
+        columns: &[usize],
+    ) {
+        if self.options.record_moves {
+            let literal_moves = cube.normalized_face_commutator_moves(
+                commutator.destination(),
+                commutator.helper(),
+                rows,
+                columns,
+                commutator.slice_angle(),
+            );
+            self.move_stats
+                .record_all(literal_moves.iter().copied(), cube.side_len());
+            self.moves.extend(literal_moves);
+        } else {
+            record_normalized_center_commutator_move_stats(
+                &mut self.move_stats,
+                cube.side_len(),
+                commutator,
+                rows,
+                columns,
+            );
+        }
+
+        cube.apply_normalized_face_commutator_plan_untracked(commutator, rows, columns);
+    }
 }
 
 fn record_center_commutator_move_stats(
@@ -303,6 +334,20 @@ fn record_center_commutator_move_stats(
             side_length,
         );
     }
+}
+
+fn record_normalized_center_commutator_move_stats(
+    stats: &mut MoveStats,
+    side_length: usize,
+    commutator: FaceCommutator,
+    rows: &[usize],
+    columns: &[usize],
+) {
+    record_center_commutator_move_stats(stats, side_length, commutator, rows, columns);
+    stats.record(
+        face_outer_move(side_length, commutator.destination(), MoveAngle::Positive).inverse(),
+        side_length,
+    );
 }
 
 pub trait Solver<S: FaceletArray> {
@@ -887,16 +932,7 @@ fn apply_normalized_center_commutator_row<S: FaceletArray>(
     row: usize,
     columns: &[usize],
 ) {
-    context.apply_center_commutator(cube, commutator, &[row], columns);
-    context.apply_move(
-        cube,
-        face_outer_move(
-            cube.side_len(),
-            commutator.destination(),
-            MoveAngle::Positive,
-        )
-        .inverse(),
-    );
+    context.apply_normalized_center_commutator(cube, commutator, &[row], columns);
 }
 
 fn centers_are_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
@@ -1167,6 +1203,47 @@ mod tests {
     }
 
     #[test]
+    fn normalized_center_commutator_records_the_literal_move_count() {
+        let side_length = 7;
+        let rows = [1usize, 4];
+        let columns = [2usize, 3, 5];
+        let commutator = FaceCommutator::new(FaceId::R, FaceId::F, MoveAngle::Negative);
+        let expected_total = 2 * rows.len() + 2 * columns.len() + 4;
+
+        let mut unrecorded_cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut unrecorded_context = SolveContext::new(SolveOptions {
+            thread_count: 1,
+            record_moves: false,
+        });
+        unrecorded_context.apply_normalized_center_commutator(
+            &mut unrecorded_cube,
+            commutator,
+            &rows,
+            &columns,
+        );
+
+        let stats = unrecorded_context.move_stats();
+        assert_eq!(stats.total, expected_total);
+        assert_eq!(stats.outer_layer, 4);
+        assert_eq!(stats.inner_layer, expected_total - 4);
+
+        let mut recorded_cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut recorded_context = SolveContext::new(SolveOptions {
+            thread_count: 1,
+            record_moves: true,
+        });
+        recorded_context.apply_normalized_center_commutator(
+            &mut recorded_cube,
+            commutator,
+            &rows,
+            &columns,
+        );
+
+        assert_eq!(recorded_context.moves().len(), expected_total);
+        assert_eq!(recorded_context.move_stats(), stats);
+    }
+
+    #[test]
     fn default_reduction_solver_has_center_edge_and_3x3_stages() {
         let solver = ReductionSolver::<Byte>::large_cube_default();
         let names = solver.stage_names().collect::<Vec<_>>();
@@ -1338,12 +1415,7 @@ mod tests {
             };
 
             for _ in 0..2 {
-                cube.apply_face_commutator_plan_untracked(commutator, &[row], &[column]);
-                cube.apply_move_untracked_with_threads(
-                    face_outer_move(cube.side_len(), step.destination, MoveAngle::Positive)
-                        .inverse(),
-                    1,
-                );
+                cube.apply_normalized_face_commutator_plan_untracked(commutator, &[row], &[column]);
             }
             applied += 1;
         }
@@ -1363,11 +1435,7 @@ mod tests {
             columns.extend((1..side_length - 1).filter(|column| *column != row));
 
             for _ in 0..2 {
-                cube.apply_face_commutator_plan_untracked(commutator, &[row], &columns);
-                cube.apply_move_untracked_with_threads(
-                    face_outer_move(side_length, step.destination, MoveAngle::Positive).inverse(),
-                    1,
-                );
+                cube.apply_normalized_face_commutator_plan_untracked(commutator, &[row], &columns);
             }
         }
     }
