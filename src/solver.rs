@@ -1,12 +1,19 @@
 use core::fmt;
 
+mod center_schedule;
+
 use crate::{
-    cube::{Cube, FaceCommutator, FaceletLocation, FaceletUpdate},
+    cube::{Cube, FaceCommutator},
     face::FaceId,
     facelet::Facelet,
     moves::{Axis, Move, MoveAngle},
     storage::FaceletArray,
     threading::default_thread_count,
+};
+
+pub use center_schedule::{
+    CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterQuadrant, CenterScheduleStep,
+    GENERATED_CENTER_SCHEDULE,
 };
 
 pub type MoveSequence = Vec<Move>;
@@ -348,6 +355,7 @@ impl CenterTransferSpec {
 pub struct CenterReductionStage {
     transfers: Vec<CenterTransferSpec>,
     sub_stages: Vec<SubStageSpec>,
+    schedule: &'static [CenterScheduleStep],
 }
 
 impl CenterReductionStage {
@@ -373,6 +381,7 @@ impl CenterReductionStage {
         Self {
             transfers,
             sub_stages,
+            schedule: GENERATED_CENTER_SCHEDULE,
         }
     }
 
@@ -399,6 +408,15 @@ impl CenterReductionStage {
     pub fn transfers(&self) -> &[CenterTransferSpec] {
         &self.transfers
     }
+
+    pub fn schedule(&self) -> &'static [CenterScheduleStep] {
+        self.schedule
+    }
+
+    pub fn with_schedule(mut self, schedule: &'static [CenterScheduleStep]) -> Self {
+        self.schedule = schedule;
+        self
+    }
 }
 
 impl<S: FaceletArray> SolverStage<S> for CenterReductionStage {
@@ -415,579 +433,106 @@ impl<S: FaceletArray> SolverStage<S> for CenterReductionStage {
     }
 
     fn run(&mut self, cube: &mut Cube<S>, context: &mut SolveContext) -> SolveResult<()> {
-        solve_centers_with_commutators(cube, context, "center reduction")
+        solve_centers_with_schedule(cube, context, self.schedule, "center reduction")
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct CenterCommutatorStep {
-    commutator: FaceCommutator,
-    row: usize,
-    column: usize,
-    score_delta: isize,
-    trapped_delta: isize,
-}
-
-fn solve_centers_with_commutators<S: FaceletArray>(
+fn solve_centers_with_schedule<S: FaceletArray>(
     cube: &mut Cube<S>,
     context: &mut SolveContext,
+    schedule: &[CenterScheduleStep],
     stage_name: &'static str,
 ) -> SolveResult<()> {
-    let side_length = cube.side_len();
-    if side_length < 3 || centers_are_solved(cube) {
-        Ok(())
-    } else {
-        let center_count = total_center_count(side_length);
-        let max_steps = center_count
-            .checked_mul(100)
-            .expect("center commutator step limit overflowed usize");
+    if cube.side_len() < 4 || centers_are_solved(cube) {
+        return Ok(());
+    }
 
-        for _ in 0..max_steps {
-            if centers_are_solved(cube) {
-                return Ok(());
-            }
+    let max_passes = total_center_count(cube.side_len())
+        .checked_mul(2)
+        .expect("center schedule pass limit overflowed usize");
 
-            let Some(step) = best_center_commutator_step(cube, context.center_commutators()) else {
-                if let Some(setup_move) =
-                    find_center_move_setup_move(cube, context.center_commutators())
-                {
-                    context.apply_move(cube, setup_move);
-                    continue;
-                }
-
-                return Err(SolveError::StageFailed {
-                    stage: stage_name,
-                    reason: "no improving center commutator or setup step was found",
-                });
-            };
-
-            let score_before = center_score(cube);
-            apply_normalized_center_commutator(context, cube, step);
-            debug_assert_eq!(
-                center_score(cube) as isize - score_before as isize,
-                step.score_delta,
-                "predicted center score delta did not match the applied commutator: {step:?}"
-            );
+    for _ in 0..max_passes {
+        if centers_are_solved(cube) {
+            return Ok(());
         }
 
+        let mut changed = false;
+        for step in schedule {
+            changed |= apply_center_schedule_step(cube, context, *step);
+        }
+
+        if !changed {
+            break;
+        }
+    }
+
+    if centers_are_solved(cube) {
+        Ok(())
+    } else {
         Err(SolveError::StageFailed {
             stage: stage_name,
-            reason: "center commutator step limit reached",
+            reason: "generated center schedule made no further progress",
         })
     }
 }
 
-fn best_center_commutator_step<S: FaceletArray>(
-    cube: &Cube<S>,
-    table: &CenterCommutatorTable,
-) -> Option<CenterCommutatorStep> {
-    best_improving_center_commutator_step(cube, table)
-        .or_else(|| opposite_face_route_center_step(cube, table))
-        .or_else(|| lookahead_center_commutator_setup_step(cube, table))
+fn apply_center_schedule_step<S: FaceletArray>(
+    cube: &mut Cube<S>,
+    context: &mut SolveContext,
+    step: CenterScheduleStep,
+) -> bool {
+    let side_length = cube.side_len();
+    let target = target_center_color(step.destination);
+    let Some(commutator) =
+        context
+            .center_commutators()
+            .get(step.destination, step.helper, step.angle)
+    else {
+        return false;
+    };
+    let mut changed = false;
+
+    for row in step.row_quadrant.rows(side_length) {
+        for column in step.column_quadrant.columns(side_length) {
+            if row == column {
+                continue;
+            }
+
+            let source = step.source_location.eval(side_length, row, column);
+            let destination = step.destination_location.eval(side_length, row, column);
+
+            if cube.face(source.face).get(source.row, source.column) == target
+                && cube
+                    .face(destination.face)
+                    .get(destination.row, destination.column)
+                    != target
+            {
+                apply_normalized_center_commutator_parts(context, cube, commutator, row, column);
+                changed = true;
+            }
+        }
+    }
+
+    changed
 }
 
-fn apply_normalized_center_commutator<S: FaceletArray>(
+fn apply_normalized_center_commutator_parts<S: FaceletArray>(
     context: &mut SolveContext,
     cube: &mut Cube<S>,
-    step: CenterCommutatorStep,
+    commutator: FaceCommutator,
+    row: usize,
+    column: usize,
 ) {
-    context.apply_center_commutator(cube, step.commutator, &[step.row], &[step.column]);
+    context.apply_center_commutator(cube, commutator, &[row], &[column]);
     context.apply_move(
         cube,
         face_outer_move(
             cube.side_len(),
-            step.commutator.destination(),
+            commutator.destination(),
             MoveAngle::Positive,
         )
         .inverse(),
     );
-}
-
-fn apply_normalized_center_commutator_untracked<S: FaceletArray>(
-    cube: &mut Cube<S>,
-    step: CenterCommutatorStep,
-) {
-    cube.apply_face_commutator_plan_untracked(step.commutator, &[step.row], &[step.column]);
-    cube.apply_move_untracked_with_threads(
-        face_outer_move(
-            cube.side_len(),
-            step.commutator.destination(),
-            MoveAngle::Positive,
-        )
-        .inverse(),
-        1,
-    );
-}
-
-fn best_improving_center_commutator_step<S: FaceletArray>(
-    cube: &Cube<S>,
-    table: &CenterCommutatorTable,
-) -> Option<CenterCommutatorStep> {
-    let side_length = cube.side_len();
-    let mut best_improving = None;
-
-    for destination in FaceId::ALL {
-        for helper in FaceId::ALL {
-            for angle in MoveAngle::ALL {
-                let Some(commutator) = table.get(destination, helper, angle) else {
-                    continue;
-                };
-
-                for row in 1..side_length - 1 {
-                    for column in 1..side_length - 1 {
-                        if row == column {
-                            continue;
-                        }
-
-                        let updates = cube.face_commutator_sparse_updates(commutator, row, column);
-                        let score_delta = center_score_delta_after_normalized_commutator(
-                            cube,
-                            destination,
-                            updates,
-                        );
-                        let trapped_delta = center_trapped_delta_after_normalized_commutator(
-                            cube,
-                            destination,
-                            updates,
-                        );
-
-                        let step = CenterCommutatorStep {
-                            commutator,
-                            row,
-                            column,
-                            score_delta,
-                            trapped_delta,
-                        };
-
-                        if score_delta > 0 {
-                            if better_improving_center_step(step, best_improving) {
-                                best_improving = Some(step);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    best_improving
-}
-
-fn better_improving_center_step(
-    step: CenterCommutatorStep,
-    best: Option<CenterCommutatorStep>,
-) -> bool {
-    best.map(|best| {
-        step.score_delta > best.score_delta
-            || (step.score_delta == best.score_delta && step.trapped_delta < best.trapped_delta)
-            || (step.score_delta == best.score_delta
-                && step.trapped_delta == best.trapped_delta
-                && step.commutator.destination().index() < best.commutator.destination().index())
-    })
-    .unwrap_or(true)
-}
-
-fn better_setup_center_step(
-    step: CenterCommutatorStep,
-    best: Option<CenterCommutatorStep>,
-) -> bool {
-    best.map(|best| {
-        step.trapped_delta < best.trapped_delta
-            || (step.trapped_delta == best.trapped_delta
-                && step.commutator.destination().index() < best.commutator.destination().index())
-    })
-    .unwrap_or(true)
-}
-
-fn opposite_face_route_center_step<S: FaceletArray>(
-    cube: &Cube<S>,
-    table: &CenterCommutatorTable,
-) -> Option<CenterCommutatorStep> {
-    for target_face in FaceId::ALL {
-        if face_centers_are_solved(cube, target_face) {
-            continue;
-        }
-
-        let source_face = opposite_face(target_face);
-        let color = target_center_color(target_face);
-        if !face_contains_center_color(cube, source_face, color) {
-            continue;
-        }
-
-        if let Some(step) = route_center_through_intermediate(cube, table, target_face, source_face)
-        {
-            return Some(step);
-        }
-    }
-
-    None
-}
-
-fn route_center_through_intermediate<S: FaceletArray>(
-    cube: &Cube<S>,
-    table: &CenterCommutatorTable,
-    target_face: FaceId,
-    source_face: FaceId,
-) -> Option<CenterCommutatorStep> {
-    let color = target_center_color(target_face);
-
-    for require_unsolved_destination in [true, false] {
-        for intermediate in FaceId::ALL {
-            if intermediate == target_face || intermediate == source_face {
-                continue;
-            }
-            if require_unsolved_destination && face_centers_are_solved(cube, intermediate) {
-                continue;
-            }
-
-            if let Some(step) =
-                find_center_transfer_step(cube, table, intermediate, source_face, color, true, true)
-                    .or_else(|| {
-                        find_center_transfer_step(
-                            cube,
-                            table,
-                            intermediate,
-                            source_face,
-                            color,
-                            false,
-                            true,
-                        )
-                    })
-            {
-                return Some(step);
-            }
-        }
-    }
-
-    None
-}
-
-fn find_center_transfer_step<S: FaceletArray>(
-    cube: &Cube<S>,
-    table: &CenterCommutatorTable,
-    destination: FaceId,
-    source: FaceId,
-    color: Facelet,
-    require_destination_mismatch: bool,
-    require_followup_improvement: bool,
-) -> Option<CenterCommutatorStep> {
-    let side_length = cube.side_len();
-    let mut best: Option<CenterCommutatorStep> = None;
-
-    for helper in FaceId::ALL {
-        for angle in MoveAngle::ALL {
-            let Some(commutator) = table.get(destination, helper, angle) else {
-                continue;
-            };
-
-            for row in 1..side_length - 1 {
-                for column in 1..side_length - 1 {
-                    if row == column {
-                        continue;
-                    }
-
-                    let updates = cube.face_commutator_sparse_updates(commutator, row, column);
-                    let transfers_requested_color = updates.iter().copied().any(|update| {
-                        let final_destination =
-                            normalized_update_destination(side_length, destination, update);
-
-                        update.from.face == source
-                            && final_destination.face == destination
-                            && value_after_destination_turn(cube, destination, update.from) == color
-                            && (!require_destination_mismatch
-                                || cube
-                                    .face(final_destination.face)
-                                    .get(final_destination.row, final_destination.col)
-                                    != target_center_color(destination))
-                    });
-                    if !transfers_requested_color {
-                        continue;
-                    }
-
-                    let step = CenterCommutatorStep {
-                        commutator,
-                        row,
-                        column,
-                        score_delta: center_score_delta_after_normalized_commutator(
-                            cube,
-                            destination,
-                            updates,
-                        ),
-                        trapped_delta: center_trapped_delta_after_normalized_commutator(
-                            cube,
-                            destination,
-                            updates,
-                        ),
-                    };
-
-                    if require_followup_improvement {
-                        let mut trial = cube.clone();
-                        apply_normalized_center_commutator_untracked(&mut trial, step);
-                        if best_improving_center_commutator_step(&trial, table).is_none() {
-                            continue;
-                        }
-                    }
-
-                    if better_setup_center_step(step, best) {
-                        best = Some(step);
-                    }
-                }
-            }
-        }
-    }
-
-    best
-}
-
-fn lookahead_center_commutator_setup_step<S: FaceletArray>(
-    cube: &Cube<S>,
-    table: &CenterCommutatorTable,
-) -> Option<CenterCommutatorStep> {
-    let side_length = cube.side_len();
-    let mut best: Option<CenterCommutatorStep> = None;
-    let mut best_net_delta = 0;
-
-    for destination in FaceId::ALL {
-        for helper in FaceId::ALL {
-            for angle in MoveAngle::ALL {
-                let Some(commutator) = table.get(destination, helper, angle) else {
-                    continue;
-                };
-
-                for row in 1..side_length - 1 {
-                    for column in 1..side_length - 1 {
-                        if row == column {
-                            continue;
-                        }
-
-                        let updates = cube.face_commutator_sparse_updates(commutator, row, column);
-                        let step = CenterCommutatorStep {
-                            commutator,
-                            row,
-                            column,
-                            score_delta: center_score_delta_after_normalized_commutator(
-                                cube,
-                                destination,
-                                updates,
-                            ),
-                            trapped_delta: center_trapped_delta_after_normalized_commutator(
-                                cube,
-                                destination,
-                                updates,
-                            ),
-                        };
-
-                        if step.score_delta > 0 || step.score_delta < -2 {
-                            continue;
-                        }
-
-                        let mut trial = cube.clone();
-                        apply_normalized_center_commutator_untracked(&mut trial, step);
-
-                        let Some(next) = best_improving_center_commutator_step(&trial, table)
-                        else {
-                            continue;
-                        };
-                        let net_delta = step.score_delta + next.score_delta;
-                        if net_delta <= 0 {
-                            continue;
-                        }
-
-                        if best.is_none()
-                            || net_delta > best_net_delta
-                            || (net_delta == best_net_delta
-                                && step.trapped_delta
-                                    < best.expect("best is initialized").trapped_delta)
-                        {
-                            best = Some(step);
-                            best_net_delta = net_delta;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    best
-}
-
-fn find_center_move_setup_move<S: FaceletArray>(
-    cube: &Cube<S>,
-    table: &CenterCommutatorTable,
-) -> Option<Move> {
-    let score = center_score(cube);
-    let mut best = None;
-    let mut best_net_delta = 0;
-
-    for max_setup_loss in [0isize, 1, 2, 4, 8] {
-        for axis in [Axis::X, Axis::Y, Axis::Z] {
-            for depth in 0..cube.side_len() {
-                for angle in MoveAngle::ALL {
-                    let mv = Move::new(axis, depth, angle);
-                    let mut trial = cube.clone();
-                    trial.apply_move_untracked_with_threads(mv, 1);
-                    let setup_delta = center_score(&trial) as isize - score as isize;
-                    if setup_delta < -max_setup_loss {
-                        continue;
-                    }
-
-                    let Some(next) = best_improving_center_commutator_step(&trial, table) else {
-                        continue;
-                    };
-                    let net_delta = setup_delta + next.score_delta;
-                    if net_delta <= 0 {
-                        continue;
-                    }
-
-                    if best.is_none() || net_delta > best_net_delta {
-                        best = Some(mv);
-                        best_net_delta = net_delta;
-                    }
-                }
-            }
-        }
-
-        if best.is_some() {
-            return best;
-        }
-    }
-
-    best
-}
-
-fn center_score_delta_after_normalized_commutator<S: FaceletArray>(
-    cube: &Cube<S>,
-    destination: FaceId,
-    updates: [FaceletUpdate; 3],
-) -> isize {
-    let mut delta = 0;
-
-    for update in updates {
-        let final_location = normalized_update_destination(cube.side_len(), destination, update);
-        let old_value = cube
-            .face(final_location.face)
-            .get(final_location.row, final_location.col);
-        let new_value = value_after_destination_turn(cube, destination, update.from);
-
-        delta += center_position_score(final_location, new_value) as isize;
-        delta -= center_position_score(final_location, old_value) as isize;
-    }
-
-    delta
-}
-
-fn center_trapped_delta_after_normalized_commutator<S: FaceletArray>(
-    cube: &Cube<S>,
-    destination: FaceId,
-    updates: [FaceletUpdate; 3],
-) -> isize {
-    let mut delta = 0;
-
-    for update in updates {
-        let final_location = normalized_update_destination(cube.side_len(), destination, update);
-        let old_value = cube
-            .face(final_location.face)
-            .get(final_location.row, final_location.col);
-        let new_value = value_after_destination_turn(cube, destination, update.from);
-
-        delta += center_position_trapped_score(final_location, new_value) as isize;
-        delta -= center_position_trapped_score(final_location, old_value) as isize;
-    }
-
-    delta
-}
-
-fn normalized_update_destination(
-    side_length: usize,
-    destination: FaceId,
-    update: FaceletUpdate,
-) -> FaceletLocation {
-    if update.to.face != destination {
-        return update.to;
-    }
-
-    let (row, col) = rotate_face_location(
-        side_length,
-        update.to.row,
-        update.to.col,
-        baseline_destination_angle(destination).inverse(),
-    );
-
-    FaceletLocation {
-        face: update.to.face,
-        row,
-        col,
-    }
-}
-
-fn value_after_destination_turn<S: FaceletArray>(
-    cube: &Cube<S>,
-    destination: FaceId,
-    location: FaceletLocation,
-) -> Facelet {
-    if location.face == destination {
-        let side_length = cube.side_len();
-        let (row, col) = source_coords_after_face_turn(
-            side_length,
-            location.row,
-            location.col,
-            baseline_destination_angle(destination),
-        );
-        cube.face(location.face).get(row, col)
-    } else {
-        cube.face(location.face).get(location.row, location.col)
-    }
-}
-
-fn source_coords_after_face_turn(
-    side_length: usize,
-    row: usize,
-    column: usize,
-    angle: MoveAngle,
-) -> (usize, usize) {
-    match angle {
-        MoveAngle::Positive => (side_length - 1 - column, row),
-        MoveAngle::Double => (side_length - 1 - row, side_length - 1 - column),
-        MoveAngle::Negative => (column, side_length - 1 - row),
-    }
-}
-
-fn rotate_face_location(
-    side_length: usize,
-    row: usize,
-    column: usize,
-    angle: MoveAngle,
-) -> (usize, usize) {
-    match angle {
-        MoveAngle::Positive => (column, side_length - 1 - row),
-        MoveAngle::Double => (side_length - 1 - row, side_length - 1 - column),
-        MoveAngle::Negative => (side_length - 1 - column, row),
-    }
-}
-
-fn baseline_destination_angle(destination: FaceId) -> MoveAngle {
-    match destination {
-        FaceId::U | FaceId::R | FaceId::F => MoveAngle::Positive,
-        FaceId::D | FaceId::L | FaceId::B => MoveAngle::Negative,
-    }
-}
-
-fn center_position_score(location: FaceletLocation, value: Facelet) -> usize {
-    usize::from(value == target_center_color(location.face))
-}
-
-fn center_position_trapped_score(location: FaceletLocation, value: Facelet) -> usize {
-    let target_face = target_face_for_color(value);
-
-    usize::from(
-        location.face != target_face
-            && location.face == opposite_face(target_face)
-            && is_inner_location(location),
-    )
-}
-
-fn is_inner_location(location: FaceletLocation) -> bool {
-    location.row > 0 && location.col > 0
 }
 
 fn centers_are_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
@@ -1012,22 +557,6 @@ fn face_centers_are_solved<S: FaceletArray>(cube: &Cube<S>, face: FaceId) -> boo
     true
 }
 
-fn face_contains_center_color<S: FaceletArray>(
-    cube: &Cube<S>,
-    face: FaceId,
-    color: Facelet,
-) -> bool {
-    for row in 1..cube.side_len().saturating_sub(1) {
-        for column in 1..cube.side_len().saturating_sub(1) {
-            if cube.face(face).get(row, column) == color {
-                return true;
-            }
-        }
-    }
-
-    false
-}
-
 fn total_center_count(side_length: usize) -> usize {
     let centers_per_face = side_length.saturating_sub(2);
     centers_per_face * centers_per_face * FaceId::ALL.len()
@@ -1035,10 +564,6 @@ fn total_center_count(side_length: usize) -> usize {
 
 fn target_center_color(face: FaceId) -> Facelet {
     Facelet::from_u8(face.index() as u8)
-}
-
-fn target_face_for_color(value: Facelet) -> FaceId {
-    FaceId::ALL[value.as_u8() as usize]
 }
 
 fn face_outer_move(side_length: usize, face: FaceId, angle: MoveAngle) -> Move {
@@ -1327,24 +852,31 @@ mod tests {
         let mut applied = 0;
 
         while applied < count {
-            let destination = FaceId::ALL[(rng.next_u64() as usize) % FaceId::ALL.len()];
-            let helper = FaceId::ALL[(rng.next_u64() as usize) % FaceId::ALL.len()];
-            let angle = MoveAngle::ALL[(rng.next_u64() as usize) % MoveAngle::ALL.len()];
-            let row = 1 + (rng.next_u64() as usize) % (cube.side_len() - 2);
-            let column = 1 + (rng.next_u64() as usize) % (cube.side_len() - 2);
+            let step = GENERATED_CENTER_SCHEDULE
+                [(rng.next_u64() as usize) % GENERATED_CENTER_SCHEDULE.len()];
+            let rows = step.row_quadrant.rows(cube.side_len()).collect::<Vec<_>>();
+            let columns = step
+                .column_quadrant
+                .columns(cube.side_len())
+                .collect::<Vec<_>>();
+            let row = rows[(rng.next_u64() as usize) % rows.len()];
+            let column = columns[(rng.next_u64() as usize) % columns.len()];
 
             if row == column {
                 continue;
             }
-            let Some(commutator) = table.get(destination, helper, angle) else {
+            let Some(commutator) = table.get(step.destination, step.helper, step.angle) else {
                 continue;
             };
 
-            cube.apply_face_commutator_plan_untracked(commutator, &[row], &[column]);
-            cube.apply_move_untracked_with_threads(
-                face_outer_move(cube.side_len(), destination, MoveAngle::Positive).inverse(),
-                1,
-            );
+            for _ in 0..2 {
+                cube.apply_face_commutator_plan_untracked(commutator, &[row], &[column]);
+                cube.apply_move_untracked_with_threads(
+                    face_outer_move(cube.side_len(), step.destination, MoveAngle::Positive)
+                        .inverse(),
+                    1,
+                );
+            }
             applied += 1;
         }
     }
@@ -1354,6 +886,7 @@ mod tests {
         let stage = CenterReductionStage::western_default();
 
         assert_eq!(stage.transfers().len(), 15);
+        assert_eq!(stage.schedule().len(), GENERATED_CENTER_SCHEDULE.len());
         assert_eq!(
             stage.transfers()[0],
             CenterTransferSpec::new(FaceId::F, FaceId::R, Facelet::Red)
@@ -1362,5 +895,34 @@ mod tests {
             stage.transfers()[14],
             CenterTransferSpec::new(FaceId::U, FaceId::B, Facelet::Blue)
         );
+    }
+
+    #[test]
+    fn generated_center_schedule_is_ordered_by_face_quadrant_and_source() {
+        assert_eq!(GENERATED_CENTER_SCHEDULE.len(), 1_152);
+
+        for window in GENERATED_CENTER_SCHEDULE.windows(2) {
+            let left = center_schedule_sort_key(window[0]);
+            let right = center_schedule_sort_key(window[1]);
+            assert!(
+                left <= right,
+                "generated center schedule is out of order: {:?} before {:?}",
+                window[0],
+                window[1]
+            );
+        }
+    }
+
+    fn center_schedule_sort_key(
+        step: CenterScheduleStep,
+    ) -> (usize, usize, usize, usize, usize, usize) {
+        (
+            step.destination.index(),
+            step.row_quadrant.index(),
+            step.column_quadrant.index(),
+            step.source.index(),
+            step.helper.index(),
+            step.angle.as_u8() as usize,
+        )
     }
 }

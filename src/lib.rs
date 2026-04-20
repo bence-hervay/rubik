@@ -20,9 +20,11 @@ pub use matrix::Matrix;
 pub use moves::{Axis, Move, MoveAngle};
 pub use random::{RandomSource, XorShift64};
 pub use solver::{
-    CenterCommutatorTable, CenterReductionStage, CenterTransferSpec, EdgePairingStage, EdgeSlot,
+    CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterQuadrant,
+    CenterReductionStage, CenterScheduleStep, CenterTransferSpec, EdgePairingStage, EdgeSlot,
     MoveSequence, ReductionSolver, SolveContext, SolveError, SolveOptions, SolveOutcome,
     SolvePhase, SolveResult, Solver, SolverStage, StageReport, SubStageSpec, ThreeByThreeStage,
+    GENERATED_CENTER_SCHEDULE,
 };
 pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};
 pub use threading::default_thread_count;
