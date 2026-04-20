@@ -200,6 +200,63 @@ pub(crate) fn cycle_four_lines<S: FaceletArray>(
     len: usize,
     angle: MoveAngle,
 ) {
+    match angle {
+        MoveAngle::Positive => cycle_four_lines_mapped(
+            storage0,
+            traversal0,
+            storage1,
+            traversal1,
+            storage2,
+            traversal2,
+            storage3,
+            traversal3,
+            len,
+            |v0, v1, v2, v3| (v3, v0, v1, v2),
+        ),
+        MoveAngle::Double => cycle_four_lines_mapped(
+            storage0,
+            traversal0,
+            storage1,
+            traversal1,
+            storage2,
+            traversal2,
+            storage3,
+            traversal3,
+            len,
+            |v0, v1, v2, v3| (v2, v3, v0, v1),
+        ),
+        MoveAngle::Negative => cycle_four_lines_mapped(
+            storage0,
+            traversal0,
+            storage1,
+            traversal1,
+            storage2,
+            traversal2,
+            storage3,
+            traversal3,
+            len,
+            |v0, v1, v2, v3| (v1, v2, v3, v0),
+        ),
+    }
+}
+
+#[inline(never)]
+#[allow(clippy::too_many_arguments)]
+fn cycle_four_lines_mapped<S, F>(
+    storage0: &mut S,
+    traversal0: LineTraversal,
+    storage1: &mut S,
+    traversal1: LineTraversal,
+    storage2: &mut S,
+    traversal2: LineTraversal,
+    storage3: &mut S,
+    traversal3: LineTraversal,
+    len: usize,
+    mut rotate: F,
+) where
+    S: FaceletArray,
+    F: FnMut(u8, u8, u8, u8) -> (u8, u8, u8, u8),
+{
     let mut p0 = traversal0.start;
     let mut p1 = traversal1.start;
     let mut p2 = traversal2.start;
@@ -217,27 +274,12 @@ pub(crate) fn cycle_four_lines<S: FaceletArray>(
             let v1 = storage1.get_unchecked_raw(i1);
             let v2 = storage2.get_unchecked_raw(i2);
             let v3 = storage3.get_unchecked_raw(i3);
+            let (n0, n1, n2, n3) = rotate(v0, v1, v2, v3);
 
-            match angle {
-                MoveAngle::Positive => {
-                    storage0.set_unchecked_raw(i0, v3);
-                    storage1.set_unchecked_raw(i1, v0);
-                    storage2.set_unchecked_raw(i2, v1);
-                    storage3.set_unchecked_raw(i3, v2);
-                }
-                MoveAngle::Double => {
-                    storage0.set_unchecked_raw(i0, v2);
-                    storage1.set_unchecked_raw(i1, v3);
-                    storage2.set_unchecked_raw(i2, v0);
-                    storage3.set_unchecked_raw(i3, v1);
-                }
-                MoveAngle::Negative => {
-                    storage0.set_unchecked_raw(i0, v1);
-                    storage1.set_unchecked_raw(i1, v2);
-                    storage2.set_unchecked_raw(i2, v3);
-                    storage3.set_unchecked_raw(i3, v0);
-                }
-            }
+            storage0.set_unchecked_raw(i0, n0);
+            storage1.set_unchecked_raw(i1, n1);
+            storage2.set_unchecked_raw(i2, n2);
+            storage3.set_unchecked_raw(i3, n3);
         }
 
         p0 += traversal0.step;
@@ -680,6 +722,67 @@ unsafe fn cycle_four_lines_raw_chunk<S: FaceletArray>(
     end: usize,
     angle: MoveAngle,
 ) {
+    match angle {
+        MoveAngle::Positive => cycle_four_lines_raw_chunk_mapped::<S, _>(
+            storage0,
+            traversal0,
+            storage1,
+            traversal1,
+            storage2,
+            traversal2,
+            storage3,
+            traversal3,
+            start,
+            end,
+            |v0, v1, v2, v3| (v3, v0, v1, v2),
+        ),
+        MoveAngle::Double => cycle_four_lines_raw_chunk_mapped::<S, _>(
+            storage0,
+            traversal0,
+            storage1,
+            traversal1,
+            storage2,
+            traversal2,
+            storage3,
+            traversal3,
+            start,
+            end,
+            |v0, v1, v2, v3| (v2, v3, v0, v1),
+        ),
+        MoveAngle::Negative => cycle_four_lines_raw_chunk_mapped::<S, _>(
+            storage0,
+            traversal0,
+            storage1,
+            traversal1,
+            storage2,
+            traversal2,
+            storage3,
+            traversal3,
+            start,
+            end,
+            |v0, v1, v2, v3| (v1, v2, v3, v0),
+        ),
+    }
+}
+
+#[inline(never)]
+#[allow(clippy::too_many_arguments)]
+unsafe fn cycle_four_lines_raw_chunk_mapped<S, F>(
+    storage0: S::RawStorage,
+    traversal0: LineTraversal,
+    storage1: S::RawStorage,
+    traversal1: LineTraversal,
+    storage2: S::RawStorage,
+    traversal2: LineTraversal,
+    storage3: S::RawStorage,
+    traversal3: LineTraversal,
+    start: usize,
+    end: usize,
+    mut rotate: F,
+) where
+    S: FaceletArray,
+    F: FnMut(u8, u8, u8, u8) -> (u8, u8, u8, u8),
+{
     let mut p0 = traversal_position(traversal0, start);
     let mut p1 = traversal_position(traversal1, start);
     let mut p2 = traversal_position(traversal2, start);
@@ -695,27 +798,12 @@ unsafe fn cycle_four_lines_raw_chunk<S: FaceletArray>(
         let v1 = S::get_unchecked_raw_from(storage1, i1);
         let v2 = S::get_unchecked_raw_from(storage2, i2);
         let v3 = S::get_unchecked_raw_from(storage3, i3);
+        let (n0, n1, n2, n3) = rotate(v0, v1, v2, v3);
 
-        match angle {
-            MoveAngle::Positive => {
-                S::set_unchecked_raw_in(storage0, i0, v3);
-                S::set_unchecked_raw_in(storage1, i1, v0);
-                S::set_unchecked_raw_in(storage2, i2, v1);
-                S::set_unchecked_raw_in(storage3, i3, v2);
-            }
-            MoveAngle::Double => {
-                S::set_unchecked_raw_in(storage0, i0, v2);
-                S::set_unchecked_raw_in(storage1, i1, v3);
-                S::set_unchecked_raw_in(storage2, i2, v0);
-                S::set_unchecked_raw_in(storage3, i3, v1);
-            }
-            MoveAngle::Negative => {
-                S::set_unchecked_raw_in(storage0, i0, v1);
-                S::set_unchecked_raw_in(storage1, i1, v2);
-                S::set_unchecked_raw_in(storage2, i2, v3);
-                S::set_unchecked_raw_in(storage3, i3, v0);
-            }
-        }
+        S::set_unchecked_raw_in(storage0, i0, n0);
+        S::set_unchecked_raw_in(storage1, i1, n1);
+        S::set_unchecked_raw_in(storage2, i2, n2);
+        S::set_unchecked_raw_in(storage3, i3, n3);
 
         p0 += traversal0.step;
         p1 += traversal1.step;
