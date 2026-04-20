@@ -260,6 +260,58 @@ impl<S: FaceletArray> Cube<S> {
             .expect("cube storage estimate overflowed usize")
     }
 
+    /// Returns the literal move sequence represented by `apply_face_commutator_untracked`.
+    pub fn face_commutator_moves(
+        &self,
+        destination: FaceId,
+        helper: FaceId,
+        row: usize,
+        columns: &[usize],
+        slice_angle: MoveAngle,
+    ) -> Vec<Move> {
+        self.validate_face_commutator(destination, helper, row, columns);
+        face_commutator_moves(self.n, destination, helper, row, columns, slice_angle)
+    }
+
+    /// Applies the exact state change of the expanded face commutator while
+    /// avoiding the per-column full-slice moves.
+    ///
+    /// The expanded sequence is `helper columns^-1`, destination face turn,
+    /// `helper row^-1`, destination inverse, `helper columns`, destination face
+    /// turn, `helper row`. Columns must be sorted inner layers distinct from
+    /// `row`.
+    pub fn apply_face_commutator_untracked(
+        &mut self,
+        destination: FaceId,
+        helper: FaceId,
+        row: usize,
+        columns: &[usize],
+        slice_angle: MoveAngle,
+    ) {
+        self.validate_face_commutator(destination, helper, row, columns);
+
+        let baseline = face_layer_move(self.n, destination, 0, MoveAngle::Positive);
+        self.apply_move_untracked_linear(baseline);
+
+        let mut writes = Vec::with_capacity(columns.len() * 3);
+        for column in columns.iter().copied() {
+            for (from, to) in face_commutator_difference_cycle(
+                self.n,
+                destination,
+                helper,
+                row,
+                column,
+                slice_angle,
+            ) {
+                writes.push((to, self.position(from)));
+            }
+        }
+
+        for (position, value) in writes {
+            self.set_position(position, value);
+        }
+    }
+
     pub fn net_string(&self) -> String {
         let rows = (0..self.n).collect::<Vec<_>>();
         let cols = (0..self.n).collect::<Vec<_>>();
@@ -335,6 +387,60 @@ impl<S: FaceletArray> Cube<S> {
 
     fn validate_move(&self, mv: Move) {
         assert!(mv.depth < self.n, "move depth out of bounds");
+    }
+
+    fn validate_face_commutator(
+        &self,
+        destination: FaceId,
+        helper: FaceId,
+        row: usize,
+        columns: &[usize],
+    ) {
+        assert!(
+            self.n >= 3,
+            "face commutators require side length at least 3"
+        );
+        assert_ne!(
+            destination, helper,
+            "destination and helper faces must differ"
+        );
+        assert_ne!(
+            destination,
+            opposite_face(helper),
+            "destination and helper faces must be perpendicular"
+        );
+        assert!(
+            row > 0 && row + 1 < self.n,
+            "commutator row must be an inner layer"
+        );
+
+        let mut previous = None;
+        for column in columns.iter().copied() {
+            assert!(
+                column > 0 && column + 1 < self.n,
+                "commutator columns must be inner layers"
+            );
+            assert_ne!(
+                column, row,
+                "commutator row and column layers must be distinct"
+            );
+            if let Some(previous) = previous {
+                assert!(
+                    previous < column,
+                    "commutator columns must be strictly increasing"
+                );
+            }
+            previous = Some(column);
+        }
+    }
+
+    fn position(&self, position: FacePosition) -> Facelet {
+        self.face(position.face).get(position.row, position.col)
+    }
+
+    fn set_position(&mut self, position: FacePosition, value: Facelet) {
+        self.face_mut(position.face)
+            .set(position.row, position.col, value);
     }
 
     #[inline]
@@ -520,6 +626,231 @@ fn faces4_mut<S: FaceletArray>(
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+struct FacePosition {
+    face: FaceId,
+    row: usize,
+    col: usize,
+}
+
+fn face_commutator_moves(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    row: usize,
+    columns: &[usize],
+    slice_angle: MoveAngle,
+) -> Vec<Move> {
+    let mut moves = Vec::with_capacity(columns.len() * 2 + 5);
+    let reverse = slice_angle.inverse();
+
+    for column in columns.iter().copied() {
+        moves.push(face_layer_move(n, helper, column, reverse));
+    }
+    moves.push(face_layer_move(n, destination, 0, MoveAngle::Positive));
+    moves.push(face_layer_move(n, helper, row, reverse));
+    moves.push(face_layer_move(n, destination, 0, MoveAngle::Negative));
+    for column in columns.iter().copied() {
+        moves.push(face_layer_move(n, helper, column, slice_angle));
+    }
+    moves.push(face_layer_move(n, destination, 0, MoveAngle::Positive));
+    moves.push(face_layer_move(n, helper, row, slice_angle));
+
+    moves
+}
+
+fn face_commutator_difference_cycle(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    row: usize,
+    column: usize,
+    slice_angle: MoveAngle,
+) -> [(FacePosition, FacePosition); 3] {
+    let expanded =
+        face_commutator_single_column_moves(n, destination, helper, row, column, slice_angle);
+    let baseline = [face_layer_move(n, destination, 0, MoveAngle::Positive)];
+    let (coordinates, coordinate_count) = unique_commutator_coordinates(n, row, column);
+    let mut changed = [None; 3];
+    let mut changed_count = 0;
+
+    for face in FaceId::ALL {
+        for row in coordinates.iter().take(coordinate_count).copied() {
+            for col in coordinates.iter().take(coordinate_count).copied() {
+                let position = FacePosition { face, row, col };
+                let baseline_position = trace_position(n, position, baseline);
+                let expanded_position = trace_position(n, position, expanded);
+                if baseline_position != expanded_position {
+                    assert!(
+                        changed_count < changed.len(),
+                        "face commutator generated more than one sparse 3-cycle"
+                    );
+                    changed[changed_count] = Some((baseline_position, expanded_position));
+                    changed_count += 1;
+                }
+            }
+        }
+    }
+
+    assert_eq!(
+        changed_count, 3,
+        "face commutator must differ from the net face turn by exactly one 3-cycle"
+    );
+    let changed = changed.map(|entry| entry.expect("changed entry must be initialized"));
+    assert_unique_positions(changed.iter().map(|(from, _)| *from));
+    assert_unique_positions(changed.iter().map(|(_, to)| *to));
+
+    changed
+}
+
+fn face_commutator_single_column_moves(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    row: usize,
+    column: usize,
+    slice_angle: MoveAngle,
+) -> [Move; 7] {
+    let reverse = slice_angle.inverse();
+
+    [
+        face_layer_move(n, helper, column, reverse),
+        face_layer_move(n, destination, 0, MoveAngle::Positive),
+        face_layer_move(n, helper, row, reverse),
+        face_layer_move(n, destination, 0, MoveAngle::Negative),
+        face_layer_move(n, helper, column, slice_angle),
+        face_layer_move(n, destination, 0, MoveAngle::Positive),
+        face_layer_move(n, helper, row, slice_angle),
+    ]
+}
+
+fn unique_commutator_coordinates(n: usize, row: usize, column: usize) -> ([usize; 4], usize) {
+    let mut coordinates = [0; 4];
+    let mut len = 0;
+
+    for coordinate in [row, column, n - 1 - row, n - 1 - column] {
+        if !coordinates[..len].contains(&coordinate) {
+            coordinates[len] = coordinate;
+            len += 1;
+        }
+    }
+
+    (coordinates, len)
+}
+
+fn assert_unique_positions(positions: impl IntoIterator<Item = FacePosition>) {
+    let mut seen = Vec::new();
+    for position in positions {
+        assert!(
+            !seen.contains(&position),
+            "face commutator generated overlapping sparse writes"
+        );
+        seen.push(position);
+    }
+}
+
+fn trace_position(
+    n: usize,
+    position: FacePosition,
+    moves: impl IntoIterator<Item = Move>,
+) -> FacePosition {
+    moves.into_iter().fold(position, |position, mv| {
+        trace_position_through_move(n, position, mv)
+    })
+}
+
+fn trace_position_through_move(n: usize, mut position: FacePosition, mv: Move) -> FacePosition {
+    if (mv.depth == n - 1 && position.face == geometry::positive_axis_face(mv.axis))
+        || (mv.depth == 0 && position.face == geometry::negative_axis_face(mv.axis))
+    {
+        position = rotate_face_position(position, n, mv.angle);
+    }
+
+    let specs = geometry::plan_positive_quarter_turn(mv.axis, mv.depth, n);
+    for (index, spec) in specs.iter().copied().enumerate() {
+        if let Some(offset) = strip_offset(position, spec, n) {
+            let destination_index = (index + usize::from(mv.angle.as_u8())) % specs.len();
+            return strip_position(specs[destination_index], offset, n);
+        }
+    }
+
+    position
+}
+
+fn rotate_face_position(mut position: FacePosition, n: usize, angle: MoveAngle) -> FacePosition {
+    for _ in 0..angle.as_u8() {
+        position = FacePosition {
+            face: position.face,
+            row: position.col,
+            col: n - 1 - position.row,
+        };
+    }
+    position
+}
+
+fn strip_offset(position: FacePosition, spec: StripSpec, n: usize) -> Option<usize> {
+    if position.face != spec.face {
+        return None;
+    }
+
+    match spec.kind {
+        crate::line::LineKind::Row if position.row == spec.index => Some(if spec.reversed {
+            n - 1 - position.col
+        } else {
+            position.col
+        }),
+        crate::line::LineKind::Col if position.col == spec.index => Some(if spec.reversed {
+            n - 1 - position.row
+        } else {
+            position.row
+        }),
+        _ => None,
+    }
+}
+
+fn strip_position(spec: StripSpec, offset: usize, n: usize) -> FacePosition {
+    let coordinate = if spec.reversed {
+        n - 1 - offset
+    } else {
+        offset
+    };
+    match spec.kind {
+        crate::line::LineKind::Row => FacePosition {
+            face: spec.face,
+            row: spec.index,
+            col: coordinate,
+        },
+        crate::line::LineKind::Col => FacePosition {
+            face: spec.face,
+            row: coordinate,
+            col: spec.index,
+        },
+    }
+}
+
+fn face_layer_move(n: usize, face: FaceId, depth_from_face: usize, angle: MoveAngle) -> Move {
+    let last = n - 1;
+    match face {
+        FaceId::U => Move::new(Axis::Y, last - depth_from_face, angle),
+        FaceId::D => Move::new(Axis::Y, depth_from_face, angle.inverse()),
+        FaceId::R => Move::new(Axis::X, last - depth_from_face, angle),
+        FaceId::L => Move::new(Axis::X, depth_from_face, angle.inverse()),
+        FaceId::F => Move::new(Axis::Z, last - depth_from_face, angle),
+        FaceId::B => Move::new(Axis::Z, depth_from_face, angle.inverse()),
+    }
+}
+
+fn opposite_face(face: FaceId) -> FaceId {
+    match face {
+        FaceId::U => FaceId::D,
+        FaceId::D => FaceId::U,
+        FaceId::R => FaceId::L,
+        FaceId::L => FaceId::R,
+        FaceId::F => FaceId::B,
+        FaceId::B => FaceId::F,
+    }
+}
+
 const NET_FACE_GAP: &str = "   ";
 
 fn net_face_width(cols: &[usize]) -> usize {
@@ -593,6 +924,52 @@ mod tests {
         }
 
         moves
+    }
+
+    fn patterned_cube(side_length: usize, seed: usize) -> Cube<Byte> {
+        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+
+        for face in FaceId::ALL {
+            for row in 0..side_length {
+                for col in 0..side_length {
+                    let raw =
+                        (face.index() * 17 + row * 7 + col * 11 + seed * 5) % Facelet::ALL.len();
+                    cube.face_mut(face)
+                        .set(row, col, Facelet::from_u8(raw as u8));
+                }
+            }
+        }
+
+        cube
+    }
+
+    fn contiguous_inner_column_segments_except(
+        side_length: usize,
+        excluded: usize,
+    ) -> Vec<Vec<usize>> {
+        let columns = (1..side_length - 1)
+            .filter(|column| *column != excluded)
+            .collect::<Vec<_>>();
+        let mut segments = Vec::new();
+        segments.push(Vec::new());
+
+        let mut start = 0;
+        while start < columns.len() {
+            let mut end = start + 1;
+            while end < columns.len() && columns[end] == columns[end - 1] + 1 {
+                end += 1;
+            }
+
+            for segment_start in start..end {
+                for segment_end in segment_start + 1..=end {
+                    segments.push(columns[segment_start..segment_end].to_vec());
+                }
+            }
+
+            start = end;
+        }
+
+        segments
     }
 
     fn assert_cubes_match<A: FaceletArray, B: FaceletArray>(actual: &Cube<A>, expected: &Cube<B>) {
@@ -694,6 +1071,66 @@ mod tests {
         assert_cubes_match(&byte3, &byte);
         assert_cubes_match(&nibble, &byte);
         assert_cubes_match(&three_bit, &byte);
+    }
+
+    #[test]
+    fn optimized_face_commutators_match_expanded_moves_exhaustively() {
+        for side_length in 3..=8 {
+            for destination in FaceId::ALL {
+                for helper in FaceId::ALL {
+                    if helper == destination || helper == super::opposite_face(destination) {
+                        continue;
+                    }
+
+                    for slice_angle in MoveAngle::ALL {
+                        for row in 1..side_length - 1 {
+                            for columns in contiguous_inner_column_segments_except(side_length, row)
+                            {
+                                for seed in 0..2 {
+                                    let mut expected = patterned_cube(side_length, seed);
+                                    let moves = expected.face_commutator_moves(
+                                        destination,
+                                        helper,
+                                        row,
+                                        &columns,
+                                        slice_angle,
+                                    );
+                                    expected.apply_moves_untracked_with_threads(
+                                        moves.iter().copied(),
+                                        1,
+                                    );
+
+                                    let mut actual = patterned_cube(side_length, seed);
+                                    actual.apply_face_commutator_untracked(
+                                        destination,
+                                        helper,
+                                        row,
+                                        &columns,
+                                        slice_angle,
+                                    );
+
+                                    assert_cubes_match(&actual, &expected);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "destination and helper faces must be perpendicular")]
+    fn face_commutator_rejects_parallel_helper_face() {
+        let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+        cube.apply_face_commutator_untracked(FaceId::U, FaceId::D, 1, &[2], MoveAngle::Positive);
+    }
+
+    #[test]
+    #[should_panic(expected = "commutator row and column layers must be distinct")]
+    fn face_commutator_rejects_same_row_and_column_layer() {
+        let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+        cube.apply_face_commutator_untracked(FaceId::U, FaceId::R, 1, &[1], MoveAngle::Positive);
     }
 
     #[test]
