@@ -316,8 +316,8 @@ impl<S: FaceletArray> Cube<S> {
     }
 
     pub fn net_string(&self) -> String {
-        let rows = (0..self.n).collect::<Vec<_>>();
-        let cols = (0..self.n).collect::<Vec<_>>();
+        let rows = net_layers(self.n);
+        let cols = net_layers(self.n);
         let face_width = net_face_width(&cols);
         let middle_indent = " ".repeat(face_width + NET_FACE_GAP.len());
         let mut out = String::new();
@@ -362,8 +362,8 @@ impl<S: FaceletArray> Cube<S> {
     fn push_net_face_block(
         &self,
         out: &mut String,
-        rows: &[usize],
-        cols: &[usize],
+        rows: &[NetLayer],
+        cols: &[NetLayer],
         mut push_prefix: impl FnMut(&mut String),
         faces: &[FaceId],
     ) {
@@ -379,12 +379,17 @@ impl<S: FaceletArray> Cube<S> {
         }
     }
 
-    fn push_net_face_row(&self, out: &mut String, face: FaceId, row: usize, cols: &[usize]) {
+    fn push_net_face_row(&self, out: &mut String, face: FaceId, row: NetLayer, cols: &[NetLayer]) {
         for (col_index, col) in cols.iter().copied().enumerate() {
             if col_index > 0 {
                 out.push(' ');
             }
-            out.push(self.face(face).get(row, col).as_char());
+            match (row, col) {
+                (NetLayer::Index(row), NetLayer::Index(col)) => {
+                    out.push(self.face(face).get(row, col).as_char());
+                }
+                (NetLayer::Separator, _) | (_, NetLayer::Separator) => out.push('-'),
+            }
         }
     }
 
@@ -882,7 +887,25 @@ fn opposite_face(face: FaceId) -> FaceId {
 
 const NET_FACE_GAP: &str = "   ";
 
-fn net_face_width(cols: &[usize]) -> usize {
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum NetLayer {
+    Index(usize),
+    Separator,
+}
+
+fn net_layers(n: usize) -> Vec<NetLayer> {
+    if n <= 8 {
+        return (0..n).map(NetLayer::Index).collect();
+    }
+
+    let mut layers = Vec::with_capacity(9);
+    layers.extend((0..4).map(NetLayer::Index));
+    layers.push(NetLayer::Separator);
+    layers.extend((n - 4..n).map(NetLayer::Index));
+    layers
+}
+
+fn net_face_width(cols: &[NetLayer]) -> usize {
     cols.len().saturating_add(cols.len().saturating_sub(1))
 }
 
@@ -1530,12 +1553,39 @@ mod tests {
 
     #[test]
     fn net_prints_full_large_faces_without_ellipsis_markers() {
-        let cube = Cube::<Byte>::new_solved(5);
+        let cube = Cube::<Byte>::new_solved(8);
         let net = cube.net_string();
 
         assert!(!net.contains("..."));
-        assert!(net.contains("            W W W W W\n"));
-        assert!(net.contains("O O O O O   G G G G G   R R R R R   B B B B B\n"));
-        assert!(net.contains("            Y Y Y Y Y\n"));
+        assert!(!net.contains("-"));
+        assert!(net.contains("                  W W W W W W W W\n"));
+        assert!(
+            net.contains("O O O O O O O O   G G G G G G G G   R R R R R R R R   B B B B B B B B\n")
+        );
+        assert!(net.contains("                  Y Y Y Y Y Y Y Y\n"));
+    }
+
+    #[test]
+    fn net_limits_large_faces_to_outer_four_layers_with_separator() {
+        let mut cube = Cube::<Byte>::new_solved(10);
+
+        cube.face_mut(FaceId::U).set(0, 0, Facelet::Red);
+        cube.face_mut(FaceId::U).set(0, 3, Facelet::Green);
+        cube.face_mut(FaceId::U).set(0, 4, Facelet::Orange);
+        cube.face_mut(FaceId::U).set(0, 5, Facelet::Yellow);
+        cube.face_mut(FaceId::U).set(0, 6, Facelet::Blue);
+        cube.face_mut(FaceId::U).set(0, 9, Facelet::Red);
+
+        let net = cube.net_string();
+
+        assert!(!net.contains("..."));
+        assert!(net.contains("                    R W W G - B W W R\n"));
+        assert!(net.contains("                    - - - - - - - - -\n"));
+        assert!(net.contains(
+            "O O O O - O O O O   G G G G - G G G G   R R R R - R R R R   B B B B - B B B B\n"
+        ));
+        assert!(net.contains(
+            "- - - - - - - - -   - - - - - - - - -   - - - - - - - - -   - - - - - - - - -\n"
+        ));
     }
 }
