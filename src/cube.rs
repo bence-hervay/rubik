@@ -52,6 +52,47 @@ impl ColorScheme {
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct FaceCommutator {
+    destination: FaceId,
+    helper: FaceId,
+    slice_angle: MoveAngle,
+    template: CenterCommutatorTemplate,
+}
+
+impl FaceCommutator {
+    pub fn new(destination: FaceId, helper: FaceId, slice_angle: MoveAngle) -> Self {
+        assert_ne!(
+            destination, helper,
+            "destination and helper faces must differ"
+        );
+        assert_ne!(
+            destination,
+            opposite_face(helper),
+            "destination and helper faces must be perpendicular"
+        );
+
+        Self {
+            destination,
+            helper,
+            slice_angle,
+            template: CenterCommutatorTemplate::new(destination, helper, slice_angle),
+        }
+    }
+
+    pub fn destination(self) -> FaceId {
+        self.destination
+    }
+
+    pub fn helper(self) -> FaceId {
+        self.helper
+    }
+
+    pub fn slice_angle(self) -> MoveAngle {
+        self.slice_angle
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Cube<S: FaceletArray> {
     n: usize,
@@ -288,6 +329,32 @@ impl<S: FaceletArray> Cube<S> {
         columns: &[usize],
         slice_angle: MoveAngle,
     ) {
+        let commutator = FaceCommutator::new(destination, helper, slice_angle);
+        self.apply_face_commutator_plan_untracked(commutator, rows, columns);
+    }
+
+    pub fn apply_face_commutator_plan_untracked(
+        &mut self,
+        commutator: FaceCommutator,
+        rows: &[usize],
+        columns: &[usize],
+    ) {
+        self.validate_face_commutator(commutator.destination, commutator.helper, rows, columns);
+        self.apply_face_commutator_untracked_direct(commutator, rows, columns);
+    }
+
+    /// Reference implementation for `apply_face_commutator_untracked`.
+    ///
+    /// This keeps the geometry-derived sparse mapping and delayed writes in one
+    /// place so the direct hot path can be tested against it.
+    pub fn apply_face_commutator_untracked_reference(
+        &mut self,
+        destination: FaceId,
+        helper: FaceId,
+        rows: &[usize],
+        columns: &[usize],
+        slice_angle: MoveAngle,
+    ) {
         self.validate_face_commutator(destination, helper, rows, columns);
 
         let baseline = face_layer_move(self.n, destination, 0, MoveAngle::Positive);
@@ -312,6 +379,29 @@ impl<S: FaceletArray> Cube<S> {
 
         for (position, value) in writes {
             self.set_position(position, value);
+        }
+    }
+
+    fn apply_face_commutator_untracked_direct(
+        &mut self,
+        commutator: FaceCommutator,
+        rows: &[usize],
+        columns: &[usize],
+    ) {
+        let baseline = face_layer_move(self.n, commutator.destination, 0, MoveAngle::Positive);
+        self.apply_move_untracked_linear(baseline);
+
+        if rows.is_empty() || columns.is_empty() {
+            return;
+        }
+
+        let storages = raw_face_storages(&mut self.faces);
+
+        for row in rows.iter().copied() {
+            let bound = commutator.template.bind(&self.faces, self.n, row);
+            unsafe {
+                bound.apply_columns::<S>(&storages, columns);
+            }
         }
     }
 
@@ -622,6 +712,304 @@ struct FacePosition {
     face: FaceId,
     row: usize,
     col: usize,
+}
+
+const COMMUTATOR_TEMPLATE_N: usize = 101;
+const COMMUTATOR_TEMPLATE_ROW: usize = 17;
+const COMMUTATOR_TEMPLATE_COLUMN: usize = 31;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum CoordinateExpr {
+    Row,
+    Column,
+    ReverseRow,
+    ReverseColumn,
+}
+
+impl CoordinateExpr {
+    #[inline(always)]
+    fn eval(self, n: usize, row: usize, column: usize) -> usize {
+        match self {
+            Self::Row => row,
+            Self::Column => column,
+            Self::ReverseRow => n - 1 - row,
+            Self::ReverseColumn => n - 1 - column,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct FacePositionExpr {
+    face: FaceId,
+    row: CoordinateExpr,
+    col: CoordinateExpr,
+}
+
+impl FacePositionExpr {
+    fn eval(self, n: usize, row: usize, column: usize) -> FacePosition {
+        FacePosition {
+            face: self.face,
+            row: self.row.eval(n, row, column),
+            col: self.col.eval(n, row, column),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct PositionUpdateExpr {
+    from: FacePositionExpr,
+    to: FacePositionExpr,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct CenterCommutatorTemplate {
+    updates: [PositionUpdateExpr; 3],
+}
+
+impl CenterCommutatorTemplate {
+    fn new(destination: FaceId, helper: FaceId, slice_angle: MoveAngle) -> Self {
+        let updates = face_commutator_difference_cycle(
+            COMMUTATOR_TEMPLATE_N,
+            destination,
+            helper,
+            COMMUTATOR_TEMPLATE_ROW,
+            COMMUTATOR_TEMPLATE_COLUMN,
+            slice_angle,
+        )
+        .map(|(from, to)| PositionUpdateExpr {
+            from: classify_template_position(from),
+            to: classify_template_position(to),
+        });
+
+        Self { updates }
+    }
+
+    fn bind<S: FaceletArray>(
+        self,
+        faces: &[Face<S>; 6],
+        n: usize,
+        row: usize,
+    ) -> BoundCenterCommutator {
+        BoundCenterCommutator {
+            updates: self
+                .updates
+                .map(|update| BoundPositionUpdate::bind(faces, n, row, update)),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct RawCellStream {
+    face: FaceId,
+    start: usize,
+    step: isize,
+}
+
+impl RawCellStream {
+    fn bind<S: FaceletArray>(
+        faces: &[Face<S>; 6],
+        n: usize,
+        row: usize,
+        expr: FacePositionExpr,
+    ) -> Self {
+        let start = raw_index_for_expr(faces, n, row, 0, expr);
+        let next = raw_index_for_expr(faces, n, row, 1, expr);
+        let start = isize::try_from(start).expect("raw index overflowed isize");
+        let next = isize::try_from(next).expect("raw index overflowed isize");
+
+        Self {
+            face: expr.face,
+            start: start as usize,
+            step: next - start,
+        }
+    }
+
+    #[inline(always)]
+    unsafe fn index_unchecked(self, column: usize) -> usize {
+        let column = column as isize;
+        (self.start as isize + self.step * column) as usize
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct BoundPositionUpdate {
+    from: RawCellStream,
+    to: RawCellStream,
+}
+
+impl BoundPositionUpdate {
+    fn bind<S: FaceletArray>(
+        faces: &[Face<S>; 6],
+        n: usize,
+        row: usize,
+        update: PositionUpdateExpr,
+    ) -> Self {
+        Self {
+            from: RawCellStream::bind(faces, n, row, update.from),
+            to: RawCellStream::bind(faces, n, row, update.to),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct BoundCenterCommutator {
+    updates: [BoundPositionUpdate; 3],
+}
+
+impl BoundCenterCommutator {
+    unsafe fn apply_columns<S: FaceletArray>(
+        self,
+        storages: &[S::RawStorage; 6],
+        columns: &[usize],
+    ) {
+        debug_assert!(columns.windows(2).all(|window| window[0] < window[1]));
+
+        let mut index = 0;
+        while index < columns.len() {
+            let start_column = columns[index];
+            let mut run_len = 1;
+
+            while index + run_len < columns.len()
+                && columns[index + run_len] == columns[index + run_len - 1] + 1
+            {
+                run_len += 1;
+            }
+
+            if run_len == 1 {
+                self.apply_one::<S>(storages, start_column);
+            } else {
+                self.apply_run::<S>(storages, start_column, run_len);
+            }
+
+            index += run_len;
+        }
+    }
+
+    #[inline(always)]
+    unsafe fn apply_one<S: FaceletArray>(self, storages: &[S::RawStorage; 6], column: usize) {
+        let from0 = self.updates[0].from.index_unchecked(column);
+        let from1 = self.updates[1].from.index_unchecked(column);
+        let from2 = self.updates[2].from.index_unchecked(column);
+        let to0 = self.updates[0].to.index_unchecked(column);
+        let to1 = self.updates[1].to.index_unchecked(column);
+        let to2 = self.updates[2].to.index_unchecked(column);
+
+        let v0 = S::get_unchecked_raw_from(storages[self.updates[0].from.face.index()], from0);
+        let v1 = S::get_unchecked_raw_from(storages[self.updates[1].from.face.index()], from1);
+        let v2 = S::get_unchecked_raw_from(storages[self.updates[2].from.face.index()], from2);
+
+        S::set_unchecked_raw_in(storages[self.updates[0].to.face.index()], to0, v0);
+        S::set_unchecked_raw_in(storages[self.updates[1].to.face.index()], to1, v1);
+        S::set_unchecked_raw_in(storages[self.updates[2].to.face.index()], to2, v2);
+    }
+
+    #[inline(always)]
+    unsafe fn apply_run<S: FaceletArray>(
+        self,
+        storages: &[S::RawStorage; 6],
+        start_column: usize,
+        len: usize,
+    ) {
+        let mut from0 = self.updates[0].from.index_unchecked(start_column);
+        let mut from1 = self.updates[1].from.index_unchecked(start_column);
+        let mut from2 = self.updates[2].from.index_unchecked(start_column);
+        let mut to0 = self.updates[0].to.index_unchecked(start_column);
+        let mut to1 = self.updates[1].to.index_unchecked(start_column);
+        let mut to2 = self.updates[2].to.index_unchecked(start_column);
+
+        for _ in 0..len {
+            let v0 = S::get_unchecked_raw_from(storages[self.updates[0].from.face.index()], from0);
+            let v1 = S::get_unchecked_raw_from(storages[self.updates[1].from.face.index()], from1);
+            let v2 = S::get_unchecked_raw_from(storages[self.updates[2].from.face.index()], from2);
+
+            S::set_unchecked_raw_in(storages[self.updates[0].to.face.index()], to0, v0);
+            S::set_unchecked_raw_in(storages[self.updates[1].to.face.index()], to1, v1);
+            S::set_unchecked_raw_in(storages[self.updates[2].to.face.index()], to2, v2);
+
+            from0 = add_raw_step(from0, self.updates[0].from.step);
+            from1 = add_raw_step(from1, self.updates[1].from.step);
+            from2 = add_raw_step(from2, self.updates[2].from.step);
+            to0 = add_raw_step(to0, self.updates[0].to.step);
+            to1 = add_raw_step(to1, self.updates[1].to.step);
+            to2 = add_raw_step(to2, self.updates[2].to.step);
+        }
+    }
+}
+
+#[inline(always)]
+fn add_raw_step(index: usize, step: isize) -> usize {
+    (index as isize + step) as usize
+}
+
+fn raw_index_for_expr<S: FaceletArray>(
+    faces: &[Face<S>; 6],
+    n: usize,
+    row: usize,
+    column: usize,
+    expr: FacePositionExpr,
+) -> usize {
+    let position = expr.eval(n, row, column);
+    let (physical_row, physical_col) =
+        faces[position.face.index()].physical_coords(position.row, position.col);
+
+    physical_row
+        .checked_mul(n)
+        .and_then(|row_start| row_start.checked_add(physical_col))
+        .expect("raw face index overflowed usize")
+}
+
+fn classify_template_position(position: FacePosition) -> FacePositionExpr {
+    FacePositionExpr {
+        face: position.face,
+        row: classify_template_coordinate(position.row),
+        col: classify_template_coordinate(position.col),
+    }
+}
+
+fn classify_template_coordinate(value: usize) -> CoordinateExpr {
+    match value {
+        COMMUTATOR_TEMPLATE_ROW => CoordinateExpr::Row,
+        COMMUTATOR_TEMPLATE_COLUMN => CoordinateExpr::Column,
+        value if value == COMMUTATOR_TEMPLATE_N - 1 - COMMUTATOR_TEMPLATE_ROW => {
+            CoordinateExpr::ReverseRow
+        }
+        value if value == COMMUTATOR_TEMPLATE_N - 1 - COMMUTATOR_TEMPLATE_COLUMN => {
+            CoordinateExpr::ReverseColumn
+        }
+        _ => panic!("commutator template coordinate does not depend on row or column: {value}"),
+    }
+}
+
+fn raw_face_storages<S: FaceletArray>(faces: &mut [Face<S>; 6]) -> [S::RawStorage; 6] {
+    let ptr = faces.as_mut_ptr();
+    unsafe {
+        [
+            (*ptr.add(FaceId::U.index()))
+                .matrix_mut()
+                .storage_mut()
+                .raw_storage(),
+            (*ptr.add(FaceId::D.index()))
+                .matrix_mut()
+                .storage_mut()
+                .raw_storage(),
+            (*ptr.add(FaceId::R.index()))
+                .matrix_mut()
+                .storage_mut()
+                .raw_storage(),
+            (*ptr.add(FaceId::L.index()))
+                .matrix_mut()
+                .storage_mut()
+                .raw_storage(),
+            (*ptr.add(FaceId::F.index()))
+                .matrix_mut()
+                .storage_mut()
+                .raw_storage(),
+            (*ptr.add(FaceId::B.index()))
+                .matrix_mut()
+                .storage_mut()
+                .raw_storage(),
+        ]
+    }
 }
 
 fn face_commutator_moves(
@@ -989,8 +1377,8 @@ mod tests {
         moves
     }
 
-    fn patterned_cube(side_length: usize, seed: usize) -> Cube<Byte> {
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+    fn patterned_cube<S: FaceletArray>(side_length: usize, seed: usize) -> Cube<S> {
+        let mut cube = Cube::<S>::new_solved_with_threads(side_length, 1);
 
         for face in FaceId::ALL {
             for row in 0..side_length {
@@ -1241,7 +1629,7 @@ mod tests {
                     for slice_angle in MoveAngle::ALL {
                         for (rows, columns) in disjoint_inner_layer_set_pairs(side_length) {
                             for seed in 0..2 {
-                                let mut expected = patterned_cube(side_length, seed);
+                                let mut expected = patterned_cube::<Byte>(side_length, seed);
                                 let moves = expected.face_commutator_moves(
                                     destination,
                                     helper,
@@ -1252,7 +1640,17 @@ mod tests {
                                 expected
                                     .apply_moves_untracked_with_threads(moves.iter().copied(), 1);
 
-                                let mut actual = patterned_cube(side_length, seed);
+                                let mut reference = patterned_cube::<Byte>(side_length, seed);
+                                reference.apply_face_commutator_untracked_reference(
+                                    destination,
+                                    helper,
+                                    &rows,
+                                    &columns,
+                                    slice_angle,
+                                );
+                                assert_cubes_match(&reference, &expected);
+
+                                let mut actual = patterned_cube::<Byte>(side_length, seed);
                                 actual.apply_face_commutator_untracked(
                                     destination,
                                     helper,
@@ -1265,6 +1663,38 @@ mod tests {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn direct_face_commutators_work_for_all_storage_backends() {
+        let side_length = 7;
+        let rows = [1usize, 4];
+        let columns = [2usize, 3, 5];
+
+        for destination in FaceId::ALL {
+            for helper in FaceId::ALL {
+                if helper == destination || helper == super::opposite_face(destination) {
+                    continue;
+                }
+
+                for slice_angle in MoveAngle::ALL {
+                    let commutator = FaceCommutator::new(destination, helper, slice_angle);
+                    let mut byte = patterned_cube::<Byte>(side_length, 3);
+                    let mut byte3 = patterned_cube::<Byte3>(side_length, 3);
+                    let mut nibble = patterned_cube::<Nibble>(side_length, 3);
+                    let mut three_bit = patterned_cube::<ThreeBit>(side_length, 3);
+
+                    byte.apply_face_commutator_plan_untracked(commutator, &rows, &columns);
+                    byte3.apply_face_commutator_plan_untracked(commutator, &rows, &columns);
+                    nibble.apply_face_commutator_plan_untracked(commutator, &rows, &columns);
+                    three_bit.apply_face_commutator_plan_untracked(commutator, &rows, &columns);
+
+                    assert_cubes_match(&byte3, &byte);
+                    assert_cubes_match(&nibble, &byte);
+                    assert_cubes_match(&three_bit, &byte);
                 }
             }
         }

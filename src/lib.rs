@@ -11,7 +11,7 @@ pub mod solver;
 pub mod storage;
 pub(crate) mod threading;
 
-pub use cube::{ColorScheme, Cube};
+pub use cube::{ColorScheme, Cube, FaceCommutator};
 pub use face::{Face, FaceAngle, FaceId};
 pub use facelet::Facelet;
 pub use history::MoveHistory;
