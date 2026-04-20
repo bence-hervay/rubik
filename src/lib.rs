@@ -22,7 +22,7 @@ pub use random::{RandomSource, XorShift64};
 pub use solver::{
     CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr,
     CenterReductionStage, CenterScheduleStep, CenterTransferSpec, EdgePairingStage, EdgeSlot,
-    MoveSequence, ReductionSolver, SolveContext, SolveError, SolveOptions, SolveOutcome,
+    MoveSequence, MoveStats, ReductionSolver, SolveContext, SolveError, SolveOptions, SolveOutcome,
     SolvePhase, SolveResult, Solver, SolverStage, StageReport, SubStageSpec, ThreeByThreeStage,
     GENERATED_CENTER_SCHEDULE,
 };

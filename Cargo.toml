@@ -11,3 +11,8 @@ edition = "2021"
 name = "large_cube_memory_and_move_time"
 path = "benchmark/large_cube_memory_and_move_time.rs"
 harness = false
+
+[[bench]]
+name = "stage_solve_time"
+path = "benchmark/stage_solve_time.rs"
+harness = false

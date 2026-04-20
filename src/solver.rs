@@ -95,11 +95,55 @@ pub struct SolveOutcome {
     pub reports: Vec<StageReport>,
 }
 
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+pub struct MoveStats {
+    pub total: usize,
+    pub axis_x: usize,
+    pub axis_y: usize,
+    pub axis_z: usize,
+    pub positive: usize,
+    pub double: usize,
+    pub negative: usize,
+    pub outer_layer: usize,
+    pub inner_layer: usize,
+}
+
+impl MoveStats {
+    pub fn record(&mut self, mv: Move, side_length: usize) {
+        self.total += 1;
+
+        match mv.axis {
+            Axis::X => self.axis_x += 1,
+            Axis::Y => self.axis_y += 1,
+            Axis::Z => self.axis_z += 1,
+        }
+
+        match mv.angle {
+            MoveAngle::Positive => self.positive += 1,
+            MoveAngle::Double => self.double += 1,
+            MoveAngle::Negative => self.negative += 1,
+        }
+
+        if mv.depth == 0 || mv.depth + 1 == side_length {
+            self.outer_layer += 1;
+        } else {
+            self.inner_layer += 1;
+        }
+    }
+
+    pub fn record_all(&mut self, moves: impl IntoIterator<Item = Move>, side_length: usize) {
+        for mv in moves {
+            self.record(mv, side_length);
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SolveContext {
     options: SolveOptions,
     center_commutators: CenterCommutatorTable,
     moves: MoveSequence,
+    move_stats: MoveStats,
 }
 
 impl SolveContext {
@@ -113,6 +157,7 @@ impl SolveContext {
             options,
             center_commutators: CenterCommutatorTable::new(),
             moves: Vec::new(),
+            move_stats: MoveStats::default(),
         }
     }
 
@@ -128,11 +173,16 @@ impl SolveContext {
         &self.moves
     }
 
+    pub fn move_stats(&self) -> MoveStats {
+        self.move_stats
+    }
+
     pub fn into_moves(self) -> MoveSequence {
         self.moves
     }
 
     pub fn apply_move<S: FaceletArray>(&mut self, cube: &mut Cube<S>, mv: Move) {
+        self.move_stats.record(mv, cube.side_len());
         if self.options.record_moves {
             cube.apply_move_with_threads(mv, self.options.thread_count);
             self.moves.push(mv);
@@ -166,10 +216,92 @@ impl SolveContext {
                 columns,
                 commutator.slice_angle(),
             );
+            self.move_stats
+                .record_all(literal_moves.iter().copied(), cube.side_len());
             self.moves.extend(literal_moves);
+        } else {
+            record_center_commutator_move_stats(
+                &mut self.move_stats,
+                cube.side_len(),
+                commutator,
+                rows,
+                columns,
+            );
         }
 
         cube.apply_face_commutator_plan_untracked(commutator, rows, columns);
+    }
+}
+
+fn record_center_commutator_move_stats(
+    stats: &mut MoveStats,
+    side_length: usize,
+    commutator: FaceCommutator,
+    rows: &[usize],
+    columns: &[usize],
+) {
+    let reverse = commutator.slice_angle().inverse();
+
+    for column in columns.iter().copied() {
+        stats.record(
+            face_layer_move(side_length, commutator.helper(), column, reverse),
+            side_length,
+        );
+    }
+    stats.record(
+        face_layer_move(
+            side_length,
+            commutator.destination(),
+            0,
+            MoveAngle::Positive,
+        ),
+        side_length,
+    );
+    for row in rows.iter().copied() {
+        stats.record(
+            face_layer_move(side_length, commutator.helper(), row, reverse),
+            side_length,
+        );
+    }
+    stats.record(
+        face_layer_move(
+            side_length,
+            commutator.destination(),
+            0,
+            MoveAngle::Negative,
+        ),
+        side_length,
+    );
+    for column in columns.iter().copied() {
+        stats.record(
+            face_layer_move(
+                side_length,
+                commutator.helper(),
+                column,
+                commutator.slice_angle(),
+            ),
+            side_length,
+        );
+    }
+    stats.record(
+        face_layer_move(
+            side_length,
+            commutator.destination(),
+            0,
+            MoveAngle::Positive,
+        ),
+        side_length,
+    );
+    for row in rows.iter().copied() {
+        stats.record(
+            face_layer_move(
+                side_length,
+                commutator.helper(),
+                row,
+                commutator.slice_angle(),
+            ),
+            side_length,
+        );
     }
 }
 
@@ -244,9 +376,9 @@ impl<S: FaceletArray + 'static> Solver<S> for ReductionSolver<S> {
         let mut reports = Vec::with_capacity(self.stages.len());
 
         for stage in &mut self.stages {
-            let moves_before = context.moves().len();
+            let moves_before = context.move_stats().total;
             stage.run(cube, &mut context)?;
-            let moves_after = context.moves().len();
+            let moves_after = context.move_stats().total;
 
             reports.push(StageReport {
                 phase: stage.phase(),
@@ -812,15 +944,24 @@ fn target_center_color(face: FaceId) -> Facelet {
 }
 
 fn face_outer_move(side_length: usize, face: FaceId, angle: MoveAngle) -> Move {
+    face_layer_move(side_length, face, 0, angle)
+}
+
+fn face_layer_move(
+    side_length: usize,
+    face: FaceId,
+    depth_from_face: usize,
+    angle: MoveAngle,
+) -> Move {
     let last = side_length - 1;
 
     match face {
-        FaceId::U => Move::new(Axis::Y, last, angle),
-        FaceId::D => Move::new(Axis::Y, 0, angle.inverse()),
-        FaceId::R => Move::new(Axis::X, last, angle),
-        FaceId::L => Move::new(Axis::X, 0, angle.inverse()),
-        FaceId::F => Move::new(Axis::Z, last, angle),
-        FaceId::B => Move::new(Axis::Z, 0, angle.inverse()),
+        FaceId::U => Move::new(Axis::Y, last - depth_from_face, angle),
+        FaceId::D => Move::new(Axis::Y, depth_from_face, angle.inverse()),
+        FaceId::R => Move::new(Axis::X, last - depth_from_face, angle),
+        FaceId::L => Move::new(Axis::X, depth_from_face, angle.inverse()),
+        FaceId::F => Move::new(Axis::Z, last - depth_from_face, angle),
+        FaceId::B => Move::new(Axis::Z, depth_from_face, angle.inverse()),
     }
 }
 
