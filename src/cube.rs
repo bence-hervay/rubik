@@ -6,7 +6,7 @@ use crate::{
     facelet::Facelet,
     geometry,
     history::MoveHistory,
-    line::{LineTraversal, StripSpec},
+    line::{cycle_four_lines, StripSpec},
     moves::{Axis, Move, MoveAngle},
     random::RandomSource,
     storage::FaceletArray,
@@ -350,67 +350,6 @@ fn faces4_mut<S: FaceletArray>(
             &mut *ptr.add(indices[2]),
             &mut *ptr.add(indices[3]),
         )
-    }
-}
-
-#[inline(always)]
-#[allow(clippy::too_many_arguments)]
-fn cycle_four_lines<S: FaceletArray>(
-    storage0: &mut S,
-    traversal0: LineTraversal,
-    storage1: &mut S,
-    traversal1: LineTraversal,
-    storage2: &mut S,
-    traversal2: LineTraversal,
-    storage3: &mut S,
-    traversal3: LineTraversal,
-    len: usize,
-    angle: MoveAngle,
-) {
-    let mut p0 = traversal0.start;
-    let mut p1 = traversal1.start;
-    let mut p2 = traversal2.start;
-    let mut p3 = traversal3.start;
-
-    for _ in 0..len {
-        let i0 = p0 as usize;
-        let i1 = p1 as usize;
-        let i2 = p2 as usize;
-        let i3 = p3 as usize;
-
-        unsafe {
-            // Traversals come from validated strips; raw values are only moved between storages.
-            let v0 = storage0.get_unchecked_raw(i0);
-            let v1 = storage1.get_unchecked_raw(i1);
-            let v2 = storage2.get_unchecked_raw(i2);
-            let v3 = storage3.get_unchecked_raw(i3);
-
-            match angle {
-                MoveAngle::Positive => {
-                    storage0.set_unchecked_raw(i0, v3);
-                    storage1.set_unchecked_raw(i1, v0);
-                    storage2.set_unchecked_raw(i2, v1);
-                    storage3.set_unchecked_raw(i3, v2);
-                }
-                MoveAngle::Double => {
-                    storage0.set_unchecked_raw(i0, v2);
-                    storage1.set_unchecked_raw(i1, v3);
-                    storage2.set_unchecked_raw(i2, v0);
-                    storage3.set_unchecked_raw(i3, v1);
-                }
-                MoveAngle::Negative => {
-                    storage0.set_unchecked_raw(i0, v1);
-                    storage1.set_unchecked_raw(i1, v2);
-                    storage2.set_unchecked_raw(i2, v3);
-                    storage3.set_unchecked_raw(i3, v0);
-                }
-            }
-        }
-
-        p0 += traversal0.step;
-        p1 += traversal1.step;
-        p2 += traversal2.step;
-        p3 += traversal3.step;
     }
 }
 

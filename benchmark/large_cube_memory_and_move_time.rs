@@ -7,12 +7,15 @@ use std::{
 };
 
 use rubik::{
-    Axis, Byte, Byte3, ColorScheme, Cube, Facelet, Move, MoveAngle, Nibble, ThreeBit, XorShift64,
+    line::cycle_four_line_arrays, Axis, Byte, Byte3, ColorScheme, Cube, Facelet, FaceletArray,
+    Move, MoveAngle, Nibble, ThreeBit, XorShift64,
 };
 
-const DEFAULT_MEMORY_SIDE_LENGTH: usize = 5_000;
-const DEFAULT_RANDOM_MOVE_SIDE_LENGTH: usize = 5_000;
-const DEFAULT_RANDOM_MOVE_COUNT: usize = 10_000;
+const DEFAULT_MEMORY_SIDE_LENGTH: usize = 10_000;
+const DEFAULT_RANDOM_MOVE_SIDE_LENGTH: usize = 10_000;
+const DEFAULT_RANDOM_MOVE_COUNT: usize = 5_000;
+const DEFAULT_SLICE_MOVE_SIDE_LENGTH: usize = 1_000_000;
+const DEFAULT_SLICE_MOVE_COUNT: usize = 100;
 const DEFAULT_RANDOM_SEED: u64 = 0xC0BEE_CAFE_F00D;
 const METRIC_COLUMN_WIDTH: usize = 28;
 const STORAGE_COLUMN_WIDTH: usize = 8;
@@ -77,6 +80,14 @@ struct MoveResult {
     elapsed: Duration,
 }
 
+#[derive(Copy, Clone, Debug)]
+struct SliceMoveResult {
+    side_length: usize,
+    move_count: usize,
+    slice_storage_bytes: usize,
+    elapsed: Duration,
+}
+
 fn main() {
     if env::var("RUBIK_BENCHMARK_CHILD_PROCESS").as_deref() == Ok("memory") {
         run_memory_child();
@@ -95,73 +106,146 @@ fn main() {
         "RUBIK_BENCHMARK_RANDOM_MOVE_COUNT",
         DEFAULT_RANDOM_MOVE_COUNT,
     );
+    let slice_move_side_length = environment_usize(
+        "RUBIK_BENCHMARK_SLICE_MOVE_SIDE_LENGTH",
+        DEFAULT_SLICE_MOVE_SIDE_LENGTH,
+    );
+    let slice_move_count =
+        environment_usize("RUBIK_BENCHMARK_SLICE_MOVE_COUNT", DEFAULT_SLICE_MOVE_COUNT);
     let random_seed = environment_u64("RUBIK_BENCHMARK_RANDOM_SEED", DEFAULT_RANDOM_SEED);
+    let skip_memory = environment_bool("RUBIK_BENCHMARK_SKIP_MEMORY", false);
+    let skip_full_moves = environment_bool("RUBIK_BENCHMARK_SKIP_FULL_MOVES", false);
 
     println!("large side length cube benchmarks");
     println!("  RUBIK_BENCHMARK_MEMORY_SIDE_LENGTH={memory_side_length}");
     println!("  RUBIK_BENCHMARK_RANDOM_MOVE_SIDE_LENGTH={random_move_side_length}");
     println!("  RUBIK_BENCHMARK_RANDOM_MOVE_COUNT={random_move_count}");
+    println!("  RUBIK_BENCHMARK_SLICE_MOVE_SIDE_LENGTH={slice_move_side_length}");
+    println!("  RUBIK_BENCHMARK_SLICE_MOVE_COUNT={slice_move_count}");
     println!("  RUBIK_BENCHMARK_RANDOM_SEED={random_seed}");
+    println!("  RUBIK_BENCHMARK_SKIP_MEMORY={skip_memory}");
+    println!("  RUBIK_BENCHMARK_SKIP_FULL_MOVES={skip_full_moves}");
     println!();
 
-    let memory_results =
-        StorageKind::ALL.map(|storage| run_memory_parent(storage, memory_side_length));
+    if skip_memory {
+        println!("memory allocation skipped");
+    } else {
+        let memory_results =
+            StorageKind::ALL.map(|storage| run_memory_parent(storage, memory_side_length));
 
-    println!("memory allocation, isolated child processes");
+        println!("memory allocation, isolated child processes");
+        print_table_header();
+        print_table_row(
+            "side_length",
+            memory_results.map(|result| result.side_length.to_string()),
+        );
+        print_table_row(
+            "face_storage",
+            memory_results.map(|result| format_bytes(result.face_storage_bytes)),
+        );
+        print_table_row(
+            "resident_memory_before",
+            memory_results.map(|result| format_bytes(result.resident_memory_before_bytes)),
+        );
+        print_table_row(
+            "resident_memory_after",
+            memory_results.map(|result| format_bytes(result.resident_memory_after_bytes)),
+        );
+        print_table_row(
+            "peak_resident_memory",
+            memory_results.map(|result| format_bytes(result.peak_resident_memory_bytes)),
+        );
+        print_table_row(
+            "allocation_milliseconds",
+            memory_results.map(|result| format!("{:.3}", milliseconds(result.allocation_time))),
+        );
+    }
+
+    println!();
+    if skip_full_moves {
+        println!("full cube random move application skipped");
+    } else {
+        println!("random move application, same pre-generated move list, history disabled");
+
+        let moves = generate_moves(random_move_side_length, random_move_count, random_seed);
+        let move_results = StorageKind::ALL
+            .map(|storage| run_move_benchmark(storage, random_move_side_length, &moves));
+
+        print_table_header();
+        print_table_row(
+            "side_length",
+            move_results.map(|result| result.side_length.to_string()),
+        );
+        print_table_row(
+            "move_count",
+            move_results.map(|result| result.move_count.to_string()),
+        );
+        print_table_row(
+            "face_storage",
+            move_results.map(|result| format_bytes(result.face_storage_bytes)),
+        );
+        print_table_row(
+            "elapsed_milliseconds",
+            move_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
+        );
+        print_table_row(
+            "moves_per_second",
+            move_results.map(|result| {
+                format!("{:.1}", moves_per_second(result.move_count, result.elapsed))
+            }),
+        );
+        print_table_row(
+            "ns_per_line_cell",
+            move_results.map(|result| {
+                format!(
+                    "{:.3}",
+                    nanoseconds_per_line_cell(
+                        result.side_length,
+                        result.move_count,
+                        result.elapsed
+                    )
+                )
+            }),
+        );
+    }
+
+    println!();
+    println!("line-only side-strip cycle, four 1D lines, no square face allocation");
+
+    let angles = generate_angles(slice_move_count, random_seed);
+    let slice_move_results = StorageKind::ALL
+        .map(|storage| run_slice_move_benchmark(storage, slice_move_side_length, &angles));
+
     print_table_header();
     print_table_row(
         "side_length",
-        memory_results.map(|result| result.side_length.to_string()),
-    );
-    print_table_row(
-        "face_storage",
-        memory_results.map(|result| format_bytes(result.face_storage_bytes)),
-    );
-    print_table_row(
-        "resident_memory_before",
-        memory_results.map(|result| format_bytes(result.resident_memory_before_bytes)),
-    );
-    print_table_row(
-        "resident_memory_after",
-        memory_results.map(|result| format_bytes(result.resident_memory_after_bytes)),
-    );
-    print_table_row(
-        "peak_resident_memory",
-        memory_results.map(|result| format_bytes(result.peak_resident_memory_bytes)),
-    );
-    print_table_row(
-        "allocation_milliseconds",
-        memory_results.map(|result| format!("{:.3}", milliseconds(result.allocation_time))),
-    );
-
-    println!();
-    println!("random move application, same pre-generated move list, history disabled");
-
-    let moves = generate_moves(random_move_side_length, random_move_count, random_seed);
-    let move_results = StorageKind::ALL
-        .map(|storage| run_move_benchmark(storage, random_move_side_length, &moves));
-
-    print_table_header();
-    print_table_row(
-        "side_length",
-        move_results.map(|result| result.side_length.to_string()),
+        slice_move_results.map(|result| result.side_length.to_string()),
     );
     print_table_row(
         "move_count",
-        move_results.map(|result| result.move_count.to_string()),
+        slice_move_results.map(|result| result.move_count.to_string()),
     );
     print_table_row(
-        "face_storage",
-        move_results.map(|result| format_bytes(result.face_storage_bytes)),
+        "linear_storage",
+        slice_move_results.map(|result| format_bytes(result.slice_storage_bytes)),
     );
     print_table_row(
         "elapsed_milliseconds",
-        move_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
+        slice_move_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
     );
     print_table_row(
         "moves_per_second",
-        move_results
+        slice_move_results
             .map(|result| format!("{:.1}", moves_per_second(result.move_count, result.elapsed))),
+    );
+    print_table_row(
+        "ns_per_line_cell",
+        slice_move_results.map(|result| {
+            format!(
+                "{:.3}",
+                nanoseconds_per_line_cell(result.side_length, result.move_count, result.elapsed)
+            )
+        }),
     );
 }
 
@@ -327,6 +411,71 @@ fn run_move_benchmark_for<S: rubik::FaceletArray>(
     }
 }
 
+fn run_slice_move_benchmark(
+    storage: StorageKind,
+    side_length: usize,
+    angles: &[MoveAngle],
+) -> SliceMoveResult {
+    match storage {
+        StorageKind::Byte => run_slice_move_benchmark_for::<Byte>(storage, side_length, angles),
+        StorageKind::Nibble => run_slice_move_benchmark_for::<Nibble>(storage, side_length, angles),
+        StorageKind::ThreeBit => {
+            run_slice_move_benchmark_for::<ThreeBit>(storage, side_length, angles)
+        }
+        StorageKind::Byte3 => run_slice_move_benchmark_for::<Byte3>(storage, side_length, angles),
+    }
+}
+
+fn run_slice_move_benchmark_for<S: rubik::FaceletArray>(
+    storage: StorageKind,
+    side_length: usize,
+    angles: &[MoveAngle],
+) -> SliceMoveResult {
+    let mut line0 = patterned_line::<S>(side_length, 0);
+    let mut line1 = patterned_line::<S>(side_length, 1);
+    let mut line2 = patterned_line::<S>(side_length, 2);
+    let mut line3 = patterned_line::<S>(side_length, 3);
+    let slice_storage_bytes = line_storage_bytes(storage, side_length);
+
+    let start = Instant::now();
+    for angle in angles.iter().copied() {
+        cycle_four_line_arrays(
+            &mut line0,
+            &mut line1,
+            &mut line2,
+            &mut line3,
+            black_box(angle),
+        );
+    }
+    let elapsed = start.elapsed();
+
+    let last = side_length - 1;
+    let checksum = line0.get(0).as_u8()
+        ^ line1.get(last).as_u8()
+        ^ line2.get(0).as_u8()
+        ^ line3.get(last).as_u8();
+    black_box(checksum);
+    black_box((&line0, &line1, &line2, &line3));
+
+    SliceMoveResult {
+        side_length,
+        move_count: angles.len(),
+        slice_storage_bytes,
+        elapsed,
+    }
+}
+
+fn patterned_line<S: rubik::FaceletArray>(side_length: usize, offset: u8) -> S {
+    let mut line = S::with_len(side_length, Facelet::White);
+
+    for index in 0..side_length {
+        let raw = ((index.wrapping_mul(5) + offset as usize) % Facelet::ALL.len()) as u8;
+        line.set(index, Facelet::from_u8(raw));
+    }
+
+    line
+}
+
 fn generate_moves(side_length: usize, count: usize, seed: u64) -> Vec<Move> {
     let mut rng = XorShift64::new(seed);
     let mut moves = Vec::with_capacity(count);
@@ -347,6 +496,22 @@ fn generate_moves(side_length: usize, count: usize, seed: u64) -> Vec<Move> {
     }
 
     moves
+}
+
+fn generate_angles(count: usize, seed: u64) -> Vec<MoveAngle> {
+    let mut rng = XorShift64::new(seed);
+    let mut angles = Vec::with_capacity(count);
+
+    for _ in 0..count {
+        let angle = match next_u64(&mut rng) % 3 {
+            0 => MoveAngle::Positive,
+            1 => MoveAngle::Double,
+            _ => MoveAngle::Negative,
+        };
+        angles.push(angle);
+    }
+
+    angles
 }
 
 fn next_u64(rng: &mut XorShift64) -> u64 {
@@ -374,6 +539,17 @@ fn environment_u64(name: &str, default: u64) -> u64 {
             value
                 .parse::<u64>()
                 .unwrap_or_else(|_| panic!("{name} must be an unsigned 64-bit integer"))
+        })
+        .unwrap_or(default)
+}
+
+fn environment_bool(name: &str, default: bool) -> bool {
+    env::var(name)
+        .ok()
+        .map(|value| match value.as_str() {
+            "1" | "true" | "TRUE" | "yes" | "YES" => true,
+            "0" | "false" | "FALSE" | "no" | "NO" => false,
+            _ => panic!("{name} must be one of 1, 0, true, false, yes, or no"),
         })
         .unwrap_or(default)
 }
@@ -430,6 +606,10 @@ fn moves_per_second(moves: usize, duration: Duration) -> f64 {
     moves as f64 / duration.as_secs_f64()
 }
 
+fn nanoseconds_per_line_cell(side_length: usize, moves: usize, duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1_000_000_000.0 / (side_length as f64 * moves as f64)
+}
+
 fn face_storage_bytes(storage: StorageKind, side_length: usize) -> usize {
     let cells_per_face = side_length
         .checked_mul(side_length)
@@ -455,4 +635,17 @@ fn face_storage_bytes(storage: StorageKind, side_length: usize) -> usize {
             .checked_mul(6)
             .expect("byte3 storage size overflowed usize"),
     }
+}
+
+fn line_storage_bytes(storage: StorageKind, side_length: usize) -> usize {
+    let bytes_per_line = match storage {
+        StorageKind::Byte => Byte::storage_bytes_for_len(side_length),
+        StorageKind::Nibble => Nibble::storage_bytes_for_len(side_length),
+        StorageKind::ThreeBit => ThreeBit::storage_bytes_for_len(side_length),
+        StorageKind::Byte3 => Byte3::storage_bytes_for_len(side_length),
+    };
+
+    bytes_per_line
+        .checked_mul(4)
+        .expect("line-only storage size overflowed usize")
 }
