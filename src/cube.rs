@@ -419,13 +419,10 @@ impl<S: FaceletArray> Cube<S> {
         );
         validate_inner_layer_set(self.n, rows, "commutator rows");
         validate_inner_layer_set(self.n, columns, "commutator columns");
-
-        for row in rows.iter().copied() {
-            assert!(
-                !columns.contains(&row),
-                "commutator row and column layer sets must be disjoint"
-            );
-        }
+        assert!(
+            sorted_layer_sets_are_disjoint(rows, columns),
+            "commutator row and column layer sets must be disjoint"
+        );
     }
 
     fn position(&self, position: FacePosition) -> Facelet {
@@ -671,6 +668,21 @@ fn validate_inner_layer_set(n: usize, layers: &[usize], name: &str) {
     }
 }
 
+fn sorted_layer_sets_are_disjoint(left: &[usize], right: &[usize]) -> bool {
+    let mut left_index = 0;
+    let mut right_index = 0;
+
+    while left_index < left.len() && right_index < right.len() {
+        match left[left_index].cmp(&right[right_index]) {
+            core::cmp::Ordering::Less => left_index += 1,
+            core::cmp::Ordering::Greater => right_index += 1,
+            core::cmp::Ordering::Equal => return false,
+        }
+    }
+
+    true
+}
+
 fn face_commutator_difference_cycle(
     n: usize,
     destination: FaceId,
@@ -772,12 +784,11 @@ fn assert_unique_positions(positions: impl IntoIterator<Item = FacePosition>) {
 }
 
 fn positions_are_unique(positions: impl IntoIterator<Item = FacePosition>) -> bool {
-    let mut seen = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for position in positions {
-        if seen.contains(&position) {
+        if !seen.insert(position) {
             return false;
         }
-        seen.push(position);
     }
 
     true
@@ -1041,7 +1052,7 @@ mod tests {
                 remaining /= 4;
             }
 
-            if rows.iter().any(|row| columns.contains(row)) {
+            if !sorted_layer_sets_are_disjoint(&rows, &columns) {
                 pairs.push((rows, columns));
             }
         }
@@ -1300,6 +1311,16 @@ mod tests {
     fn face_commutator_rejects_same_row_and_column_layer() {
         let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
         cube.apply_face_commutator_untracked(FaceId::U, FaceId::R, &[1], &[1], MoveAngle::Positive);
+    }
+
+    #[test]
+    fn sorted_layer_set_disjointness_is_linear_merge_compatible() {
+        assert!(sorted_layer_sets_are_disjoint(&[], &[]));
+        assert!(sorted_layer_sets_are_disjoint(&[1, 3, 5], &[2, 4, 6]));
+        assert!(sorted_layer_sets_are_disjoint(&[1, 2, 3], &[]));
+        assert!(sorted_layer_sets_are_disjoint(&[], &[1, 2, 3]));
+        assert!(!sorted_layer_sets_are_disjoint(&[1, 3, 5], &[0, 3, 6]));
+        assert!(!sorted_layer_sets_are_disjoint(&[1, 2, 3], &[3, 4, 5]));
     }
 
     #[test]
