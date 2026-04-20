@@ -19,6 +19,10 @@ pub use line::{LineBuffer, LineKind, MoveScratch, StripSpec};
 pub use matrix::Matrix;
 pub use moves::{Axis, Move, MoveAngle};
 pub use random::{RandomSource, XorShift64};
-pub use solver::{MoveSequence, Solver};
+pub use solver::{
+    CenterCommutatorTable, CenterReductionStage, CenterTransferSpec, EdgePairingStage, EdgeSlot,
+    MoveSequence, ReductionSolver, SolveContext, SolveError, SolveOptions, SolveOutcome,
+    SolvePhase, SolveResult, Solver, SolverStage, StageReport, SubStageSpec, ThreeByThreeStage,
+};
 pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};
 pub use threading::default_thread_count;
