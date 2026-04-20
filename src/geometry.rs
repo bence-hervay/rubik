@@ -6,9 +6,9 @@ use crate::{
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Coord3 {
-    x: usize,
-    y: usize,
-    z: usize,
+    pub(crate) x: usize,
+    pub(crate) y: usize,
+    pub(crate) z: usize,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

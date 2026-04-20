@@ -114,6 +114,108 @@ pub struct FaceletUpdate {
     pub to: FaceletLocation,
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct EdgeCubieLocation {
+    /// The two stickers belonging to the same physical edge cubie, stored in a
+    /// stable canonical order.
+    pub stickers: [FaceletLocation; 2],
+}
+
+impl EdgeCubieLocation {
+    pub const fn stickers(self) -> [FaceletLocation; 2] {
+        self.stickers
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct EdgeThreeCycle {
+    row: usize,
+}
+
+impl EdgeThreeCycle {
+    /// A sparse big-cube wing three-cycle in the canonical front/right working
+    /// area.
+    ///
+    /// `row` is an inner edge row on the front-left/front-right edge band. On
+    /// odd cubes the exact middle row is not a wing row and is rejected when a
+    /// plan is built.
+    pub const fn front_right_wing(row: usize) -> Self {
+        Self { row }
+    }
+
+    pub const fn row(self) -> usize {
+        self.row
+    }
+
+    pub fn moves(self, side_length: usize) -> Vec<Move> {
+        edge_three_cycle_moves(side_length, self)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EdgeThreeCyclePlan {
+    side_length: usize,
+    cycle: Option<EdgeThreeCycle>,
+    moves: Vec<Move>,
+    cubies: [EdgeCubieLocation; 3],
+    updates: [FaceletUpdate; 6],
+}
+
+impl EdgeThreeCyclePlan {
+    /// Builds the sparse plan for a named edge three-cycle recipe.
+    ///
+    /// This path scans only edge stickers, so it is suitable for precomputing
+    /// plans on very large cubes.
+    pub fn from_cycle(side_length: usize, cycle: EdgeThreeCycle) -> Self {
+        validate_edge_three_cycle(side_length, cycle);
+        try_edge_three_cycle_plan_from_edge_positions(
+            side_length,
+            Some(cycle),
+            cycle.moves(side_length),
+        )
+        .expect("edge three-cycle recipe must produce exactly one edge cubie 3-cycle")
+    }
+
+    /// Builds a plan from an arbitrary literal move sequence, accepting it only
+    /// if the full cube permutation is exactly one edge-cubie 3-cycle.
+    pub fn from_moves(side_length: usize, moves: Vec<Move>) -> Self {
+        Self::from_moves_for_cycle(side_length, None, moves)
+    }
+
+    fn from_moves_for_cycle(
+        side_length: usize,
+        cycle: Option<EdgeThreeCycle>,
+        moves: Vec<Move>,
+    ) -> Self {
+        try_edge_three_cycle_plan_from_moves(side_length, cycle, moves)
+            .expect("move sequence must be exactly one edge cubie 3-cycle")
+    }
+
+    pub fn try_from_moves(side_length: usize, moves: Vec<Move>) -> Option<Self> {
+        try_edge_three_cycle_plan_from_moves(side_length, None, moves)
+    }
+
+    pub fn side_length(&self) -> usize {
+        self.side_length
+    }
+
+    pub fn cycle(&self) -> Option<EdgeThreeCycle> {
+        self.cycle
+    }
+
+    pub fn moves(&self) -> &[Move] {
+        &self.moves
+    }
+
+    pub fn cubies(&self) -> &[EdgeCubieLocation; 3] {
+        &self.cubies
+    }
+
+    pub fn updates(&self) -> &[FaceletUpdate; 6] {
+        &self.updates
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Cube<S: FaceletArray> {
     n: usize,
@@ -453,6 +555,64 @@ impl<S: FaceletArray> Cube<S> {
                 from: facelet_location(update.from.eval(self.n, row, column)),
                 to: facelet_location(update.to.eval(self.n, row, column)),
             })
+    }
+
+    pub fn edge_three_cycle_moves(&self, cycle: EdgeThreeCycle) -> Vec<Move> {
+        validate_edge_three_cycle(self.n, cycle);
+        cycle.moves(self.n)
+    }
+
+    /// Precomputes the six sparse sticker updates for a named edge three-cycle.
+    pub fn edge_three_cycle_plan(&self, cycle: EdgeThreeCycle) -> EdgeThreeCyclePlan {
+        EdgeThreeCyclePlan::from_cycle(self.n, cycle)
+    }
+
+    /// Attempts to prove that a literal move sequence is exactly one edge
+    /// cubie 3-cycle, then returns its sparse update plan.
+    pub fn try_edge_three_cycle_plan_from_moves(
+        &self,
+        moves: Vec<Move>,
+    ) -> Option<EdgeThreeCyclePlan> {
+        EdgeThreeCyclePlan::try_from_moves(self.n, moves)
+    }
+
+    pub fn edge_three_cycle_plan_from_moves(&self, moves: Vec<Move>) -> EdgeThreeCyclePlan {
+        EdgeThreeCyclePlan::from_moves(self.n, moves)
+    }
+
+    /// Convenience wrapper that builds then applies a named edge three-cycle.
+    /// Reuse `EdgeThreeCyclePlan` directly in hot solving loops.
+    pub fn apply_edge_three_cycle_untracked(&mut self, cycle: EdgeThreeCycle) {
+        let plan = self.edge_three_cycle_plan(cycle);
+        self.apply_edge_three_cycle_plan_untracked(&plan);
+    }
+
+    /// Applies a precomputed edge three-cycle plan with delayed reads, so the
+    /// cyclic overwrite order cannot corrupt source stickers.
+    pub fn apply_edge_three_cycle_plan_untracked(&mut self, plan: &EdgeThreeCyclePlan) {
+        assert_eq!(
+            plan.side_length, self.n,
+            "edge three-cycle plan side length must match the cube"
+        );
+
+        let values = plan.updates.map(|update| {
+            self.position(FacePosition {
+                face: update.from.face,
+                row: update.from.row,
+                col: update.from.col,
+            })
+        });
+
+        for (update, value) in plan.updates.iter().copied().zip(values) {
+            self.set_position(
+                FacePosition {
+                    face: update.to.face,
+                    row: update.to.row,
+                    col: update.to.col,
+                },
+                value,
+            );
+        }
     }
 
     /// Reference implementation for `apply_face_commutator_untracked`.
@@ -1493,6 +1653,322 @@ fn face_layer_move(n: usize, face: FaceId, depth_from_face: usize, angle: MoveAn
     }
 }
 
+fn validate_edge_three_cycle(n: usize, cycle: EdgeThreeCycle) {
+    assert!(
+        n >= 4,
+        "front-right wing edge three-cycles require side length at least 4"
+    );
+    assert!(
+        cycle.row > 0 && cycle.row + 1 < n,
+        "edge three-cycle row must be an inner layer"
+    );
+    assert!(
+        n % 2 == 0 || cycle.row != n / 2,
+        "front-right wing edge three-cycle row cannot be the middle layer on odd cubes"
+    );
+}
+
+fn edge_three_cycle_moves(n: usize, cycle: EdgeThreeCycle) -> Vec<Move> {
+    validate_edge_three_cycle(n, cycle);
+
+    edge_wing_three_cycle_moves(n, cycle.row)
+}
+
+fn edge_wing_three_cycle_moves(n: usize, row: usize) -> Vec<Move> {
+    let mirror = n - 1 - row;
+    let mut moves = Vec::with_capacity(18);
+    moves.push(face_layer_move(n, FaceId::D, row, MoveAngle::Positive));
+    moves.push(face_layer_move(n, FaceId::D, mirror, MoveAngle::Positive));
+    moves.extend(flip_right_edge_moves(n));
+    moves.push(face_layer_move(n, FaceId::D, row, MoveAngle::Negative));
+    moves.extend(unflip_right_edge_moves(n));
+    moves.push(face_layer_move(n, FaceId::D, mirror, MoveAngle::Negative));
+    moves
+}
+
+fn flip_right_edge_moves(n: usize) -> [Move; 7] {
+    [
+        face_layer_move(n, FaceId::R, 0, MoveAngle::Positive),
+        face_layer_move(n, FaceId::U, 0, MoveAngle::Positive),
+        face_layer_move(n, FaceId::R, 0, MoveAngle::Negative),
+        face_layer_move(n, FaceId::F, 0, MoveAngle::Positive),
+        face_layer_move(n, FaceId::R, 0, MoveAngle::Negative),
+        face_layer_move(n, FaceId::F, 0, MoveAngle::Negative),
+        face_layer_move(n, FaceId::R, 0, MoveAngle::Positive),
+    ]
+}
+
+fn unflip_right_edge_moves(n: usize) -> [Move; 7] {
+    [
+        face_layer_move(n, FaceId::R, 0, MoveAngle::Negative),
+        face_layer_move(n, FaceId::F, 0, MoveAngle::Positive),
+        face_layer_move(n, FaceId::R, 0, MoveAngle::Positive),
+        face_layer_move(n, FaceId::F, 0, MoveAngle::Negative),
+        face_layer_move(n, FaceId::R, 0, MoveAngle::Positive),
+        face_layer_move(n, FaceId::U, 0, MoveAngle::Negative),
+        face_layer_move(n, FaceId::R, 0, MoveAngle::Negative),
+    ]
+}
+
+fn try_edge_three_cycle_plan_from_moves(
+    n: usize,
+    cycle: Option<EdgeThreeCycle>,
+    moves: Vec<Move>,
+) -> Option<EdgeThreeCyclePlan> {
+    if n < 3 || moves.is_empty() || moves.iter().any(|mv| mv.depth >= n) {
+        return None;
+    }
+
+    let updates = move_sequence_updates(n, &moves)?;
+    build_edge_three_cycle_plan(n, cycle, moves, updates)
+}
+
+fn try_edge_three_cycle_plan_from_edge_positions(
+    n: usize,
+    cycle: Option<EdgeThreeCycle>,
+    moves: Vec<Move>,
+) -> Option<EdgeThreeCyclePlan> {
+    if n < 3 || moves.is_empty() || moves.iter().any(|mv| mv.depth >= n) {
+        return None;
+    }
+
+    let updates = edge_position_updates(n, &moves);
+    build_edge_three_cycle_plan(n, cycle, moves, updates)
+}
+
+fn build_edge_three_cycle_plan(
+    n: usize,
+    cycle: Option<EdgeThreeCycle>,
+    moves: Vec<Move>,
+    updates: Vec<FaceletUpdate>,
+) -> Option<EdgeThreeCyclePlan> {
+    let updates: [FaceletUpdate; 6] = updates.try_into().ok()?;
+
+    if !facelet_locations_are_unique(updates.iter().map(|update| update.from))
+        || !facelet_locations_are_unique(updates.iter().map(|update| update.to))
+    {
+        return None;
+    }
+
+    let source_cubies = unique_edge_cubies(n, updates.iter().map(|update| update.from))?;
+    let destination_cubies = unique_edge_cubies(n, updates.iter().map(|update| update.to))?;
+    if !edge_cubie_sets_match(source_cubies, destination_cubies) {
+        return None;
+    }
+
+    let mut destination_for_source = [None; 3];
+    let mut source_counts = [0usize; 3];
+
+    for update in updates {
+        let source = edge_cubie_location(n, update.from)?;
+        let destination = edge_cubie_location(n, update.to)?;
+        let source_index = edge_cubie_index(source_cubies, source)?;
+
+        source_counts[source_index] += 1;
+        match destination_for_source[source_index] {
+            Some(existing) if existing != destination => return None,
+            Some(_) => {}
+            None => destination_for_source[source_index] = Some(destination),
+        }
+    }
+
+    if source_counts != [2, 2, 2] {
+        return None;
+    }
+
+    let first = source_cubies[0];
+    let second = destination_for_source[0]?;
+    if second == first {
+        return None;
+    }
+    let second_index = edge_cubie_index(source_cubies, second)?;
+    let third = destination_for_source[second_index]?;
+    if third == first || third == second {
+        return None;
+    }
+    let third_index = edge_cubie_index(source_cubies, third)?;
+    if destination_for_source[third_index]? != first {
+        return None;
+    }
+
+    Some(EdgeThreeCyclePlan {
+        side_length: n,
+        cycle,
+        moves,
+        cubies: [first, second, third],
+        updates,
+    })
+}
+
+fn move_sequence_updates(n: usize, moves: &[Move]) -> Option<Vec<FaceletUpdate>> {
+    if n == 0 {
+        return None;
+    }
+
+    let mut updates = Vec::new();
+    for face in FaceId::ALL {
+        for row in 0..n {
+            for col in 0..n {
+                let from = FacePosition { face, row, col };
+                let to = trace_position(n, from, moves.iter().copied());
+                if from != to {
+                    updates.push(FaceletUpdate {
+                        from: facelet_location(from),
+                        to: facelet_location(to),
+                    });
+                }
+            }
+        }
+    }
+
+    Some(updates)
+}
+
+fn edge_position_updates(n: usize, moves: &[Move]) -> Vec<FaceletUpdate> {
+    let mut updates = Vec::new();
+
+    for face in FaceId::ALL {
+        for offset in 1..n - 1 {
+            for (row, col) in [(0, offset), (n - 1, offset), (offset, 0), (offset, n - 1)] {
+                let from = FacePosition { face, row, col };
+                let to = trace_position(n, from, moves.iter().copied());
+                if from != to {
+                    updates.push(FaceletUpdate {
+                        from: facelet_location(from),
+                        to: facelet_location(to),
+                    });
+                }
+            }
+        }
+    }
+
+    updates
+}
+
+fn unique_edge_cubies(
+    n: usize,
+    locations: impl IntoIterator<Item = FaceletLocation>,
+) -> Option<[EdgeCubieLocation; 3]> {
+    let mut cubies = [None; 3];
+    let mut len = 0;
+
+    for location in locations {
+        let cubie = edge_cubie_location(n, location)?;
+        if cubies[..len].contains(&Some(cubie)) {
+            continue;
+        }
+        if len == cubies.len() {
+            return None;
+        }
+        cubies[len] = Some(cubie);
+        len += 1;
+    }
+
+    if len != cubies.len() {
+        return None;
+    }
+
+    Some(cubies.map(|cubie| cubie.expect("edge cubie entry must be initialized")))
+}
+
+fn edge_cubie_location(n: usize, location: FaceletLocation) -> Option<EdgeCubieLocation> {
+    if n < 3 || location.row >= n || location.col >= n {
+        return None;
+    }
+
+    let coord = geometry::logical_to_coord(location.face, location.row, location.col, n);
+    let mut boundary_faces = [None; 3];
+    let mut len = 0;
+
+    if coord.x == 0 {
+        boundary_faces[len] = Some(FaceId::L);
+        len += 1;
+    } else if coord.x + 1 == n {
+        boundary_faces[len] = Some(FaceId::R);
+        len += 1;
+    }
+
+    if coord.y == 0 {
+        boundary_faces[len] = Some(FaceId::D);
+        len += 1;
+    } else if coord.y + 1 == n {
+        boundary_faces[len] = Some(FaceId::U);
+        len += 1;
+    }
+
+    if coord.z == 0 {
+        boundary_faces[len] = Some(FaceId::B);
+        len += 1;
+    } else if coord.z + 1 == n {
+        boundary_faces[len] = Some(FaceId::F);
+        len += 1;
+    }
+
+    if len != 2 {
+        return None;
+    }
+
+    let first_face = boundary_faces[0]?;
+    let second_face = boundary_faces[1]?;
+    let other_face = if location.face == first_face {
+        second_face
+    } else if location.face == second_face {
+        first_face
+    } else {
+        return None;
+    };
+    let (other_row, other_col) = geometry::coord_to_logical(other_face, coord, n);
+    let other = FaceletLocation {
+        face: other_face,
+        row: other_row,
+        col: other_col,
+    };
+
+    Some(canonical_edge_cubie(location, other))
+}
+
+fn canonical_edge_cubie(first: FaceletLocation, second: FaceletLocation) -> EdgeCubieLocation {
+    if facelet_location_key(second) < facelet_location_key(first) {
+        EdgeCubieLocation {
+            stickers: [second, first],
+        }
+    } else {
+        EdgeCubieLocation {
+            stickers: [first, second],
+        }
+    }
+}
+
+fn facelet_location_key(location: FaceletLocation) -> (usize, usize, usize) {
+    (location.face.index(), location.row, location.col)
+}
+
+fn facelet_locations_are_unique(locations: impl IntoIterator<Item = FaceletLocation>) -> bool {
+    let mut seen = [None; 6];
+    let mut len = 0;
+
+    for location in locations {
+        if seen[..len].contains(&Some(location)) {
+            return false;
+        }
+        if len == seen.len() {
+            return false;
+        }
+        seen[len] = Some(location);
+        len += 1;
+    }
+
+    true
+}
+
+fn edge_cubie_sets_match(left: [EdgeCubieLocation; 3], right: [EdgeCubieLocation; 3]) -> bool {
+    left.iter().all(|cubie| right.contains(cubie)) && right.iter().all(|cubie| left.contains(cubie))
+}
+
+fn edge_cubie_index(cubies: [EdgeCubieLocation; 3], target: EdgeCubieLocation) -> Option<usize> {
+    cubies.iter().position(|cubie| *cubie == target)
+}
+
 fn random_move_angle<R: RandomSource>(rng: &mut R) -> MoveAngle {
     match (rng.next_u64() % 3) as u8 {
         0 => MoveAngle::Positive,
@@ -1805,6 +2281,86 @@ mod tests {
         true
     }
 
+    fn edge_three_cycle_specs(side_length: usize) -> Vec<EdgeThreeCycle> {
+        let mut specs = Vec::new();
+
+        if side_length < 4 {
+            return specs;
+        }
+
+        for row in 1..side_length - 1 {
+            if side_length % 2 == 1 && row == side_length / 2 {
+                continue;
+            }
+            specs.push(EdgeThreeCycle::front_right_wing(row));
+        }
+
+        specs
+    }
+
+    fn slice_outer_edge_three_cycle_candidate_moves(
+        side_length: usize,
+        slice_face: FaceId,
+        slice_depth_from_face: usize,
+        outer_face: FaceId,
+        slice_angle: MoveAngle,
+    ) -> Vec<Move> {
+        let slice_half = super::face_layer_move(
+            side_length,
+            slice_face,
+            slice_depth_from_face,
+            MoveAngle::Double,
+        );
+        let slice =
+            super::face_layer_move(side_length, slice_face, slice_depth_from_face, slice_angle);
+        let outer = super::face_layer_move(side_length, outer_face, 0, MoveAngle::Positive);
+        let outer_half = super::face_layer_move(side_length, outer_face, 0, MoveAngle::Double);
+
+        vec![
+            slice_half,
+            outer,
+            slice,
+            outer_half,
+            slice.inverse(),
+            outer,
+            slice_half,
+        ]
+    }
+
+    fn move_defined_edge_three_cycle_plans(side_length: usize) -> Vec<EdgeThreeCyclePlan> {
+        let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut plans = Vec::new();
+
+        if side_length == 3 {
+            for slice_face in FaceId::ALL {
+                for outer_face in FaceId::ALL {
+                    if outer_face == slice_face || outer_face == super::opposite_face(slice_face) {
+                        continue;
+                    }
+
+                    for slice_angle in [MoveAngle::Positive, MoveAngle::Negative] {
+                        let moves = slice_outer_edge_three_cycle_candidate_moves(
+                            side_length,
+                            slice_face,
+                            1,
+                            outer_face,
+                            slice_angle,
+                        );
+                        if let Some(plan) = probe.try_edge_three_cycle_plan_from_moves(moves) {
+                            plans.push(plan);
+                        }
+                    }
+                }
+            }
+        }
+
+        for cycle in edge_three_cycle_specs(side_length) {
+            plans.push(probe.edge_three_cycle_plan(cycle));
+        }
+
+        plans
+    }
+
     fn assert_cubes_match<A: FaceletArray, B: FaceletArray>(actual: &Cube<A>, expected: &Cube<B>) {
         assert_eq!(actual.side_len(), expected.side_len());
 
@@ -1982,6 +2538,116 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn edge_three_cycles_match_expanded_moves_exhaustively() {
+        for side_length in 3..=6 {
+            let plans = move_defined_edge_three_cycle_plans(side_length);
+            assert!(
+                !plans.is_empty(),
+                "expected edge three-cycle plans for n={side_length}"
+            );
+
+            for plan in plans {
+                let mut expected = patterned_cube::<Byte>(side_length, 17);
+                expected.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+
+                let mut actual = patterned_cube::<Byte>(side_length, 17);
+                assert_eq!(plan.updates().len(), 6);
+                assert_eq!(plan.cubies().len(), 3);
+                actual.apply_edge_three_cycle_plan_untracked(&plan);
+
+                assert_cubes_match(&actual, &expected);
+            }
+        }
+    }
+
+    #[test]
+    fn edge_three_cycle_direct_updates_only_declared_edge_cubies() {
+        for side_length in 3..=6 {
+            for plan in move_defined_edge_three_cycle_plans(side_length) {
+                let before = patterned_cube::<Byte>(side_length, 23);
+                let mut affected = std::collections::HashSet::new();
+
+                for update in plan.updates() {
+                    for location in [update.from, update.to] {
+                        assert!(
+                            super::edge_cubie_location(side_length, location).is_some(),
+                            "edge three-cycle touched a non-edge location: {location:?}"
+                        );
+                        affected.insert(location);
+                    }
+                }
+
+                assert_eq!(affected.len(), 6);
+
+                let mut after = before.clone();
+                after.apply_edge_three_cycle_plan_untracked(&plan);
+
+                for face in FaceId::ALL {
+                    assert_eq!(
+                        after.face(face).rotation(),
+                        before.face(face).rotation(),
+                        "edge three-cycle direct apply changed face rotation metadata"
+                    );
+
+                    for row in 0..side_length {
+                        for col in 0..side_length {
+                            let location = FaceletLocation { face, row, col };
+                            if !affected.contains(&location) {
+                                assert_eq!(
+                                    after.face(face).get(row, col),
+                                    before.face(face).get(row, col),
+                                    "edge three-cycle direct apply changed undeclared location {location:?}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn edge_three_cycles_work_for_all_storage_backends() {
+        let side_length = 6;
+        let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+
+        for cycle in edge_three_cycle_specs(side_length) {
+            let plan = probe.edge_three_cycle_plan(cycle);
+            let mut byte = patterned_cube::<Byte>(side_length, 29);
+            let mut byte3 = patterned_cube::<Byte3>(side_length, 29);
+            let mut nibble = patterned_cube::<Nibble>(side_length, 29);
+            let mut three_bit = patterned_cube::<ThreeBit>(side_length, 29);
+
+            byte.apply_edge_three_cycle_plan_untracked(&plan);
+            byte3.apply_edge_three_cycle_plan_untracked(&plan);
+            nibble.apply_edge_three_cycle_plan_untracked(&plan);
+            three_bit.apply_edge_three_cycle_plan_untracked(&plan);
+
+            assert_cubes_match(&byte3, &byte);
+            assert_cubes_match(&nibble, &byte);
+            assert_cubes_match(&three_bit, &byte);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "edge three-cycle row must be an inner layer")]
+    fn edge_three_cycle_rejects_outer_row() {
+        let cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+        let cycle = EdgeThreeCycle::front_right_wing(0);
+        cube.edge_three_cycle_plan(cycle);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "front-right wing edge three-cycle row cannot be the middle layer on odd cubes"
+    )]
+    fn edge_three_cycle_rejects_odd_middle_row() {
+        let cube = Cube::<Byte>::new_solved_with_threads(5, 1);
+        let cycle = EdgeThreeCycle::front_right_wing(2);
+        cube.edge_three_cycle_plan(cycle);
     }
 
     #[test]
