@@ -11,9 +11,9 @@ pub use model::cube;
 pub use model::face;
 pub use model::facelet;
 pub use model::{
-    ColorScheme, Cube, EdgeCubieLocation, EdgeThreeCycle, EdgeThreeCycleDirection,
-    EdgeThreeCycleKind, EdgeThreeCyclePlan, Face, FaceAngle, FaceCommutator, FaceId, Facelet,
-    FaceletLocation, FaceletUpdate, DEFAULT_SCRAMBLE_ROUNDS,
+    ColorScheme, CornerCubieLocation, Cube, EdgeCubieLocation, EdgeThreeCycle,
+    EdgeThreeCycleDirection, EdgeThreeCycleKind, EdgeThreeCyclePlan, Face, FaceAngle,
+    FaceCommutator, FaceId, Facelet, FaceletLocation, FaceletUpdate, DEFAULT_SCRAMBLE_ROUNDS,
 };
 pub use moves::history;
 pub use moves::{Axis, Move, MoveAngle, MoveHistory};
@@ -24,9 +24,9 @@ pub use runtime::threading::default_thread_count;
 pub use runtime::{RandomSource, XorShift64};
 pub use solver::{
     CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr,
-    CenterReductionStage, CenterScheduleStep, CenterTransferSpec, EdgePairingStage, EdgeSlot,
-    MoveSequence, MoveStats, ReductionSolver, SolveContext, SolveError, SolveOptions, SolveOutcome,
-    SolvePhase, SolveResult, Solver, SolverStage, StageReport, SubStageSpec, ThreeByThreeStage,
-    GENERATED_CENTER_SCHEDULE,
+    CenterReductionStage, CenterScheduleStep, CenterTransferSpec, CornerReductionStage, CornerSlot,
+    EdgePairingStage, EdgeSlot, MoveSequence, MoveStats, ReductionSolver, SolveContext, SolveError,
+    SolveOptions, SolveOutcome, SolvePhase, SolveResult, Solver, SolverStage, StageReport,
+    SubStageSpec, ThreeByThreeStage, GENERATED_CENTER_SCHEDULE,
 };
 pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};

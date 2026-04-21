@@ -127,11 +127,32 @@ impl EdgeCubieLocation {
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct CornerCubieLocation {
+    /// The three stickers belonging to the same physical corner cubie, stored
+    /// in a stable canonical order.
+    pub stickers: [FaceletLocation; 3],
+}
+
+impl CornerCubieLocation {
+    pub const fn stickers(self) -> [FaceletLocation; 3] {
+        self.stickers
+    }
+}
+
 pub(crate) fn edge_cubie_for_facelet_location(
     side_length: usize,
     location: FaceletLocation,
 ) -> Option<EdgeCubieLocation> {
     edge_cubie_location(side_length, location)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn corner_cubie_for_facelet_location(
+    side_length: usize,
+    location: FaceletLocation,
+) -> Option<CornerCubieLocation> {
+    corner_cubie_location(side_length, location)
 }
 
 pub(crate) fn edge_cubie_orbit_index(
@@ -193,7 +214,7 @@ pub(crate) fn trace_edge_cubie_through_move(
         .expect("traced edge sticker must stay on an edge cubie")
 }
 
-#[cfg(test)]
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn trace_facelet_location_through_moves(
     side_length: usize,
     location: FaceletLocation,
@@ -209,6 +230,33 @@ pub(crate) fn trace_facelet_location_through_moves(
         moves.iter().copied(),
     );
     facelet_location(position)
+}
+
+pub(crate) fn trace_facelet_location_through_move(
+    side_length: usize,
+    location: FaceletLocation,
+    mv: Move,
+) -> FaceletLocation {
+    let position = trace_position_through_move(
+        side_length,
+        FacePosition {
+            face: location.face,
+            row: location.row,
+            col: location.col,
+        },
+        mv,
+    );
+    facelet_location(position)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn trace_corner_cubie_through_move(
+    side_length: usize,
+    cubie: CornerCubieLocation,
+    mv: Move,
+) -> CornerCubieLocation {
+    let traced = trace_facelet_location_through_move(side_length, cubie.stickers()[0], mv);
+    corner_cubie_location(side_length, traced).expect("traced facelet must stay on a corner cubie")
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -2120,6 +2168,67 @@ fn canonical_edge_cubie(first: FaceletLocation, second: FaceletLocation) -> Edge
             stickers: [first, second],
         }
     }
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn corner_cubie_location(n: usize, location: FaceletLocation) -> Option<CornerCubieLocation> {
+    if n < 2 || location.row >= n || location.col >= n {
+        return None;
+    }
+
+    let coord = geometry::logical_to_coord(location.face, location.row, location.col, n);
+    let mut boundary_faces = [None; 3];
+    let mut len = 0;
+
+    if coord.x == 0 {
+        boundary_faces[len] = Some(FaceId::L);
+        len += 1;
+    } else if coord.x + 1 == n {
+        boundary_faces[len] = Some(FaceId::R);
+        len += 1;
+    }
+
+    if coord.y == 0 {
+        boundary_faces[len] = Some(FaceId::D);
+        len += 1;
+    } else if coord.y + 1 == n {
+        boundary_faces[len] = Some(FaceId::U);
+        len += 1;
+    }
+
+    if coord.z == 0 {
+        boundary_faces[len] = Some(FaceId::B);
+        len += 1;
+    } else if coord.z + 1 == n {
+        boundary_faces[len] = Some(FaceId::F);
+        len += 1;
+    }
+
+    if len != 3 {
+        return None;
+    }
+
+    let mut stickers = [location; 3];
+    let mut sticker_index = 1;
+
+    for face in boundary_faces.into_iter().flatten() {
+        if face == location.face {
+            continue;
+        }
+
+        let (row, col) = geometry::coord_to_logical(face, coord, n);
+        stickers[sticker_index] = FaceletLocation { face, row, col };
+        sticker_index += 1;
+    }
+
+    debug_assert_eq!(sticker_index, 3);
+    Some(canonical_corner_cubie(stickers))
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn canonical_corner_cubie(mut stickers: [FaceletLocation; 3]) -> CornerCubieLocation {
+    stickers.sort_by_key(|location| facelet_location_key(*location));
+    CornerCubieLocation { stickers }
 }
 
 fn facelet_location_key(location: FaceletLocation) -> (usize, usize, usize) {

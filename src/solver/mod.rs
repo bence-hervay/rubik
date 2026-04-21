@@ -2,6 +2,7 @@ use core::fmt;
 use std::collections::{HashSet, VecDeque};
 
 mod center_schedule;
+mod corners;
 mod edges;
 
 use crate::{
@@ -17,6 +18,7 @@ pub use center_schedule::{
     CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterScheduleStep,
     GENERATED_CENTER_SCHEDULE,
 };
+pub use corners::{CornerReductionStage, CornerSlot};
 pub use edges::{EdgePairingStage, EdgeSlot};
 
 pub type MoveSequence = Vec<Move>;
@@ -47,6 +49,7 @@ impl std::error::Error for SolveError {}
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum SolvePhase {
     Centers,
+    Corners,
     Edges,
     ThreeByThree,
 }
@@ -55,6 +58,7 @@ impl fmt::Display for SolvePhase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Centers => f.write_str("centers"),
+            Self::Corners => f.write_str("corners"),
             Self::Edges => f.write_str("edges"),
             Self::ThreeByThree => f.write_str("3x3"),
         }
@@ -420,8 +424,8 @@ impl<S: FaceletArray + 'static> ReductionSolver<S> {
     pub fn large_cube_default() -> Self {
         Self::new(SolveOptions::default())
             .with_stage(CenterReductionStage::western_default())
+            .with_stage(CornerReductionStage::default())
             .with_stage(EdgePairingStage::default())
-            .with_stage(ThreeByThreeStage::default())
     }
 
     pub fn with_stage<T>(mut self, stage: T) -> Self
@@ -1308,28 +1312,31 @@ mod tests {
     }
 
     #[test]
-    fn default_reduction_solver_has_center_edge_and_3x3_stages() {
+    fn default_reduction_solver_has_center_corner_and_edge_stages() {
         let solver = ReductionSolver::<Byte>::large_cube_default();
         let names = solver.stage_names().collect::<Vec<_>>();
 
         assert_eq!(solver.stage_count(), 3);
-        assert_eq!(names, ["center reduction", "edge pairing", "3x3 finish"]);
+        assert_eq!(
+            names,
+            ["center reduction", "corner reduction", "edge pairing"]
+        );
     }
 
     #[test]
-    fn placeholder_pipeline_runs_without_adding_moves() {
+    fn default_pipeline_runs_on_a_solved_cube_without_adding_moves() {
         let mut solver = ReductionSolver::<Byte>::large_cube_default();
         let mut cube = Cube::<Byte>::new_solved(5);
 
         let outcome = solver
             .solve(&mut cube)
-            .expect("placeholder stages should run");
+            .expect("default stages should run on a solved cube");
 
         assert!(outcome.moves.is_empty());
         assert_eq!(outcome.reports.len(), 3);
         assert_eq!(outcome.reports[0].phase, SolvePhase::Centers);
-        assert_eq!(outcome.reports[1].phase, SolvePhase::Edges);
-        assert_eq!(outcome.reports[2].phase, SolvePhase::ThreeByThree);
+        assert_eq!(outcome.reports[1].phase, SolvePhase::Corners);
+        assert_eq!(outcome.reports[2].phase, SolvePhase::Edges);
     }
 
     #[test]
