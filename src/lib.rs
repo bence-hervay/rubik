@@ -1,28 +1,26 @@
-pub mod cube;
-pub mod face;
-pub mod facelet;
-pub(crate) mod geometry;
-pub mod history;
-pub mod line;
-pub mod matrix;
-pub mod moves;
-pub mod random;
+pub mod puzzle;
+pub mod runtime;
 pub mod solver;
 pub mod storage;
-pub(crate) mod threading;
 
-pub use cube::{
+pub use puzzle::{layout, model, moves};
+pub use layout::matrix;
+pub use layout::strip as line;
+pub(crate) use layout::geometry;
+pub use layout::{LineBuffer, LineKind, Matrix, MoveScratch, StripSpec};
+pub use model::cube;
+pub use model::face;
+pub use model::facelet;
+pub use model::{
     ColorScheme, Cube, EdgeCubieLocation, EdgeThreeCycle, EdgeThreeCycleDirection,
-    EdgeThreeCycleKind, EdgeThreeCyclePlan, FaceCommutator, FaceletLocation, FaceletUpdate,
-    DEFAULT_SCRAMBLE_ROUNDS,
+    EdgeThreeCycleKind, EdgeThreeCyclePlan, Face, FaceAngle, FaceCommutator, FaceId, Facelet,
+    FaceletLocation, FaceletUpdate, DEFAULT_SCRAMBLE_ROUNDS,
 };
-pub use face::{Face, FaceAngle, FaceId};
-pub use facelet::Facelet;
-pub use history::MoveHistory;
-pub use line::{LineBuffer, LineKind, MoveScratch, StripSpec};
-pub use matrix::Matrix;
-pub use moves::{Axis, Move, MoveAngle};
-pub use random::{RandomSource, XorShift64};
+pub use moves::history;
+pub use moves::{Axis, Move, MoveAngle, MoveHistory};
+pub use runtime::random;
+pub(crate) use runtime::threading;
+pub use runtime::{RandomSource, XorShift64};
 pub use solver::{
     CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr,
     CenterReductionStage, CenterScheduleStep, CenterTransferSpec, EdgePairingStage, EdgeSlot,
@@ -31,4 +29,4 @@ pub use solver::{
     GENERATED_CENTER_SCHEDULE,
 };
 pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};
-pub use threading::default_thread_count;
+pub use runtime::threading::default_thread_count;

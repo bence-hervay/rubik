@@ -1,5 +1,9 @@
 use core::fmt;
 
+pub mod history;
+
+pub use history::MoveHistory;
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Axis {
     /// Left-to-right axis. `depth = 0` is the L slice, `depth = n - 1` is R.
