@@ -2,6 +2,7 @@ use core::fmt;
 use std::collections::{HashSet, VecDeque};
 
 mod center_schedule;
+mod edges;
 
 use crate::{
     cube::{Cube, FaceCommutator},
@@ -16,6 +17,7 @@ pub use center_schedule::{
     CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterScheduleStep,
     GENERATED_CENTER_SCHEDULE,
 };
+pub use edges::{EdgePairingStage, EdgeSlot};
 
 pub type MoveSequence = Vec<Move>;
 pub type SolveResult<T> = Result<T, SolveError>;
@@ -261,6 +263,20 @@ impl SolveContext {
         }
 
         cube.apply_normalized_face_commutator_plan_untracked(commutator, rows, columns);
+    }
+
+    pub fn apply_edge_three_cycle_plan<S: FaceletArray>(
+        &mut self,
+        cube: &mut Cube<S>,
+        plan: &crate::cube::EdgeThreeCyclePlan,
+    ) {
+        self.move_stats
+            .record_all(plan.moves().iter().copied(), cube.side_len());
+        if self.options.record_moves {
+            self.moves.extend(plan.moves().iter().copied());
+        }
+
+        cube.apply_edge_three_cycle_plan_untracked(plan);
     }
 
     fn apply_center_face_rotation<S: FaceletArray>(
@@ -1108,99 +1124,6 @@ fn face_center_score<S: FaceletArray>(cube: &Cube<S>, face: FaceId) -> usize {
     }
 
     score
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum EdgeSlot {
-    UF = 0,
-    UR = 1,
-    UB = 2,
-    UL = 3,
-    FR = 4,
-    FL = 5,
-    BR = 6,
-    BL = 7,
-    DF = 8,
-    DR = 9,
-    DB = 10,
-    DL = 11,
-}
-
-impl EdgeSlot {
-    pub const ALL: [Self; 12] = [
-        Self::UF,
-        Self::UR,
-        Self::UB,
-        Self::UL,
-        Self::FR,
-        Self::FL,
-        Self::BR,
-        Self::BL,
-        Self::DF,
-        Self::DR,
-        Self::DB,
-        Self::DL,
-    ];
-
-    pub const fn index(self) -> usize {
-        self as usize
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EdgePairingStage {
-    slots: [EdgeSlot; 12],
-    sub_stages: [SubStageSpec; 3],
-}
-
-impl Default for EdgePairingStage {
-    fn default() -> Self {
-        Self {
-            slots: EdgeSlot::ALL,
-            sub_stages: [
-                SubStageSpec::new(
-                    SolvePhase::Edges,
-                    "edge orientation tracking",
-                    "maintain edge slot state while setup moves relocate edge bands",
-                ),
-                SubStageSpec::new(
-                    SolvePhase::Edges,
-                    "edge pairing scans",
-                    "scan source and destination edge rows and batch compatible swaps",
-                ),
-                SubStageSpec::new(
-                    SolvePhase::Edges,
-                    "edge parity handling",
-                    "reserve hooks for even-cube and odd-cube parity correction",
-                ),
-            ],
-        }
-    }
-}
-
-impl EdgePairingStage {
-    pub fn slots(&self) -> &[EdgeSlot; 12] {
-        &self.slots
-    }
-}
-
-impl<S: FaceletArray> SolverStage<S> for EdgePairingStage {
-    fn phase(&self) -> SolvePhase {
-        SolvePhase::Edges
-    }
-
-    fn name(&self) -> &'static str {
-        "edge pairing"
-    }
-
-    fn sub_stages(&self) -> &[SubStageSpec] {
-        &self.sub_stages
-    }
-
-    fn run(&mut self, _cube: &mut Cube<S>, _context: &mut SolveContext) -> SolveResult<()> {
-        Ok(())
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

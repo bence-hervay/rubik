@@ -127,6 +127,85 @@ impl EdgeCubieLocation {
     }
 }
 
+pub(crate) fn edge_cubie_for_facelet_location(
+    side_length: usize,
+    location: FaceletLocation,
+) -> Option<EdgeCubieLocation> {
+    edge_cubie_location(side_length, location)
+}
+
+pub(crate) fn edge_cubie_orbit_index(
+    side_length: usize,
+    cubie: EdgeCubieLocation,
+) -> Option<usize> {
+    let [first, second] = cubie.stickers();
+    let first = edge_facelet_orbit_index(side_length, first)?;
+    let second = edge_facelet_orbit_index(side_length, second)?;
+    if first == second { Some(first) } else { None }
+}
+
+pub(crate) fn trace_edge_cubie_through_move(
+    side_length: usize,
+    cubie: EdgeCubieLocation,
+    mv: Move,
+) -> EdgeCubieLocation {
+    let [first, second] = cubie.stickers();
+    let first = trace_position_through_move(
+        side_length,
+        FacePosition {
+            face: first.face,
+            row: first.row,
+            col: first.col,
+        },
+        mv,
+    );
+    let second = trace_position_through_move(
+        side_length,
+        FacePosition {
+            face: second.face,
+            row: second.row,
+            col: second.col,
+        },
+        mv,
+    );
+    let first_location = facelet_location(first);
+    let second_location = facelet_location(second);
+    let turning_face = if mv.depth == 0 {
+        Some(geometry::negative_axis_face(mv.axis))
+    } else if mv.depth + 1 == side_length {
+        Some(geometry::positive_axis_face(mv.axis))
+    } else {
+        None
+    };
+    let anchor = if turning_face == Some(cubie.stickers()[0].face) {
+        first_location
+    } else if turning_face == Some(cubie.stickers()[1].face) {
+        second_location
+    } else {
+        first_location
+    };
+
+    edge_cubie_location(side_length, anchor).expect("traced edge sticker must stay on an edge cubie")
+}
+
+#[cfg(test)]
+pub(crate) fn trace_facelet_location_through_moves(
+    side_length: usize,
+    location: FaceletLocation,
+    moves: &[Move],
+) -> FaceletLocation {
+    let position = trace_position(
+        side_length,
+        FacePosition {
+            face: location.face,
+            row: location.row,
+            col: location.col,
+        },
+        moves.iter().copied(),
+    );
+    facelet_location(position)
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct EdgeThreeCycle {
     kind: EdgeThreeCycleKind,
@@ -407,7 +486,7 @@ impl<S: FaceletArray> Cube<S> {
 
         if mv.depth == 0 {
             let face = geometry::negative_axis_face(mv.axis);
-            self.faces[face.index()].rotate_meta_by(mv.angle);
+            self.faces[face.index()].rotate_meta_by(mv.angle.inverse());
         }
     }
 
@@ -1612,10 +1691,10 @@ fn trace_position(
 }
 
 fn trace_position_through_move(n: usize, mut position: FacePosition, mv: Move) -> FacePosition {
-    if (mv.depth == n - 1 && position.face == geometry::positive_axis_face(mv.axis))
-        || (mv.depth == 0 && position.face == geometry::negative_axis_face(mv.axis))
-    {
+    if mv.depth == n - 1 && position.face == geometry::positive_axis_face(mv.axis) {
         position = rotate_face_position(position, n, mv.angle);
+    } else if mv.depth == 0 && position.face == geometry::negative_axis_face(mv.axis) {
+        position = rotate_face_position(position, n, mv.angle.inverse());
     }
 
     let specs = geometry::plan_positive_quarter_turn(mv.axis, mv.depth, n);
@@ -1952,6 +2031,22 @@ fn unique_edge_cubies(
     }
 
     Some(cubies.map(|cubie| cubie.expect("edge cubie entry must be initialized")))
+}
+
+fn edge_facelet_orbit_index(n: usize, location: FaceletLocation) -> Option<usize> {
+    if n < 3 || location.row >= n || location.col >= n {
+        return None;
+    }
+
+    let offset = match (location.row, location.col) {
+        (0, col) if col > 0 && col + 1 < n => col,
+        (last_row, col) if last_row + 1 == n && col > 0 && col + 1 < n => col,
+        (row, 0) if row > 0 && row + 1 < n => row,
+        (row, last_col) if last_col + 1 == n && row > 0 && row + 1 < n => row,
+        _ => return None,
+    };
+
+    Some(offset.min(n - 1 - offset))
 }
 
 fn edge_cubie_location(n: usize, location: FaceletLocation) -> Option<EdgeCubieLocation> {
@@ -3162,14 +3257,14 @@ mod tests {
     }
 
     #[test]
-    fn outer_face_rotation_tracks_move_angle_directly() {
+    fn outer_face_rotation_matches_axis_move_direction() {
         let mut cube = Cube::<Byte>::new_solved(3);
 
         cube.apply_move_untracked(Move::new(Axis::Z, 2, MoveAngle::Positive));
         assert_eq!(cube.face(FaceId::F).rotation(), FaceAngle::new(1));
 
         cube.apply_move_untracked(Move::new(Axis::Z, 0, MoveAngle::Positive));
-        assert_eq!(cube.face(FaceId::B).rotation(), FaceAngle::new(1));
+        assert_eq!(cube.face(FaceId::B).rotation(), FaceAngle::new(3));
 
         cube.apply_move_untracked(Move::new(Axis::X, 2, MoveAngle::Negative));
         assert_eq!(cube.face(FaceId::R).rotation(), FaceAngle::new(3));
