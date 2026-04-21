@@ -1,0 +1,5 @@
+rubik	lib
+generate_center_schedule	bin
+rubik	bin
+large_cube_memory_and_move_time	bench
+stage_solve_time	bench

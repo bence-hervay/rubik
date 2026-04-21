@@ -1,0 +1,47 @@
+Cargo.toml
+
+src
+├── bin
+│   └── generate_center_schedule.rs
+├── lib.rs
+├── main.rs
+├── puzzle
+│   ├── layout
+│   │   ├── geometry.rs
+│   │   ├── matrix.rs
+│   │   ├── mod.rs
+│   │   └── strip.rs
+│   ├── mod.rs
+│   ├── model
+│   │   ├── cube.rs
+│   │   ├── face.rs
+│   │   ├── facelet.rs
+│   │   └── mod.rs
+│   └── moves
+│       ├── history.rs
+│       └── mod.rs
+├── runtime
+│   ├── mod.rs
+│   ├── random.rs
+│   └── threading.rs
+├── solver
+│   ├── center_schedule.rs
+│   ├── corners.rs
+│   ├── edges.rs
+│   ├── generated_center_schedule.rs
+│   └── mod.rs
+└── storage
+    ├── backends
+    │   ├── byte.rs
+    │   ├── byte3.rs
+    │   ├── mod.rs
+    │   ├── nibble.rs
+    │   └── three_bit.rs
+    ├── facelet_array.rs
+    ├── init.rs
+    └── mod.rs
+benchmark
+├── large_cube_memory_and_move_time.rs
+└── stage_solve_time.rs
+
+11 directories, 32 files

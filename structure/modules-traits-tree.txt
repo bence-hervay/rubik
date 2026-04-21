@@ -1,0 +1,34 @@
+
+crate rubik
+├── mod puzzle: pub
+│   ├── mod layout: pub
+│   │   ├── mod geometry: pub(crate)
+│   │   ├── mod matrix: pub
+│   │   └── mod strip: pub
+│   ├── mod model: pub
+│   │   ├── mod cube: pub
+│   │   ├── mod face: pub
+│   │   └── mod facelet: pub
+│   └── mod moves: pub
+│       └── mod history: pub
+├── mod runtime: pub
+│   ├── mod random: pub
+│   │   └── trait RandomSource: pub
+│   └── mod threading: pub(crate)
+├── mod solver: pub
+│   ├── trait Solver: pub
+│   ├── trait SolverStage: pub
+│   ├── trait StageOperation: pub
+│   ├── mod center_schedule: pub(self)
+│   │   └── mod generated_center_schedule: pub(self)
+│   ├── mod corners: pub(self)
+│   └── mod edges: pub(self)
+└── mod storage: pub
+    ├── mod backends: pub(self)
+    │   ├── mod byte: pub(self)
+    │   ├── mod byte3: pub(self)
+    │   ├── mod nibble: pub(self)
+    │   └── mod three_bit: pub(self)
+    ├── mod facelet_array: pub(self)
+    │   └── trait FaceletArray: pub
+    └── mod init: pub(self)
