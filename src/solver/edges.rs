@@ -1,10 +1,15 @@
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::{
+    collections::{BTreeMap, HashMap, VecDeque},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use crate::{
     cube::{
-        edge_cubie_for_facelet_location, edge_cubie_orbit_index, trace_edge_cubie_through_move,
-        Cube, EdgeCubieLocation, EdgeThreeCycle, EdgeThreeCycleDirection, EdgeThreeCyclePlan,
-        FaceletLocation,
+        edge_cubie_for_facelet_location, edge_cubie_orbit_index,
+        edge_three_cycle_plan_from_updates, trace_edge_cubie_through_move, Cube,
+        EdgeCubieLocation, EdgeThreeCycle, EdgeThreeCycleDirection, EdgeThreeCyclePlan,
+        FaceletLocation, FaceletUpdate,
     },
     face::FaceId,
     facelet::Facelet,
@@ -190,18 +195,27 @@ impl<S: FaceletArray> SolverStage<S> for EdgePairingStage {
             return Ok(());
         }
 
+        let profile = std::env::var_os("RUBIK_EDGE_PROFILE").is_some();
+        let mut wing_slot_total = Duration::ZERO;
+        let mut wing_orientation_total = Duration::ZERO;
+        let mut middle_total = Duration::ZERO;
+        let mut wing_resolve_after_middle_total = Duration::ZERO;
+
         let slot_keys = solved_edge_slot_keys();
         let cache = self.ensure_cache(cube.side_len());
 
         for orbit in &mut cache.wing_orbits {
+            let slot_start = Instant::now();
             solve_wing_orbit(cube, context, orbit, &slot_keys)?;
+            wing_slot_total += slot_start.elapsed();
             if let Some(slot_setups) = &cache.slot_setups {
+                let orientation_start = Instant::now();
                 solve_wing_orientations(cube, context, orbit, slot_setups)?;
+                wing_orientation_total += orientation_start.elapsed();
             }
         }
 
-        let view = EdgeScanView::from_cube(cube);
-        if !wings_match_solved_slots(cache, &view, &slot_keys) {
+        if !wings_match_solved_slots_from_cube(cache, cube, &slot_keys) {
             return Err(SolveError::StageFailed {
                 stage: "edge pairing",
                 reason: "wing solving left a home edge-slot orbit unsolved",
@@ -211,13 +225,28 @@ impl<S: FaceletArray> SolverStage<S> for EdgePairingStage {
         if let (Some(middle_orbit), Some(slot_setups)) =
             (&mut cache.middle_orbit, &cache.slot_setups)
         {
+            let middle_start = Instant::now();
             solve_middle_edges(cube, context, middle_orbit, slot_setups)?;
+            middle_total += middle_start.elapsed();
 
             let refreshed_slot_keys = solved_edge_slot_keys();
             for orbit in &mut cache.wing_orbits {
+                let rewing_start = Instant::now();
                 solve_wing_orbit(cube, context, orbit, &refreshed_slot_keys)?;
                 solve_wing_orientations(cube, context, orbit, slot_setups)?;
+                wing_resolve_after_middle_total += rewing_start.elapsed();
             }
+        }
+
+        if profile {
+            eprintln!(
+                "edge profile: n={} wing_slot={:.3?} wing_orientation={:.3?} middle={:.3?} wing_after_middle={:.3?}",
+                cube.side_len(),
+                wing_slot_total,
+                wing_orientation_total,
+                middle_total,
+                wing_resolve_after_middle_total,
+            );
         }
 
         if all_edge_facelets_solved(cube) {
@@ -241,24 +270,37 @@ struct PreparedEdgeStage {
 
 impl PreparedEdgeStage {
     fn new(side_length: usize) -> Self {
+        let profile = std::env::var_os("RUBIK_EDGE_PROFILE").is_some();
+        let start = Instant::now();
         let slot_setups = if side_length >= 3 {
             Some(EdgeSlotSetupTable::new(side_length))
         } else {
             None
         };
+        let slot_setup_elapsed = start.elapsed();
 
+        let wing_start = Instant::now();
         let mut wing_orbits = Vec::new();
         if side_length >= 4 {
+            let setup_template = WingOrbitSetupTemplate::new(side_length);
             for row in 1..=(side_length - 2) / 2 {
-                wing_orbits.push(WingOrbitTable::new(side_length, row));
+                wing_orbits.push(WingOrbitTable::new(side_length, row, &setup_template));
             }
         }
-        if let Some(slot_setups) = &slot_setups {
-            for orbit in &mut wing_orbits {
-                orbit.build_orientation_cache(slot_setups);
-            }
-        }
+        let wing_elapsed = wing_start.elapsed();
 
+        let orientation_start = Instant::now();
+        if let Some(slot_setups) = &slot_setups {
+            if let Some((first_orbit, remaining_orbits)) = wing_orbits.split_first_mut() {
+                let cache = first_orbit.build_orientation_cache(slot_setups);
+                for orbit in remaining_orbits {
+                    orbit.set_orientation_cache(cache.clone());
+                }
+            }
+        }
+        let orientation_elapsed = orientation_start.elapsed();
+
+        let middle_start = Instant::now();
         let middle_orbit = if side_length >= 3 && side_length % 2 == 1 {
             Some(MiddleOrbitTable::new(
                 side_length,
@@ -269,6 +311,18 @@ impl PreparedEdgeStage {
         } else {
             None
         };
+        let middle_elapsed = middle_start.elapsed();
+
+        if profile {
+            eprintln!(
+                "edge prepare: n={} slot_setups={:.3?} wing_orbits={:.3?} wing_orientation_cache={:.3?} middle={:.3?}",
+                side_length,
+                slot_setup_elapsed,
+                wing_elapsed,
+                orientation_elapsed,
+                middle_elapsed,
+            );
+        }
 
         Self {
             side_length,
@@ -286,7 +340,7 @@ struct WingOrbitTable {
     positions: Vec<FixedEdgePosition>,
     slot_positions: [[usize; 2]; 12],
     setup_moves: Vec<Move>,
-    setup_nodes: Vec<Option<SetupNode>>,
+    setup_nodes: Arc<[Option<SetupNode>]>,
     start_key: usize,
     base_plan: EdgeThreeCyclePlan,
     inverse_base_plan: EdgeThreeCyclePlan,
@@ -296,6 +350,28 @@ struct WingOrbitTable {
     orientation_nodes: Vec<Option<MaskNode>>,
     #[cfg_attr(not(test), allow(dead_code))]
     reachable_ordered_triples: usize,
+}
+
+#[derive(Clone, Debug)]
+struct WingOrientationCache {
+    orientation_generators: Vec<OrientationGenerator>,
+    orientation_masks: Vec<u16>,
+    orientation_nodes: Vec<Option<MaskNode>>,
+}
+
+#[derive(Clone, Debug)]
+struct WingOrbitSetupTemplate {
+    setup_nodes: Arc<[Option<SetupNode>]>,
+    start_key: usize,
+    reachable_ordered_triples: usize,
+    base_plan: WingBasePlanTemplate,
+}
+
+#[derive(Copy, Clone, Debug)]
+struct WingBasePlanTemplate {
+    sources: [usize; 3],
+    destinations: [usize; 3],
+    reversed: [bool; 3],
 }
 
 #[derive(Debug)]
@@ -323,25 +399,26 @@ struct EdgeSlotSetupTable {
 }
 
 impl WingOrbitTable {
-    fn new(side_length: usize, row: usize) -> Self {
-        let positions = enumerate_edge_orbit_positions(side_length, row);
+    fn new(side_length: usize, row: usize, setup_template: &WingOrbitSetupTemplate) -> Self {
+        let positions = wing_orbit_positions(side_length, row);
         assert_eq!(
             positions.len(),
             EDGE_WING_POSITION_COUNT,
             "wing orbit must contain 24 positions",
         );
 
-        let slot_positions = build_slot_positions(&positions);
-        let base_plan =
-            EdgeThreeCyclePlan::from_cycle(side_length, EdgeThreeCycle::front_right_wing(row));
+        let slot_positions = wing_slot_positions();
+        let base_plan = setup_template.base_plan.instantiate(side_length, row, &positions);
         let base_triple = base_plan.cubies().map(|cubie| {
             position_index(&positions, fixed_edge_position(side_length, cubie))
                 .expect("base cubie must be in orbit")
         });
         let setup_moves = orbit_setup_moves(side_length, row);
-        let transitions = orbit_move_transitions(side_length, &positions, &setup_moves);
-        let (setup_nodes, start_key, reachable_ordered_triples) =
-            build_setup_table(base_triple, &transitions);
+        let start_key = encode_triple(base_triple);
+        debug_assert_eq!(
+            start_key, setup_template.start_key,
+            "shared wing setup template must match every row-specific base triple",
+        );
         let inverse_base_plan = base_plan.inverted();
 
         Self {
@@ -350,15 +427,15 @@ impl WingOrbitTable {
             positions,
             slot_positions,
             setup_moves,
-            setup_nodes,
-            start_key,
+            setup_nodes: setup_template.setup_nodes.clone(),
+            start_key: setup_template.start_key,
             base_plan,
             inverse_base_plan,
             plan_cache: HashMap::new(),
             orientation_generators: Vec::new(),
             orientation_masks: Vec::new(),
             orientation_nodes: Vec::new(),
-            reachable_ordered_triples,
+            reachable_ordered_triples: setup_template.reachable_ordered_triples,
         }
     }
 
@@ -373,6 +450,7 @@ impl WingOrbitTable {
         target
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     fn current_keys(&self, view: &EdgeScanView) -> Vec<EdgeColorKey> {
         self.positions
             .iter()
@@ -383,6 +461,16 @@ impl WingOrbitTable {
                     self.side_length,
                     cubie_from_fixed_position(self.side_length, position),
                 )
+            })
+            .collect()
+    }
+
+    fn current_keys_from_cube<S: FaceletArray>(&self, cube: &Cube<S>) -> Vec<EdgeColorKey> {
+        self.positions
+            .iter()
+            .copied()
+            .map(|position| {
+                read_edge_key_from_cube(cube, cubie_from_fixed_position(self.side_length, position))
             })
             .collect()
     }
@@ -462,7 +550,16 @@ impl WingOrbitTable {
         Some(reversed)
     }
 
-    fn build_orientation_cache(&mut self, slot_setups: &EdgeSlotSetupTable) {
+    fn set_orientation_cache(&mut self, cache: WingOrientationCache) {
+        self.orientation_generators = cache.orientation_generators;
+        self.orientation_masks = cache.orientation_masks;
+        self.orientation_nodes = cache.orientation_nodes;
+    }
+
+    fn build_orientation_cache(
+        &mut self,
+        slot_setups: &EdgeSlotSetupTable,
+    ) -> WingOrientationCache {
         for face_map in all_face_maps() {
             for slot in EdgeSlot::ALL {
                 let mut cube = Cube::<Byte>::new_solved_with_threads(self.side_length, 1);
@@ -491,6 +588,12 @@ impl WingOrbitTable {
             }
         }
         self.orientation_nodes = build_mask_solution_table(&self.orientation_masks);
+
+        WingOrientationCache {
+            orientation_generators: self.orientation_generators.clone(),
+            orientation_masks: self.orientation_masks.clone(),
+            orientation_nodes: self.orientation_nodes.clone(),
+        }
     }
 
     fn orientation_solution(&self, mask: u16) -> Option<Vec<OrientationGenerator>> {
@@ -509,6 +612,110 @@ impl WingOrbitTable {
         reversed.reverse();
         Some(reversed)
     }
+
+}
+
+impl WingOrbitSetupTemplate {
+    fn new(side_length: usize) -> Self {
+        assert!(
+            side_length >= 4,
+            "wing setup template requires side length at least four",
+        );
+
+        let representative_row = 1usize;
+        let positions = wing_orbit_positions(side_length, representative_row);
+        let base_plan = EdgeThreeCyclePlan::from_cycle(
+            side_length,
+            EdgeThreeCycle::front_right_wing(representative_row),
+        );
+        let base_triple = base_plan.cubies().map(|cubie| {
+            position_index(&positions, fixed_edge_position(side_length, cubie))
+                .expect("representative wing base cubie must stay in the orbit")
+        });
+        let setup_moves = orbit_setup_moves(side_length, representative_row);
+        let transitions = orbit_move_transitions(side_length, &positions, &setup_moves);
+        let (setup_nodes, start_key, reachable_ordered_triples) =
+            build_setup_table(base_triple, &transitions);
+        let base_plan_template = WingBasePlanTemplate::from_plan(side_length, &positions, &base_plan);
+
+        Self {
+            setup_nodes: Arc::from(setup_nodes),
+            start_key,
+            reachable_ordered_triples,
+            base_plan: base_plan_template,
+        }
+    }
+}
+
+impl WingBasePlanTemplate {
+    fn from_plan(
+        side_length: usize,
+        positions: &[FixedEdgePosition],
+        plan: &EdgeThreeCyclePlan,
+    ) -> Self {
+        let sources = plan.cubies().map(|cubie| {
+            position_index(positions, fixed_edge_position(side_length, cubie))
+                .expect("representative wing base cubie must stay in the orbit")
+        });
+
+        let source_cubies = sources.map(|index| cubie_from_fixed_position(side_length, positions[index]));
+        let destinations = sources.map(|source_index| {
+            let source_cubie = cubie_from_fixed_position(side_length, positions[source_index]);
+            sources
+                .iter()
+                .copied()
+                .find(|destination_index| {
+                    let destination_cubie =
+                        cubie_from_fixed_position(side_length, positions[*destination_index]);
+                    edge_transfer_orientation(plan, source_cubie, destination_cubie).is_some()
+                })
+                .expect("every representative wing source cubie must map to a destination cubie")
+        });
+        let reversed = std::array::from_fn(|index| {
+            edge_transfer_orientation(
+                plan,
+                source_cubies[index],
+                cubie_from_fixed_position(side_length, positions[destinations[index]]),
+            )
+            .expect("representative wing transfer must define an orientation")
+        });
+
+        Self {
+            sources,
+            destinations,
+            reversed,
+        }
+    }
+
+    fn instantiate(
+        self,
+        side_length: usize,
+        row: usize,
+        positions: &[FixedEdgePosition],
+    ) -> EdgeThreeCyclePlan {
+        let moves = wing_cycle_literal_moves(side_length, row);
+        let updates = self
+            .sources
+            .iter()
+            .copied()
+            .zip(self.destinations.iter().copied())
+            .zip(self.reversed.iter().copied())
+            .flat_map(|((source_index, destination_index), reversed)| {
+                edge_transfer_updates(
+                    cubie_from_fixed_position(side_length, positions[source_index]),
+                    cubie_from_fixed_position(side_length, positions[destination_index]),
+                    reversed,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        edge_three_cycle_plan_from_updates(
+            side_length,
+            Some(EdgeThreeCycle::front_right_wing(row)),
+            moves,
+            updates,
+        )
+    }
 }
 
 impl MiddleOrbitTable {
@@ -518,7 +725,7 @@ impl MiddleOrbitTable {
             "middle orbit table requires an odd side length of at least 3",
         );
 
-        let positions = enumerate_edge_orbit_positions(side_length, side_length / 2);
+        let positions = middle_orbit_positions(side_length);
         assert_eq!(
             positions.len(),
             EDGE_MIDDLE_POSITION_COUNT,
@@ -565,6 +772,9 @@ impl MiddleOrbitTable {
         this
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg_attr(not(test), allow(dead_code))]
+    #[allow(dead_code)]
     fn current_slot_keys(&self, view: &EdgeScanView) -> Vec<EdgeColorKey> {
         self.positions
             .iter()
@@ -575,6 +785,16 @@ impl MiddleOrbitTable {
                     self.side_length,
                     cubie_from_fixed_position(self.side_length, position),
                 )
+            })
+            .collect()
+    }
+
+    fn current_slot_keys_from_cube<S: FaceletArray>(&self, cube: &Cube<S>) -> Vec<EdgeColorKey> {
+        self.positions
+            .iter()
+            .copied()
+            .map(|position| {
+                read_edge_key_from_cube(cube, cubie_from_fixed_position(self.side_length, position))
             })
             .collect()
     }
@@ -784,7 +1004,7 @@ struct SetupNode {
     move_index: u8,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 struct MaskNode {
     prev: u16,
     generator_index: u8,
@@ -996,7 +1216,7 @@ fn solve_wing_orbit<S: FaceletArray>(
     slot_keys: &[EdgeColorKey; 12],
 ) -> SolveResult<()> {
     let target = orbit.target_keys(slot_keys);
-    let current = orbit.current_keys(&EdgeScanView::from_cube(cube));
+    let current = orbit.current_keys_from_cube(cube);
     if current == target {
         return Ok(());
     }
@@ -1016,10 +1236,10 @@ fn solve_wing_orbit<S: FaceletArray>(
             stage: "edge pairing",
             reason: "missing exact setup table entry for a wing orbit three-cycle",
         })?;
-        context.apply_edge_three_cycle_plan(cube, plan);
+        context.apply_edge_three_cycle_plan(cube, &plan);
     }
 
-    if orbit.current_keys(&EdgeScanView::from_cube(cube)) == target {
+    if orbit.current_keys_from_cube(cube) == target {
         Ok(())
     } else {
         Err(SolveError::StageFailed {
@@ -1062,7 +1282,7 @@ fn solve_middle_slots<S: FaceletArray>(
     orbit: &mut MiddleOrbitTable,
 ) -> SolveResult<()> {
     for _attempt in 0..4 {
-        let current = orbit.current_slot_keys(&EdgeScanView::from_cube(cube));
+        let current = orbit.current_slot_keys_from_cube(cube);
         if build_unique_assignment_by_key(&current, &orbit.target_slot_index)
             .is_some_and(|assignment| permutation_is_identity(&assignment))
         {
@@ -1096,7 +1316,7 @@ fn solve_middle_slots<S: FaceletArray>(
         }
 
         if build_unique_assignment_by_key(
-            &orbit.current_slot_keys(&EdgeScanView::from_cube(cube)),
+            &orbit.current_slot_keys_from_cube(cube),
             &orbit.target_slot_index,
         )
         .is_some_and(|assignment| permutation_is_identity(&assignment))
@@ -1117,11 +1337,10 @@ fn solve_wing_orientations<S: FaceletArray>(
     orbit: &WingOrbitTable,
     slot_setups: &EdgeSlotSetupTable,
 ) -> SolveResult<()> {
-    let mask =
-        wing_flip_mask(orbit, &EdgeScanView::from_cube(cube)).ok_or(SolveError::StageFailed {
-            stage: "edge pairing",
-            reason: "wing slot solving left an invalid slot orientation state",
-        })?;
+    let mask = wing_flip_mask_from_cube(orbit, cube).ok_or(SolveError::StageFailed {
+        stage: "edge pairing",
+        reason: "wing slot solving left an invalid slot orientation state",
+    })?;
     if mask == 0 {
         return Ok(());
     }
@@ -1148,7 +1367,7 @@ fn solve_wing_orientations<S: FaceletArray>(
         }
     }
 
-    if wing_flip_mask(orbit, &EdgeScanView::from_cube(cube)) == Some(0) {
+    if wing_flip_mask_from_cube(orbit, cube) == Some(0) {
         Ok(())
     } else {
         Err(SolveError::StageFailed {
@@ -1164,11 +1383,10 @@ fn solve_middle_orientations<S: FaceletArray>(
     orbit: &MiddleOrbitTable,
     slot_setups: &EdgeSlotSetupTable,
 ) -> SolveResult<()> {
-    let mask =
-        middle_flip_mask(orbit, &EdgeScanView::from_cube(cube)).ok_or(SolveError::StageFailed {
-            stage: "edge pairing",
-            reason: "middle-edge slot solving left an invalid orientation state",
-        })?;
+    let mask = middle_flip_mask_from_cube(orbit, cube).ok_or(SolveError::StageFailed {
+        stage: "edge pairing",
+        reason: "middle-edge slot solving left an invalid orientation state",
+    })?;
     if mask == 0 {
         return Ok(());
     }
@@ -1200,7 +1418,7 @@ fn solve_middle_orientations<S: FaceletArray>(
         }
     }
 
-    if middle_flip_mask(orbit, &EdgeScanView::from_cube(cube)) == Some(0) {
+    if middle_flip_mask_from_cube(orbit, cube) == Some(0) {
         Ok(())
     } else {
         Err(SolveError::StageFailed {
@@ -1210,6 +1428,8 @@ fn solve_middle_orientations<S: FaceletArray>(
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+#[allow(dead_code)]
 fn wings_match_solved_slots(
     cache: &PreparedEdgeStage,
     view: &EdgeScanView,
@@ -1219,6 +1439,17 @@ fn wings_match_solved_slots(
         .wing_orbits
         .iter()
         .all(|orbit| orbit.current_keys(view) == orbit.target_keys(slot_keys))
+}
+
+fn wings_match_solved_slots_from_cube<S: FaceletArray>(
+    cache: &PreparedEdgeStage,
+    cube: &Cube<S>,
+    slot_keys: &[EdgeColorKey; 12],
+) -> bool {
+    cache
+        .wing_orbits
+        .iter()
+        .all(|orbit| orbit.current_keys_from_cube(cube) == orbit.target_keys(slot_keys))
 }
 
 fn all_edge_facelets_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
@@ -1506,6 +1737,17 @@ fn read_edge_key_from_view(
     EdgeColorKey::from_facelets(view.get(first, side_length), view.get(second, side_length))
 }
 
+fn read_edge_key_from_cube<S: FaceletArray>(
+    cube: &Cube<S>,
+    cubie: EdgeCubieLocation,
+) -> EdgeColorKey {
+    let [first, second] = cubie.stickers();
+    EdgeColorKey::from_facelets(
+        cube.face(first.face).get(first.row, first.col),
+        cube.face(second.face).get(second.row, second.col),
+    )
+}
+
 fn read_oriented_edge_key_from_view(
     view: &EdgeScanView,
     side_length: usize,
@@ -1515,9 +1757,193 @@ fn read_oriented_edge_key_from_view(
     OrientedEdgeKey::from_facelets(view.get(first, side_length), view.get(second, side_length))
 }
 
+fn read_oriented_edge_key_from_cube<S: FaceletArray>(
+    cube: &Cube<S>,
+    cubie: EdgeCubieLocation,
+) -> OrientedEdgeKey {
+    let [first, second] = cubie.stickers();
+    OrientedEdgeKey::from_facelets(
+        cube.face(first.face).get(first.row, first.col),
+        cube.face(second.face).get(second.row, second.col),
+    )
+}
+
 fn home_oriented_edge_key(cubie: EdgeCubieLocation) -> OrientedEdgeKey {
     let [first, second] = cubie.stickers();
     OrientedEdgeKey::from_face_ids(first.face, second.face)
+}
+
+fn edge_transfer_orientation(
+    plan: &EdgeThreeCyclePlan,
+    source: EdgeCubieLocation,
+    destination: EdgeCubieLocation,
+) -> Option<bool> {
+    let [source_first, source_second] = source.stickers();
+    let [destination_first, destination_second] = destination.stickers();
+    let mut mapped_first = None;
+    let mut mapped_second = None;
+
+    for update in plan.updates() {
+        if update.from == source_first {
+            mapped_first = Some(update.to);
+        } else if update.from == source_second {
+            mapped_second = Some(update.to);
+        }
+    }
+
+    match (mapped_first?, mapped_second?) {
+        (first, second) if first == destination_first && second == destination_second => Some(false),
+        (first, second) if first == destination_second && second == destination_first => Some(true),
+        _ => None,
+    }
+}
+
+fn edge_transfer_updates(
+    source: EdgeCubieLocation,
+    destination: EdgeCubieLocation,
+    reversed: bool,
+) -> [FaceletUpdate; 2] {
+    let [source_first, source_second] = source.stickers();
+    let [destination_first, destination_second] = destination.stickers();
+    let (to_first, to_second) = if reversed {
+        (destination_second, destination_first)
+    } else {
+        (destination_first, destination_second)
+    };
+
+    [
+        FaceletUpdate {
+            from: source_first,
+            to: to_first,
+        },
+        FaceletUpdate {
+            from: source_second,
+            to: to_second,
+        },
+    ]
+}
+
+fn wing_cycle_literal_moves(side_length: usize, row: usize) -> Vec<Move> {
+    let mirror = side_length - 1 - row;
+    let mut moves = Vec::with_capacity(18);
+    moves.push(super::face_layer_move(
+        side_length,
+        FaceId::D,
+        row,
+        MoveAngle::Positive,
+    ));
+    moves.push(super::face_layer_move(
+        side_length,
+        FaceId::D,
+        mirror,
+        MoveAngle::Positive,
+    ));
+    moves.extend(flip_right_edge_moves_with_map(
+        side_length,
+        FaceMap::identity(),
+    ));
+    moves.push(super::face_layer_move(
+        side_length,
+        FaceId::D,
+        row,
+        MoveAngle::Negative,
+    ));
+    moves.extend(unflip_right_edge_moves_with_map(
+        side_length,
+        FaceMap::identity(),
+    ));
+    moves.push(super::face_layer_move(
+        side_length,
+        FaceId::D,
+        mirror,
+        MoveAngle::Negative,
+    ));
+    moves
+}
+
+fn fixed_edge_position_from_coord(
+    coord: geometry::Coord3,
+    first: FaceId,
+    second: FaceId,
+) -> FixedEdgePosition {
+    FixedEdgePosition {
+        coord,
+        faces: normalize_face_pair(first, second),
+    }
+}
+
+fn coord3(x: usize, y: usize, z: usize) -> geometry::Coord3 {
+    geometry::Coord3 { x, y, z }
+}
+
+fn wing_slot_positions() -> [[usize; 2]; 12] {
+    std::array::from_fn(|slot_index| [slot_index * 2, slot_index * 2 + 1])
+}
+
+fn wing_orbit_positions(side_length: usize, row: usize) -> Vec<FixedEdgePosition> {
+    assert!(
+        side_length >= 4,
+        "wing orbit positions require side length at least four",
+    );
+    assert!(row > 0 && row + 1 < side_length, "wing row must be inner");
+    if side_length % 2 == 1 {
+        assert!(row != side_length / 2, "wing row cannot be the odd middle layer");
+    }
+
+    let last = side_length - 1;
+    let mirror = last - row;
+
+    vec![
+        fixed_edge_position_from_coord(coord3(row, last, last), FaceId::U, FaceId::F),
+        fixed_edge_position_from_coord(coord3(mirror, last, last), FaceId::U, FaceId::F),
+        fixed_edge_position_from_coord(coord3(last, last, row), FaceId::U, FaceId::R),
+        fixed_edge_position_from_coord(coord3(last, last, mirror), FaceId::U, FaceId::R),
+        fixed_edge_position_from_coord(coord3(row, last, 0), FaceId::U, FaceId::B),
+        fixed_edge_position_from_coord(coord3(mirror, last, 0), FaceId::U, FaceId::B),
+        fixed_edge_position_from_coord(coord3(0, last, row), FaceId::U, FaceId::L),
+        fixed_edge_position_from_coord(coord3(0, last, mirror), FaceId::U, FaceId::L),
+        fixed_edge_position_from_coord(coord3(last, row, last), FaceId::F, FaceId::R),
+        fixed_edge_position_from_coord(coord3(last, mirror, last), FaceId::F, FaceId::R),
+        fixed_edge_position_from_coord(coord3(0, row, last), FaceId::F, FaceId::L),
+        fixed_edge_position_from_coord(coord3(0, mirror, last), FaceId::F, FaceId::L),
+        fixed_edge_position_from_coord(coord3(last, row, 0), FaceId::B, FaceId::R),
+        fixed_edge_position_from_coord(coord3(last, mirror, 0), FaceId::B, FaceId::R),
+        fixed_edge_position_from_coord(coord3(0, row, 0), FaceId::B, FaceId::L),
+        fixed_edge_position_from_coord(coord3(0, mirror, 0), FaceId::B, FaceId::L),
+        fixed_edge_position_from_coord(coord3(row, 0, last), FaceId::D, FaceId::F),
+        fixed_edge_position_from_coord(coord3(mirror, 0, last), FaceId::D, FaceId::F),
+        fixed_edge_position_from_coord(coord3(last, 0, row), FaceId::D, FaceId::R),
+        fixed_edge_position_from_coord(coord3(last, 0, mirror), FaceId::D, FaceId::R),
+        fixed_edge_position_from_coord(coord3(row, 0, 0), FaceId::D, FaceId::B),
+        fixed_edge_position_from_coord(coord3(mirror, 0, 0), FaceId::D, FaceId::B),
+        fixed_edge_position_from_coord(coord3(0, 0, row), FaceId::D, FaceId::L),
+        fixed_edge_position_from_coord(coord3(0, 0, mirror), FaceId::D, FaceId::L),
+    ]
+}
+
+fn middle_orbit_positions(side_length: usize) -> Vec<FixedEdgePosition> {
+    assert!(
+        side_length >= 3 && side_length % 2 == 1,
+        "middle orbit positions require an odd side length of at least three",
+    );
+
+    let middle = side_length / 2;
+    let last = side_length - 1;
+
+    vec![
+        fixed_edge_position_from_coord(coord3(middle, last, last), FaceId::U, FaceId::F),
+        fixed_edge_position_from_coord(coord3(last, last, middle), FaceId::U, FaceId::R),
+        fixed_edge_position_from_coord(coord3(middle, last, 0), FaceId::U, FaceId::B),
+        fixed_edge_position_from_coord(coord3(0, last, middle), FaceId::U, FaceId::L),
+        fixed_edge_position_from_coord(coord3(last, middle, last), FaceId::F, FaceId::R),
+        fixed_edge_position_from_coord(coord3(0, middle, last), FaceId::F, FaceId::L),
+        fixed_edge_position_from_coord(coord3(last, middle, 0), FaceId::B, FaceId::R),
+        fixed_edge_position_from_coord(coord3(0, middle, 0), FaceId::B, FaceId::L),
+        fixed_edge_position_from_coord(coord3(middle, 0, last), FaceId::D, FaceId::F),
+        fixed_edge_position_from_coord(coord3(last, 0, middle), FaceId::D, FaceId::R),
+        fixed_edge_position_from_coord(coord3(middle, 0, 0), FaceId::D, FaceId::B),
+        fixed_edge_position_from_coord(coord3(0, 0, middle), FaceId::D, FaceId::L),
+    ]
 }
 
 fn enumerate_edge_orbit_positions(side_length: usize, orbit: usize) -> Vec<FixedEdgePosition> {
@@ -1548,29 +1974,6 @@ fn enumerate_edge_orbit_positions(side_length: usize, orbit: usize) -> Vec<Fixed
 
     positions.sort_by_key(edge_position_key);
     positions
-}
-
-fn build_slot_positions(positions: &[FixedEdgePosition]) -> [[usize; 2]; 12] {
-    let mut slot_positions = [[usize::MAX; 2]; 12];
-    let mut counts = [0usize; 12];
-
-    for (index, position) in positions.iter().copied().enumerate() {
-        let slot = slot_of_position(position);
-        let entry = &mut slot_positions[slot.index()];
-        let count = &mut counts[slot.index()];
-        assert!(
-            *count < 2,
-            "wing orbit slot must contain exactly two positions"
-        );
-        entry[*count] = index;
-        *count += 1;
-    }
-
-    assert_eq!(
-        counts, [2; 12],
-        "wing orbit must contain two positions for every edge slot",
-    );
-    slot_positions
 }
 
 fn build_middle_slot_positions(positions: &[FixedEdgePosition]) -> [usize; 12] {
@@ -1945,6 +2348,19 @@ fn wing_slot_pair_for_slot(
     })
 }
 
+fn wing_slot_pair_for_slot_from_cube<S: FaceletArray>(
+    orbit: &WingOrbitTable,
+    cube: &Cube<S>,
+    slot: EdgeSlot,
+) -> [OrientedEdgeKey; 2] {
+    orbit.slot_positions[slot.index()].map(|position_index| {
+        read_oriented_edge_key_from_cube(
+            cube,
+            cubie_from_fixed_position(orbit.side_length, orbit.positions[position_index]),
+        )
+    })
+}
+
 fn wing_slot_orientation_state_for_target(
     actual: [OrientedEdgeKey; 2],
     target: [OrientedEdgeKey; 2],
@@ -1978,6 +2394,34 @@ fn middle_slot_orientation_state(
     slot_orientation_state_for_position(actual, target)
 }
 
+fn wing_slot_orientation_state_from_cube<S: FaceletArray>(
+    orbit: &WingOrbitTable,
+    cube: &Cube<S>,
+    slot: EdgeSlot,
+) -> SlotOrientationState {
+    let [first_target, second_target] = orbit.slot_positions[slot.index()].map(|position_index| {
+        slot_position_target_key(orbit.side_length, orbit.positions[position_index])
+    });
+    wing_slot_orientation_state_for_target(
+        wing_slot_pair_for_slot_from_cube(orbit, cube, slot),
+        [first_target, second_target],
+    )
+}
+
+fn middle_slot_orientation_state_from_cube<S: FaceletArray>(
+    orbit: &MiddleOrbitTable,
+    cube: &Cube<S>,
+    slot: EdgeSlot,
+) -> SlotOrientationState {
+    let position = orbit.positions[orbit.slot_positions[slot.index()]];
+    let actual = read_oriented_edge_key_from_cube(
+        cube,
+        cubie_from_fixed_position(orbit.side_length, position),
+    );
+    let target = slot_position_target_key(orbit.side_length, position);
+    slot_orientation_state_for_position(actual, target)
+}
+
 fn middle_flip_mask(orbit: &MiddleOrbitTable, view: &EdgeScanView) -> Option<u16> {
     let mut mask = 0u16;
 
@@ -1992,11 +2436,45 @@ fn middle_flip_mask(orbit: &MiddleOrbitTable, view: &EdgeScanView) -> Option<u16
     Some(mask)
 }
 
+fn middle_flip_mask_from_cube<S: FaceletArray>(
+    orbit: &MiddleOrbitTable,
+    cube: &Cube<S>,
+) -> Option<u16> {
+    let mut mask = 0u16;
+
+    for slot in EdgeSlot::ALL {
+        match middle_slot_orientation_state_from_cube(orbit, cube, slot) {
+            SlotOrientationState::Solved => {}
+            SlotOrientationState::Flipped => mask |= 1u16 << slot.index(),
+            SlotOrientationState::Invalid => return None,
+        }
+    }
+
+    Some(mask)
+}
+
 fn wing_flip_mask(orbit: &WingOrbitTable, view: &EdgeScanView) -> Option<u16> {
     let mut mask = 0u16;
 
     for slot in EdgeSlot::ALL {
         match wing_slot_orientation_state(orbit, view, slot) {
+            SlotOrientationState::Solved => {}
+            SlotOrientationState::Flipped => mask |= 1u16 << slot.index(),
+            SlotOrientationState::Invalid => return None,
+        }
+    }
+
+    Some(mask)
+}
+
+fn wing_flip_mask_from_cube<S: FaceletArray>(
+    orbit: &WingOrbitTable,
+    cube: &Cube<S>,
+) -> Option<u16> {
+    let mut mask = 0u16;
+
+    for slot in EdgeSlot::ALL {
+        match wing_slot_orientation_state_from_cube(orbit, cube, slot) {
             SlotOrientationState::Solved => {}
             SlotOrientationState::Flipped => mask |= 1u16 << slot.index(),
             SlotOrientationState::Invalid => return None,
@@ -2114,8 +2592,9 @@ mod tests {
     #[test]
     fn wing_orbit_setup_tables_cover_all_ordered_triples() {
         for side_length in 4..=8 {
+            let setup_template = WingOrbitSetupTemplate::new(side_length);
             for row in 1..=(side_length - 2) / 2 {
-                let orbit = WingOrbitTable::new(side_length, row);
+                let orbit = WingOrbitTable::new(side_length, row, &setup_template);
                 assert_eq!(
                     orbit.reachable_ordered_triples, EDGE_WING_TRIPLE_COUNT,
                     "missing setup table entries for n={side_length}, row={row}",
@@ -2204,9 +2683,51 @@ mod tests {
     }
 
     #[test]
+    fn wing_setup_transitions_are_identical_for_all_rows() {
+        for side_length in 4..=8 {
+            let setup_template = WingOrbitSetupTemplate::new(side_length);
+            let reference_positions = wing_orbit_positions(side_length, 1);
+            let reference_moves = orbit_setup_moves(side_length, 1);
+            let reference_transitions =
+                orbit_move_transitions(side_length, &reference_positions, &reference_moves);
+            let reference_plan =
+                EdgeThreeCyclePlan::from_cycle(side_length, EdgeThreeCycle::front_right_wing(1));
+            let reference_key = encode_triple(reference_plan.cubies().map(|cubie| {
+                position_index(
+                    &reference_positions,
+                    fixed_edge_position(side_length, cubie),
+                )
+                .expect("representative base cubie must stay in the reference orbit")
+            }));
+            assert_eq!(reference_key, setup_template.start_key);
+
+            for row in 1..=(side_length - 2) / 2 {
+                let positions = wing_orbit_positions(side_length, row);
+                let moves = orbit_setup_moves(side_length, row);
+                let transitions = orbit_move_transitions(side_length, &positions, &moves);
+                let plan =
+                    EdgeThreeCyclePlan::from_cycle(side_length, EdgeThreeCycle::front_right_wing(row));
+                let key = encode_triple(plan.cubies().map(|cubie| {
+                    position_index(&positions, fixed_edge_position(side_length, cubie))
+                        .expect("row-specific base cubie must stay in the orbit")
+                }));
+
+                assert_eq!(
+                    transitions, reference_transitions,
+                    "wing setup transitions differ for n={side_length}, row={row}",
+                );
+                assert_eq!(
+                    key, setup_template.start_key,
+                    "shared wing setup start key differs for n={side_length}, row={row}",
+                );
+            }
+        }
+    }
+
+    #[test]
     fn wing_orbit_oriented_keys_can_leave_the_home_key_multiset_after_single_moves() {
         let side_length = 4;
-        let orbit = WingOrbitTable::new(side_length, 1);
+        let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit
             .positions
             .iter()
@@ -2280,7 +2801,7 @@ mod tests {
         let row = 1;
         let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
         cube.apply_moves_untracked_with_threads(wing_row_parity_fix_moves(side_length, row), 1);
-        let orbit = WingOrbitTable::new(side_length, row);
+        let orbit = WingOrbitTable::new(side_length, row, &WingOrbitSetupTemplate::new(side_length));
         let view = EdgeScanView::from_cube(&cube);
         for slot in EdgeSlot::ALL {
             let expected = if slot == EdgeSlot::FR {
@@ -2337,6 +2858,42 @@ mod tests {
     }
 
     #[test]
+    fn wing_orientation_cache_is_identical_for_all_rows() {
+        for side_length in 4..=8 {
+            let slot_setups = EdgeSlotSetupTable::new(side_length);
+            let setup_template = WingOrbitSetupTemplate::new(side_length);
+            let mut rows = (1..=(side_length - 2) / 2)
+                .map(|row| WingOrbitTable::new(side_length, row, &setup_template))
+                .collect::<Vec<_>>();
+
+            if rows.len() < 2 {
+                continue;
+            }
+
+            let first_cache = rows[0].build_orientation_cache(&slot_setups);
+            for orbit in rows.iter_mut().skip(1) {
+                let cache = orbit.build_orientation_cache(&slot_setups);
+                assert_eq!(
+                    cache.orientation_masks, first_cache.orientation_masks,
+                    "wing orientation masks differ for n={side_length}, row={}",
+                    orbit.row
+                );
+                assert_eq!(
+                    cache.orientation_generators.len(),
+                    first_cache.orientation_generators.len(),
+                    "wing orientation generator count differs for n={side_length}, row={}",
+                    orbit.row
+                );
+                assert_eq!(
+                    cache.orientation_nodes, first_cache.orientation_nodes,
+                    "wing orientation solution table differs for n={side_length}, row={}",
+                    orbit.row
+                );
+            }
+        }
+    }
+
+    #[test]
     fn edge_stage_solves_middle_edges_after_a_direct_middle_cycle() {
         let side_length = 5;
         let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
@@ -2359,7 +2916,7 @@ mod tests {
     #[test]
     fn generated_wing_setup_plans_match_literal_moves_on_full_cube_state() {
         let side_length = 4;
-        let mut orbit = WingOrbitTable::new(side_length, 1);
+        let mut orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let position_count = orbit.positions.len();
 
         for first in 0..position_count {
@@ -2426,7 +2983,7 @@ mod tests {
     #[test]
     fn wing_orbit_scan_preserves_legal_color_multiset_after_single_moves() {
         let side_length = 4;
-        let orbit = WingOrbitTable::new(side_length, 1);
+        let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit.target_keys(&EdgeSlot::ALL.map(EdgeSlot::solved_key));
 
         for axis in [crate::Axis::X, crate::Axis::Y, crate::Axis::Z] {
@@ -2448,7 +3005,7 @@ mod tests {
     #[test]
     fn wing_orbit_scan_preserves_legal_color_multiset_after_two_move_sequences() {
         let side_length = 4;
-        let orbit = WingOrbitTable::new(side_length, 1);
+        let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit.target_keys(&EdgeSlot::ALL.map(EdgeSlot::solved_key));
         let moves = [crate::Axis::X, crate::Axis::Y, crate::Axis::Z]
             .into_iter()
@@ -2484,7 +3041,7 @@ mod tests {
             crate::Move::new(crate::Axis::Y, 1, MoveAngle::Positive),
         ];
         let inverse = inverted_moves(&moves);
-        let orbit = WingOrbitTable::new(side_length, 1);
+        let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
         cube.apply_move_untracked(moves[0]);
         cube.apply_move_untracked(moves[1]);
@@ -2510,7 +3067,7 @@ mod tests {
     #[test]
     fn materialized_two_move_sequence_still_has_a_legal_edge_multiset() {
         let side_length = 4;
-        let orbit = WingOrbitTable::new(side_length, 1);
+        let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit.target_keys(&EdgeSlot::ALL.map(EdgeSlot::solved_key));
         let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
         cube.apply_move_untracked(crate::Move::new(crate::Axis::X, 0, MoveAngle::Positive));
@@ -2524,7 +3081,7 @@ mod tests {
     #[test]
     fn materialized_outer_then_outer_sequence_still_has_a_legal_edge_multiset() {
         let side_length = 4;
-        let orbit = WingOrbitTable::new(side_length, 1);
+        let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit.target_keys(&EdgeSlot::ALL.map(EdgeSlot::solved_key));
         let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
         cube.apply_move_untracked(crate::Move::new(crate::Axis::X, 0, MoveAngle::Positive));
@@ -2538,7 +3095,7 @@ mod tests {
     #[test]
     fn direct_static_cubie_reads_after_two_moves_are_legal_or_not() {
         let side_length = 4;
-        let orbit = WingOrbitTable::new(side_length, 1);
+        let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit.target_keys(&EdgeSlot::ALL.map(EdgeSlot::solved_key));
         let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
         cube.apply_move_untracked(crate::Move::new(crate::Axis::X, 0, MoveAngle::Positive));
@@ -2582,7 +3139,7 @@ mod tests {
     fn stage_wings_match_solved_slots<S: FaceletArray>(cube: &Cube<S>) -> bool {
         let slot_keys = solved_edge_slot_keys();
         let cache = PreparedEdgeStage::new(cube.side_len());
-        wings_match_solved_slots(&cache, &EdgeScanView::from_cube(cube), &slot_keys)
+        wings_match_solved_slots_from_cube(&cache, cube, &slot_keys)
     }
 
     fn count_oriented_keys(keys: &[OrientedEdgeKey]) -> BTreeMap<OrientedEdgeKey, usize> {

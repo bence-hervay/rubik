@@ -12,7 +12,7 @@ use rubik::{
     DEFAULT_SCRAMBLE_ROUNDS, GENERATED_CENTER_SCHEDULE,
 };
 
-const DEFAULT_SIDE_POWERS: &[usize] = &[8];
+const DEFAULT_SIDE_POWERS: &[usize] = &[10];
 const DEFAULT_RANDOM_SEED: u64 = 0x57A6_EBEE_F00D;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

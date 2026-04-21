@@ -2420,6 +2420,16 @@ fn build_edge_three_cycle_plan(
     })
 }
 
+pub(crate) fn edge_three_cycle_plan_from_updates(
+    n: usize,
+    cycle: Option<EdgeThreeCycle>,
+    moves: Vec<Move>,
+    updates: Vec<FaceletUpdate>,
+) -> EdgeThreeCyclePlan {
+    build_edge_three_cycle_plan(n, cycle, moves, updates)
+        .expect("explicit edge three-cycle updates must define a valid exact three-cycle")
+}
+
 fn move_sequence_updates(n: usize, moves: &[Move]) -> Option<Vec<FaceletUpdate>> {
     if n == 0 {
         return None;
