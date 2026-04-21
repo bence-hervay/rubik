@@ -4,8 +4,10 @@ pub mod facelet;
 
 pub use cube::{
     ColorScheme, CornerCubieLocation, Cube, EdgeCubieLocation, EdgeThreeCycle,
-    EdgeThreeCycleDirection, EdgeThreeCycleKind, EdgeThreeCyclePlan, FaceCommutator,
-    FaceletLocation, FaceletUpdate, DEFAULT_SCRAMBLE_ROUNDS,
+    EdgeThreeCycleDirection, EdgeThreeCycleKind, EdgeThreeCyclePlan, EdgeThreeCycleValidationError,
+    FaceCommutator, FaceCommutatorLayers, FaceCommutatorMode, FaceCommutatorPlan,
+    FaceCommutatorValidationError, FaceletLocation, FaceletUpdate, LayerSetKind,
+    LayerSetValidationError, DEFAULT_SCRAMBLE_ROUNDS,
 };
 pub use face::{Face, FaceAngle, FaceId};
 pub use facelet::Facelet;

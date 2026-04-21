@@ -12,7 +12,7 @@ use rubik::{
     DEFAULT_SCRAMBLE_ROUNDS, GENERATED_CENTER_SCHEDULE,
 };
 
-const DEFAULT_SIDE_POWERS: &[usize] = &[5];
+const DEFAULT_SIDE_POWERS: &[usize] = &[8];
 const DEFAULT_RANDOM_SEED: u64 = 0x57A6_EBEE_F00D;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -597,18 +597,17 @@ fn apply_center_commutator_scrambles<S: FaceletArray>(
             .expect("generated center schedule step must have a commutator");
 
         for _ in 0..2 {
+            let rows = [operation.row];
+            let columns = [operation.column];
             record_normalized_center_commutator_move_stats(
                 &mut stats,
                 cube.side_len(),
                 commutator,
-                &[operation.row],
-                &[operation.column],
+                &rows,
+                &columns,
             );
-            cube.apply_normalized_face_commutator_plan_untracked(
-                commutator,
-                &[operation.row],
-                &[operation.column],
-            );
+            let plan = cube.normalized_face_commutator_plan(commutator, &rows, &columns);
+            cube.apply_face_commutator_plan_untracked(plan);
         }
     }
 

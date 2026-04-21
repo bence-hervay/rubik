@@ -63,19 +63,239 @@ pub struct FaceCommutator {
     normalized_template: CenterCommutatorTemplate,
 }
 
-impl FaceCommutator {
-    pub fn new(destination: FaceId, helper: FaceId, slice_angle: MoveAngle) -> Self {
-        assert_ne!(
-            destination, helper,
-            "destination and helper faces must differ"
-        );
-        assert_ne!(
-            destination,
-            opposite_face(helper),
-            "destination and helper faces must be perpendicular"
-        );
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum FaceCommutatorMode {
+    Expanded,
+    Normalized,
+}
 
-        Self {
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct FaceCommutatorLayers<'a> {
+    rows: &'a [usize],
+    columns: &'a [usize],
+}
+
+impl<'a> FaceCommutatorLayers<'a> {
+    pub const fn new(rows: &'a [usize], columns: &'a [usize]) -> Self {
+        Self { rows, columns }
+    }
+
+    pub const fn rows(self) -> &'a [usize] {
+        self.rows
+    }
+
+    pub const fn columns(self) -> &'a [usize] {
+        self.columns
+    }
+
+    pub fn try_validate(
+        self,
+        side_length: usize,
+        commutator: FaceCommutator,
+    ) -> Result<(), FaceCommutatorValidationError> {
+        try_validate_face_commutator(
+            side_length,
+            commutator.destination,
+            commutator.helper,
+            self.rows,
+            self.columns,
+        )
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct FaceCommutatorPlan<'a> {
+    side_length: usize,
+    commutator: FaceCommutator,
+    mode: FaceCommutatorMode,
+    layers: FaceCommutatorLayers<'a>,
+}
+
+impl<'a> FaceCommutatorPlan<'a> {
+    pub fn new(
+        side_length: usize,
+        commutator: FaceCommutator,
+        mode: FaceCommutatorMode,
+        rows: &'a [usize],
+        columns: &'a [usize],
+    ) -> Self {
+        Self::try_new(side_length, commutator, mode, rows, columns)
+            .unwrap_or_else(|error| panic!("{error}"))
+    }
+
+    pub fn try_new(
+        side_length: usize,
+        commutator: FaceCommutator,
+        mode: FaceCommutatorMode,
+        rows: &'a [usize],
+        columns: &'a [usize],
+    ) -> Result<Self, FaceCommutatorValidationError> {
+        let layers = FaceCommutatorLayers::new(rows, columns);
+        try_validate_face_commutator(
+            side_length,
+            commutator.destination,
+            commutator.helper,
+            rows,
+            columns,
+        )?;
+
+        Ok(Self {
+            side_length,
+            commutator,
+            mode,
+            layers,
+        })
+    }
+
+    pub const fn side_length(self) -> usize {
+        self.side_length
+    }
+
+    pub const fn commutator(self) -> FaceCommutator {
+        self.commutator
+    }
+
+    pub const fn mode(self) -> FaceCommutatorMode {
+        self.mode
+    }
+
+    pub const fn layers(self) -> FaceCommutatorLayers<'a> {
+        self.layers
+    }
+
+    pub fn try_validate(self) -> Result<(), FaceCommutatorValidationError> {
+        self.layers.try_validate(self.side_length, self.commutator)
+    }
+
+    pub fn literal_moves(self) -> Vec<Move> {
+        match self.mode {
+            FaceCommutatorMode::Expanded => face_commutator_moves(
+                self.side_length,
+                self.commutator.destination,
+                self.commutator.helper,
+                self.layers.rows,
+                self.layers.columns,
+                self.commutator.slice_angle,
+            ),
+            FaceCommutatorMode::Normalized => normalized_face_commutator_moves(
+                self.side_length,
+                self.commutator.destination,
+                self.commutator.helper,
+                self.layers.rows,
+                self.layers.columns,
+                self.commutator.slice_angle,
+            ),
+        }
+    }
+
+    pub fn sparse_updates(self, row: usize, column: usize) -> [FaceletUpdate; 3] {
+        debug_assert!(self.layers.rows.contains(&row));
+        debug_assert!(self.layers.columns.contains(&column));
+
+        let template = match self.mode {
+            FaceCommutatorMode::Expanded => self.commutator.expanded_template,
+            FaceCommutatorMode::Normalized => self.commutator.normalized_template,
+        };
+
+        template.updates.map(|update| FaceletUpdate {
+            from: facelet_location(update.from.eval(self.side_length, row, column)),
+            to: facelet_location(update.to.eval(self.side_length, row, column)),
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum LayerSetKind {
+    Rows,
+    Columns,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum LayerSetValidationError {
+    MustContainOnlyInnerLayers { set: LayerSetKind },
+    MustBeStrictlyIncreasing { set: LayerSetKind },
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum FaceCommutatorValidationError {
+    CubeTooSmall,
+    DestinationAndHelperMustDiffer,
+    DestinationAndHelperMustBePerpendicular,
+    InvalidLayerSet(LayerSetValidationError),
+    RowAndColumnSetsMustBeDisjoint,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum EdgeThreeCycleValidationError {
+    WingCycleRequiresSideLengthAtLeastFour,
+    RowMustBeInnerLayer,
+    WingRowCannotBeOddMiddleLayer,
+    MiddleCycleRequiresOddSideLengthAtLeastThree,
+}
+
+impl fmt::Display for FaceCommutatorValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CubeTooSmall => f.write_str("face commutators require side length at least 3"),
+            Self::DestinationAndHelperMustDiffer => {
+                f.write_str("destination and helper faces must differ")
+            }
+            Self::DestinationAndHelperMustBePerpendicular => {
+                f.write_str("destination and helper faces must be perpendicular")
+            }
+            Self::InvalidLayerSet(error) => error.fmt(f),
+            Self::RowAndColumnSetsMustBeDisjoint => {
+                f.write_str("commutator row and column layer sets must be disjoint")
+            }
+        }
+    }
+}
+
+impl fmt::Display for LayerSetValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MustContainOnlyInnerLayers {
+                set: LayerSetKind::Rows,
+            } => f.write_str("commutator rows must contain only inner layers"),
+            Self::MustContainOnlyInnerLayers {
+                set: LayerSetKind::Columns,
+            } => f.write_str("commutator columns must contain only inner layers"),
+            Self::MustBeStrictlyIncreasing {
+                set: LayerSetKind::Rows,
+            } => f.write_str("commutator rows must be strictly increasing"),
+            Self::MustBeStrictlyIncreasing {
+                set: LayerSetKind::Columns,
+            } => f.write_str("commutator columns must be strictly increasing"),
+        }
+    }
+}
+
+impl fmt::Display for EdgeThreeCycleValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::WingCycleRequiresSideLengthAtLeastFour => {
+                f.write_str("front-right wing edge three-cycles require side length at least 4")
+            }
+            Self::RowMustBeInnerLayer => f.write_str("edge three-cycle row must be an inner layer"),
+            Self::WingRowCannotBeOddMiddleLayer => f.write_str(
+                "front-right wing edge three-cycle row cannot be the middle layer on odd cubes",
+            ),
+            Self::MiddleCycleRequiresOddSideLengthAtLeastThree => {
+                f.write_str("front-right middle edge three-cycles require odd side length")
+            }
+        }
+    }
+}
+
+impl FaceCommutator {
+    pub fn try_new(
+        destination: FaceId,
+        helper: FaceId,
+        slice_angle: MoveAngle,
+    ) -> Result<Self, FaceCommutatorValidationError> {
+        try_validate_face_commutator_faces(destination, helper)?;
+
+        Ok(Self {
             destination,
             helper,
             slice_angle,
@@ -85,7 +305,11 @@ impl FaceCommutator {
                 helper,
                 slice_angle,
             ),
-        }
+        })
+    }
+
+    pub fn new(destination: FaceId, helper: FaceId, slice_angle: MoveAngle) -> Self {
+        Self::try_new(destination, helper, slice_angle).unwrap_or_else(|error| panic!("{error}"))
     }
 
     pub fn destination(self) -> FaceId {
@@ -323,6 +547,12 @@ impl EdgeThreeCycleDirection {
     }
 }
 
+impl EdgeThreeCycle {
+    pub fn try_validate(self, side_length: usize) -> Result<(), EdgeThreeCycleValidationError> {
+        try_validate_edge_three_cycle(side_length, self)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EdgeThreeCyclePlan {
     side_length: usize,
@@ -338,13 +568,20 @@ impl EdgeThreeCyclePlan {
     /// This path scans only edge stickers, so it is suitable for precomputing
     /// plans on very large cubes.
     pub fn from_cycle(side_length: usize, cycle: EdgeThreeCycle) -> Self {
-        validate_edge_three_cycle(side_length, cycle);
-        try_edge_three_cycle_plan_from_edge_positions(
+        Self::try_from_cycle(side_length, cycle).unwrap_or_else(|error| panic!("{error}"))
+    }
+
+    pub fn try_from_cycle(
+        side_length: usize,
+        cycle: EdgeThreeCycle,
+    ) -> Result<Self, EdgeThreeCycleValidationError> {
+        try_validate_edge_three_cycle(side_length, cycle)?;
+        Ok(try_edge_three_cycle_plan_from_edge_positions(
             side_length,
             Some(cycle),
             cycle.moves(side_length),
         )
-        .expect("edge three-cycle recipe must produce exactly one edge cubie 3-cycle")
+        .expect("edge three-cycle recipe must produce exactly one edge cubie 3-cycle"))
     }
 
     /// Builds a plan from an arbitrary literal move sequence, accepting it only
@@ -656,6 +893,66 @@ impl<S: FaceletArray> Cube<S> {
             .expect("cube storage estimate overflowed usize")
     }
 
+    pub fn face_commutator_plan<'a>(
+        &self,
+        commutator: FaceCommutator,
+        rows: &'a [usize],
+        columns: &'a [usize],
+    ) -> FaceCommutatorPlan<'a> {
+        FaceCommutatorPlan::new(
+            self.n,
+            commutator,
+            FaceCommutatorMode::Expanded,
+            rows,
+            columns,
+        )
+    }
+
+    pub fn try_face_commutator_plan<'a>(
+        &self,
+        commutator: FaceCommutator,
+        rows: &'a [usize],
+        columns: &'a [usize],
+    ) -> Result<FaceCommutatorPlan<'a>, FaceCommutatorValidationError> {
+        FaceCommutatorPlan::try_new(
+            self.n,
+            commutator,
+            FaceCommutatorMode::Expanded,
+            rows,
+            columns,
+        )
+    }
+
+    pub fn normalized_face_commutator_plan<'a>(
+        &self,
+        commutator: FaceCommutator,
+        rows: &'a [usize],
+        columns: &'a [usize],
+    ) -> FaceCommutatorPlan<'a> {
+        FaceCommutatorPlan::new(
+            self.n,
+            commutator,
+            FaceCommutatorMode::Normalized,
+            rows,
+            columns,
+        )
+    }
+
+    pub fn try_normalized_face_commutator_plan<'a>(
+        &self,
+        commutator: FaceCommutator,
+        rows: &'a [usize],
+        columns: &'a [usize],
+    ) -> Result<FaceCommutatorPlan<'a>, FaceCommutatorValidationError> {
+        FaceCommutatorPlan::try_new(
+            self.n,
+            commutator,
+            FaceCommutatorMode::Normalized,
+            rows,
+            columns,
+        )
+    }
+
     /// Returns the literal move sequence represented by `apply_face_commutator_untracked`.
     pub fn face_commutator_moves(
         &self,
@@ -665,8 +962,12 @@ impl<S: FaceletArray> Cube<S> {
         columns: &[usize],
         slice_angle: MoveAngle,
     ) -> Vec<Move> {
-        self.validate_face_commutator(destination, helper, rows, columns);
-        face_commutator_moves(self.n, destination, helper, rows, columns, slice_angle)
+        self.face_commutator_plan(
+            FaceCommutator::new(destination, helper, slice_angle),
+            rows,
+            columns,
+        )
+        .literal_moves()
     }
 
     /// Returns the literal move sequence represented by
@@ -682,8 +983,12 @@ impl<S: FaceletArray> Cube<S> {
         columns: &[usize],
         slice_angle: MoveAngle,
     ) -> Vec<Move> {
-        self.validate_face_commutator(destination, helper, rows, columns);
-        normalized_face_commutator_moves(self.n, destination, helper, rows, columns, slice_angle)
+        self.normalized_face_commutator_plan(
+            FaceCommutator::new(destination, helper, slice_angle),
+            rows,
+            columns,
+        )
+        .literal_moves()
     }
 
     /// Applies the exact state change of the expanded face commutator while
@@ -701,18 +1006,34 @@ impl<S: FaceletArray> Cube<S> {
         columns: &[usize],
         slice_angle: MoveAngle,
     ) {
-        let commutator = FaceCommutator::new(destination, helper, slice_angle);
-        self.apply_face_commutator_plan_untracked(commutator, rows, columns);
+        let plan = self.face_commutator_plan(
+            FaceCommutator::new(destination, helper, slice_angle),
+            rows,
+            columns,
+        );
+        self.apply_face_commutator_plan_untracked(plan);
     }
 
-    pub fn apply_face_commutator_plan_untracked(
-        &mut self,
-        commutator: FaceCommutator,
-        rows: &[usize],
-        columns: &[usize],
-    ) {
-        self.validate_face_commutator(commutator.destination, commutator.helper, rows, columns);
-        self.apply_face_commutator_untracked_direct(commutator, rows, columns);
+    pub fn apply_face_commutator_plan_literal_untracked(&mut self, plan: FaceCommutatorPlan<'_>) {
+        self.validate_face_commutator(plan);
+        self.apply_moves_untracked_with_threads(plan.literal_moves(), 1);
+    }
+
+    pub fn apply_face_commutator_plan_untracked(&mut self, plan: FaceCommutatorPlan<'_>) {
+        self.validate_face_commutator(plan);
+
+        match plan.mode {
+            FaceCommutatorMode::Expanded => self.apply_face_commutator_untracked_direct(
+                plan.commutator,
+                plan.layers.rows,
+                plan.layers.columns,
+            ),
+            FaceCommutatorMode::Normalized => self.apply_sparse_commutator_template_untracked(
+                plan.commutator.normalized_template,
+                plan.layers.rows,
+                plan.layers.columns,
+            ),
+        }
     }
 
     /// Applies the expanded face commutator followed by the inverse destination
@@ -725,22 +1046,24 @@ impl<S: FaceletArray> Cube<S> {
         columns: &[usize],
         slice_angle: MoveAngle,
     ) {
-        let commutator = FaceCommutator::new(destination, helper, slice_angle);
-        self.apply_normalized_face_commutator_plan_untracked(commutator, rows, columns);
+        let plan = self.normalized_face_commutator_plan(
+            FaceCommutator::new(destination, helper, slice_angle),
+            rows,
+            columns,
+        );
+        self.apply_face_commutator_plan_untracked(plan);
     }
 
     pub fn apply_normalized_face_commutator_plan_untracked(
         &mut self,
-        commutator: FaceCommutator,
-        rows: &[usize],
-        columns: &[usize],
+        plan: FaceCommutatorPlan<'_>,
     ) {
-        self.validate_face_commutator(commutator.destination, commutator.helper, rows, columns);
-        self.apply_sparse_commutator_template_untracked(
-            commutator.normalized_template,
-            rows,
-            columns,
+        debug_assert_eq!(
+            plan.mode,
+            FaceCommutatorMode::Normalized,
+            "normalized commutator executor requires a normalized plan"
         );
+        self.apply_face_commutator_plan_untracked(plan);
     }
 
     pub fn face_commutator_sparse_updates(
@@ -749,15 +1072,8 @@ impl<S: FaceletArray> Cube<S> {
         row: usize,
         column: usize,
     ) -> [FaceletUpdate; 3] {
-        self.validate_face_commutator(commutator.destination, commutator.helper, &[row], &[column]);
-
-        commutator
-            .expanded_template
-            .updates
-            .map(|update| FaceletUpdate {
-                from: facelet_location(update.from.eval(self.n, row, column)),
-                to: facelet_location(update.to.eval(self.n, row, column)),
-            })
+        self.face_commutator_plan(commutator, &[row], &[column])
+            .sparse_updates(row, column)
     }
 
     pub fn normalized_face_commutator_sparse_updates(
@@ -766,15 +1082,8 @@ impl<S: FaceletArray> Cube<S> {
         row: usize,
         column: usize,
     ) -> [FaceletUpdate; 3] {
-        self.validate_face_commutator(commutator.destination, commutator.helper, &[row], &[column]);
-
-        commutator
-            .normalized_template
-            .updates
-            .map(|update| FaceletUpdate {
-                from: facelet_location(update.from.eval(self.n, row, column)),
-                to: facelet_location(update.to.eval(self.n, row, column)),
-            })
+        self.normalized_face_commutator_plan(commutator, &[row], &[column])
+            .sparse_updates(row, column)
     }
 
     pub fn edge_three_cycle_moves(&self, cycle: EdgeThreeCycle) -> Vec<Move> {
@@ -807,10 +1116,23 @@ impl<S: FaceletArray> Cube<S> {
         self.apply_edge_three_cycle_plan_untracked(&plan);
     }
 
+    pub fn apply_edge_three_cycle_literal_untracked(&mut self, cycle: EdgeThreeCycle) {
+        let plan = self.edge_three_cycle_plan(cycle);
+        self.apply_edge_three_cycle_plan_literal_untracked(&plan);
+    }
+
+    pub fn apply_edge_three_cycle_plan_literal_untracked(&mut self, plan: &EdgeThreeCyclePlan) {
+        debug_assert_eq!(
+            plan.side_length, self.n,
+            "edge three-cycle plan side length must match the cube"
+        );
+        self.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+    }
+
     /// Applies a precomputed edge three-cycle plan with delayed reads, so the
     /// cyclic overwrite order cannot corrupt source stickers.
     pub fn apply_edge_three_cycle_plan_untracked(&mut self, plan: &EdgeThreeCyclePlan) {
-        assert_eq!(
+        debug_assert_eq!(
             plan.side_length, self.n,
             "edge three-cycle plan side length must match the cube"
         );
@@ -847,7 +1169,12 @@ impl<S: FaceletArray> Cube<S> {
         columns: &[usize],
         slice_angle: MoveAngle,
     ) {
-        self.validate_face_commutator(destination, helper, rows, columns);
+        let plan = self.face_commutator_plan(
+            FaceCommutator::new(destination, helper, slice_angle),
+            rows,
+            columns,
+        );
+        self.validate_face_commutator(plan);
 
         let baseline = face_layer_move(self.n, destination, 0, MoveAngle::Positive);
         self.apply_move_untracked_linear(baseline);
@@ -996,31 +1323,10 @@ impl<S: FaceletArray> Cube<S> {
         assert!(mv.depth < self.n, "move depth out of bounds");
     }
 
-    fn validate_face_commutator(
-        &self,
-        destination: FaceId,
-        helper: FaceId,
-        rows: &[usize],
-        columns: &[usize],
-    ) {
-        assert!(
-            self.n >= 3,
-            "face commutators require side length at least 3"
-        );
-        assert_ne!(
-            destination, helper,
-            "destination and helper faces must differ"
-        );
-        assert_ne!(
-            destination,
-            opposite_face(helper),
-            "destination and helper faces must be perpendicular"
-        );
-        validate_inner_layer_set(self.n, rows, "commutator rows");
-        validate_inner_layer_set(self.n, columns, "commutator columns");
-        assert!(
-            sorted_layer_sets_are_disjoint(rows, columns),
-            "commutator row and column layer sets must be disjoint"
+    fn validate_face_commutator(&self, plan: FaceCommutatorPlan<'_>) {
+        debug_assert_eq!(
+            self.n, plan.side_length,
+            "face commutator plan side length must match the cube"
         );
     }
 
@@ -1589,18 +1895,61 @@ fn normalized_face_commutator_moves(
     moves
 }
 
-fn validate_inner_layer_set(n: usize, layers: &[usize], name: &str) {
+fn try_validate_face_commutator_faces(
+    destination: FaceId,
+    helper: FaceId,
+) -> Result<(), FaceCommutatorValidationError> {
+    if destination == helper {
+        return Err(FaceCommutatorValidationError::DestinationAndHelperMustDiffer);
+    }
+    if destination == opposite_face(helper) {
+        return Err(FaceCommutatorValidationError::DestinationAndHelperMustBePerpendicular);
+    }
+
+    Ok(())
+}
+
+fn try_validate_inner_layer_set(
+    n: usize,
+    layers: &[usize],
+    set: LayerSetKind,
+) -> Result<(), LayerSetValidationError> {
     let mut previous = None;
     for layer in layers.iter().copied() {
-        assert!(
-            layer > 0 && layer + 1 < n,
-            "{name} must contain only inner layers"
-        );
+        if !(layer > 0 && layer + 1 < n) {
+            return Err(LayerSetValidationError::MustContainOnlyInnerLayers { set });
+        }
         if let Some(previous) = previous {
-            assert!(previous < layer, "{name} must be strictly increasing");
+            if previous >= layer {
+                return Err(LayerSetValidationError::MustBeStrictlyIncreasing { set });
+            }
         }
         previous = Some(layer);
     }
+
+    Ok(())
+}
+
+fn try_validate_face_commutator(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    rows: &[usize],
+    columns: &[usize],
+) -> Result<(), FaceCommutatorValidationError> {
+    if n < 3 {
+        return Err(FaceCommutatorValidationError::CubeTooSmall);
+    }
+    try_validate_face_commutator_faces(destination, helper)?;
+    try_validate_inner_layer_set(n, rows, LayerSetKind::Rows)
+        .map_err(FaceCommutatorValidationError::InvalidLayerSet)?;
+    try_validate_inner_layer_set(n, columns, LayerSetKind::Columns)
+        .map_err(FaceCommutatorValidationError::InvalidLayerSet)?;
+    if !sorted_layer_sets_are_disjoint(rows, columns) {
+        return Err(FaceCommutatorValidationError::RowAndColumnSetsMustBeDisjoint);
+    }
+
+    Ok(())
 }
 
 fn sorted_layer_sets_are_disjoint(left: &[usize], right: &[usize]) -> bool {
@@ -1874,28 +2223,35 @@ fn face_layer_move(n: usize, face: FaceId, depth_from_face: usize, angle: MoveAn
 }
 
 fn validate_edge_three_cycle(n: usize, cycle: EdgeThreeCycle) {
+    try_validate_edge_three_cycle(n, cycle).unwrap_or_else(|error| panic!("{error}"));
+}
+
+fn try_validate_edge_three_cycle(
+    n: usize,
+    cycle: EdgeThreeCycle,
+) -> Result<(), EdgeThreeCycleValidationError> {
     match cycle.kind {
         EdgeThreeCycleKind::FrontRightWing { row } => {
-            assert!(
-                n >= 4,
-                "front-right wing edge three-cycles require side length at least 4"
-            );
-            assert!(
-                row > 0 && row + 1 < n,
-                "edge three-cycle row must be an inner layer"
-            );
-            assert!(
-                n % 2 == 0 || row != n / 2,
-                "front-right wing edge three-cycle row cannot be the middle layer on odd cubes"
-            );
+            if n < 4 {
+                return Err(EdgeThreeCycleValidationError::WingCycleRequiresSideLengthAtLeastFour);
+            }
+            if !(row > 0 && row + 1 < n) {
+                return Err(EdgeThreeCycleValidationError::RowMustBeInnerLayer);
+            }
+            if n % 2 == 1 && row == n / 2 {
+                return Err(EdgeThreeCycleValidationError::WingRowCannotBeOddMiddleLayer);
+            }
         }
         EdgeThreeCycleKind::FrontRightMiddle { .. } => {
-            assert!(
-                n >= 3 && n % 2 == 1,
-                "front-right middle edge three-cycles require odd side length"
-            );
+            if n < 3 || n % 2 == 0 {
+                return Err(
+                    EdgeThreeCycleValidationError::MiddleCycleRequiresOddSideLengthAtLeastThree,
+                );
+            }
         }
     }
+
+    Ok(())
 }
 
 fn edge_three_cycle_moves(n: usize, cycle: EdgeThreeCycle) -> Vec<Move> {
@@ -2819,16 +3175,16 @@ mod tests {
                     for slice_angle in MoveAngle::ALL {
                         for (rows, columns) in disjoint_inner_layer_set_pairs(side_length) {
                             for seed in 0..2 {
+                                let expanded_plan =
+                                    Cube::<Byte>::new_solved_with_threads(side_length, 1)
+                                        .face_commutator_plan(
+                                            FaceCommutator::new(destination, helper, slice_angle),
+                                            &rows,
+                                            &columns,
+                                        );
                                 let mut expected = patterned_cube::<Byte>(side_length, seed);
-                                let moves = expected.face_commutator_moves(
-                                    destination,
-                                    helper,
-                                    &rows,
-                                    &columns,
-                                    slice_angle,
-                                );
                                 expected
-                                    .apply_moves_untracked_with_threads(moves.iter().copied(), 1);
+                                    .apply_face_commutator_plan_literal_untracked(expanded_plan);
 
                                 let mut reference = patterned_cube::<Byte>(side_length, seed);
                                 reference.apply_face_commutator_untracked_reference(
@@ -2841,40 +3197,26 @@ mod tests {
                                 assert_cubes_match(&reference, &expected);
 
                                 let mut actual = patterned_cube::<Byte>(side_length, seed);
-                                actual.apply_face_commutator_untracked(
-                                    destination,
-                                    helper,
-                                    &rows,
-                                    &columns,
-                                    slice_angle,
-                                );
+                                actual.apply_face_commutator_plan_untracked(expanded_plan);
 
                                 assert_cubes_match(&actual, &expected);
 
+                                let normalized_plan =
+                                    Cube::<Byte>::new_solved_with_threads(side_length, 1)
+                                        .normalized_face_commutator_plan(
+                                            FaceCommutator::new(destination, helper, slice_angle),
+                                            &rows,
+                                            &columns,
+                                        );
                                 let mut normalized_expected =
                                     patterned_cube::<Byte>(side_length, seed);
-                                let normalized_moves = normalized_expected
-                                    .normalized_face_commutator_moves(
-                                        destination,
-                                        helper,
-                                        &rows,
-                                        &columns,
-                                        slice_angle,
-                                    );
-                                normalized_expected.apply_moves_untracked_with_threads(
-                                    normalized_moves.iter().copied(),
-                                    1,
-                                );
+                                normalized_expected
+                                    .apply_face_commutator_plan_literal_untracked(normalized_plan);
 
                                 let mut normalized_actual =
                                     patterned_cube::<Byte>(side_length, seed);
-                                normalized_actual.apply_normalized_face_commutator_untracked(
-                                    destination,
-                                    helper,
-                                    &rows,
-                                    &columns,
-                                    slice_angle,
-                                );
+                                normalized_actual
+                                    .apply_face_commutator_plan_untracked(normalized_plan);
 
                                 assert_cubes_match(&normalized_actual, &normalized_expected);
                             }
@@ -2896,7 +3238,7 @@ mod tests {
 
             for plan in plans {
                 let mut expected = patterned_cube::<Byte>(side_length, 17);
-                expected.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+                expected.apply_edge_three_cycle_plan_literal_untracked(&plan);
 
                 let mut actual = patterned_cube::<Byte>(side_length, 17);
                 assert_eq!(plan.updates().len(), 6);
@@ -2918,7 +3260,7 @@ mod tests {
                 let plan = probe.edge_three_cycle_plan(cycle);
 
                 let mut expected = patterned_cube::<Byte>(side_length, 31);
-                expected.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+                expected.apply_edge_three_cycle_plan_literal_untracked(&plan);
 
                 let mut actual = patterned_cube::<Byte>(side_length, 31);
                 actual.apply_edge_three_cycle_plan_untracked(&plan);
@@ -3092,37 +3434,33 @@ mod tests {
 
                 for slice_angle in MoveAngle::ALL {
                     let commutator = FaceCommutator::new(destination, helper, slice_angle);
+                    let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                    let expanded_plan = probe.face_commutator_plan(commutator, &rows, &columns);
                     let mut byte = patterned_cube::<Byte>(side_length, 3);
                     let mut byte3 = patterned_cube::<Byte3>(side_length, 3);
                     let mut nibble = patterned_cube::<Nibble>(side_length, 3);
                     let mut three_bit = patterned_cube::<ThreeBit>(side_length, 3);
 
-                    byte.apply_face_commutator_plan_untracked(commutator, &rows, &columns);
-                    byte3.apply_face_commutator_plan_untracked(commutator, &rows, &columns);
-                    nibble.apply_face_commutator_plan_untracked(commutator, &rows, &columns);
-                    three_bit.apply_face_commutator_plan_untracked(commutator, &rows, &columns);
+                    byte.apply_face_commutator_plan_untracked(expanded_plan);
+                    byte3.apply_face_commutator_plan_untracked(expanded_plan);
+                    nibble.apply_face_commutator_plan_untracked(expanded_plan);
+                    three_bit.apply_face_commutator_plan_untracked(expanded_plan);
 
                     assert_cubes_match(&byte3, &byte);
                     assert_cubes_match(&nibble, &byte);
                     assert_cubes_match(&three_bit, &byte);
 
+                    let normalized_plan =
+                        probe.normalized_face_commutator_plan(commutator, &rows, &columns);
                     let mut byte = patterned_cube::<Byte>(side_length, 5);
                     let mut byte3 = patterned_cube::<Byte3>(side_length, 5);
                     let mut nibble = patterned_cube::<Nibble>(side_length, 5);
                     let mut three_bit = patterned_cube::<ThreeBit>(side_length, 5);
 
-                    byte.apply_normalized_face_commutator_plan_untracked(
-                        commutator, &rows, &columns,
-                    );
-                    byte3.apply_normalized_face_commutator_plan_untracked(
-                        commutator, &rows, &columns,
-                    );
-                    nibble.apply_normalized_face_commutator_plan_untracked(
-                        commutator, &rows, &columns,
-                    );
-                    three_bit.apply_normalized_face_commutator_plan_untracked(
-                        commutator, &rows, &columns,
-                    );
+                    byte.apply_face_commutator_plan_untracked(normalized_plan);
+                    byte3.apply_face_commutator_plan_untracked(normalized_plan);
+                    nibble.apply_face_commutator_plan_untracked(normalized_plan);
+                    three_bit.apply_face_commutator_plan_untracked(normalized_plan);
 
                     assert_cubes_match(&byte3, &byte);
                     assert_cubes_match(&nibble, &byte);
@@ -3171,9 +3509,8 @@ mod tests {
 
                     assert_eq!(affected.len(), rows.len() * columns.len() * 3);
 
-                    after.apply_normalized_face_commutator_plan_untracked(
-                        commutator, &rows, &columns,
-                    );
+                    let plan = after.normalized_face_commutator_plan(commutator, &rows, &columns);
+                    after.apply_face_commutator_plan_untracked(plan);
 
                     for face in FaceId::ALL {
                         assert_eq!(
@@ -3288,6 +3625,53 @@ mod tests {
         assert!(sorted_layer_sets_are_disjoint(&[], &[1, 2, 3]));
         assert!(!sorted_layer_sets_are_disjoint(&[1, 3, 5], &[0, 3, 6]));
         assert!(!sorted_layer_sets_are_disjoint(&[1, 2, 3], &[3, 4, 5]));
+    }
+
+    #[test]
+    fn face_commutator_plan_checker_rejects_overlapping_layers() {
+        let commutator = FaceCommutator::new(FaceId::U, FaceId::R, MoveAngle::Positive);
+        let error = FaceCommutatorPlan::try_new(
+            5,
+            commutator,
+            FaceCommutatorMode::Normalized,
+            &[1, 2],
+            &[2, 3],
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            FaceCommutatorValidationError::RowAndColumnSetsMustBeDisjoint
+        );
+    }
+
+    #[test]
+    fn face_commutator_plan_checker_accepts_valid_configuration() {
+        let commutator = FaceCommutator::new(FaceId::F, FaceId::U, MoveAngle::Negative);
+        let plan = FaceCommutatorPlan::try_new(
+            7,
+            commutator,
+            FaceCommutatorMode::Expanded,
+            &[1, 3],
+            &[2, 4, 5],
+        )
+        .expect("valid face commutator plan must pass validation");
+
+        assert_eq!(plan.try_validate(), Ok(()));
+        assert_eq!(plan.layers().rows(), &[1, 3]);
+        assert_eq!(plan.layers().columns(), &[2, 4, 5]);
+    }
+
+    #[test]
+    fn edge_three_cycle_checker_rejects_invalid_cycles() {
+        assert_eq!(
+            EdgeThreeCycle::front_right_wing(0).try_validate(6),
+            Err(EdgeThreeCycleValidationError::RowMustBeInnerLayer)
+        );
+        assert_eq!(
+            EdgeThreeCycle::front_right_middle(EdgeThreeCycleDirection::Positive).try_validate(6),
+            Err(EdgeThreeCycleValidationError::MiddleCycleRequiresOddSideLengthAtLeastThree)
+        );
     }
 
     #[test]

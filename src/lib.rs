@@ -12,8 +12,10 @@ pub use model::face;
 pub use model::facelet;
 pub use model::{
     ColorScheme, CornerCubieLocation, Cube, EdgeCubieLocation, EdgeThreeCycle,
-    EdgeThreeCycleDirection, EdgeThreeCycleKind, EdgeThreeCyclePlan, Face, FaceAngle,
-    FaceCommutator, FaceId, Facelet, FaceletLocation, FaceletUpdate, DEFAULT_SCRAMBLE_ROUNDS,
+    EdgeThreeCycleDirection, EdgeThreeCycleKind, EdgeThreeCyclePlan, EdgeThreeCycleValidationError,
+    Face, FaceAngle, FaceCommutator, FaceCommutatorLayers, FaceCommutatorMode, FaceCommutatorPlan,
+    FaceCommutatorValidationError, FaceId, Facelet, FaceletLocation, FaceletUpdate, LayerSetKind,
+    LayerSetValidationError, DEFAULT_SCRAMBLE_ROUNDS,
 };
 pub use moves::history;
 pub use moves::{Axis, Move, MoveAngle, MoveHistory};

@@ -214,14 +214,10 @@ impl SolveContext {
         rows: &[usize],
         columns: &[usize],
     ) {
+        let plan = cube.face_commutator_plan(commutator, rows, columns);
+
         if self.options.record_moves {
-            let literal_moves = cube.face_commutator_moves(
-                commutator.destination(),
-                commutator.helper(),
-                rows,
-                columns,
-                commutator.slice_angle(),
-            );
+            let literal_moves = plan.literal_moves();
             self.move_stats
                 .record_all(literal_moves.iter().copied(), cube.side_len());
             self.moves.extend(literal_moves);
@@ -235,7 +231,7 @@ impl SolveContext {
             );
         }
 
-        cube.apply_face_commutator_plan_untracked(commutator, rows, columns);
+        cube.apply_face_commutator_plan_untracked(plan);
     }
 
     pub fn apply_normalized_center_commutator<S: FaceletArray>(
@@ -245,14 +241,10 @@ impl SolveContext {
         rows: &[usize],
         columns: &[usize],
     ) {
+        let plan = cube.normalized_face_commutator_plan(commutator, rows, columns);
+
         if self.options.record_moves {
-            let literal_moves = cube.normalized_face_commutator_moves(
-                commutator.destination(),
-                commutator.helper(),
-                rows,
-                columns,
-                commutator.slice_angle(),
-            );
+            let literal_moves = plan.literal_moves();
             self.move_stats
                 .record_all(literal_moves.iter().copied(), cube.side_len());
             self.moves.extend(literal_moves);
@@ -266,7 +258,7 @@ impl SolveContext {
             );
         }
 
-        cube.apply_normalized_face_commutator_plan_untracked(commutator, rows, columns);
+        cube.apply_face_commutator_plan_untracked(plan);
     }
 
     pub fn apply_edge_three_cycle_plan<S: FaceletArray>(
@@ -1486,7 +1478,10 @@ mod tests {
             };
 
             for _ in 0..2 {
-                cube.apply_normalized_face_commutator_plan_untracked(commutator, &[row], &[column]);
+                let rows = [row];
+                let columns = [column];
+                let plan = cube.normalized_face_commutator_plan(commutator, &rows, &columns);
+                cube.apply_face_commutator_plan_untracked(plan);
             }
             applied += 1;
         }
@@ -1506,7 +1501,9 @@ mod tests {
             columns.extend((1..side_length - 1).filter(|column| *column != row));
 
             for _ in 0..2 {
-                cube.apply_normalized_face_commutator_plan_untracked(commutator, &[row], &columns);
+                let rows = [row];
+                let plan = cube.normalized_face_commutator_plan(commutator, &rows, &columns);
+                cube.apply_face_commutator_plan_untracked(plan);
             }
         }
     }
