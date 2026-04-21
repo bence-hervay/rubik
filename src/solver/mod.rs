@@ -270,12 +270,7 @@ impl SolveContext {
         angle: MoveAngle,
     ) {
         let mv = face_outer_move(cube.side_len(), face, angle);
-        self.move_stats.record(mv, cube.side_len());
-        if self.options.record_moves {
-            self.moves.push(mv);
-        }
-
-        cube.face_mut(face).rotate_meta_by(mv.angle);
+        self.apply_move(cube, mv);
     }
 }
 
@@ -1328,7 +1323,7 @@ mod tests {
     }
 
     #[test]
-    fn center_only_face_rotation_matches_physical_move_on_centers() {
+    fn center_face_rotation_matches_physical_move_on_full_cube() {
         let side_length = 6;
 
         for face in FaceId::ALL {
@@ -1344,9 +1339,47 @@ mod tests {
                 physical.apply_move_untracked(mv);
                 context.apply_center_face_rotation(&mut optimized, face, angle);
 
-                assert_eq!(center_signature(&optimized), center_signature(&physical));
+                assert_cubes_match(&optimized, &physical);
                 assert_eq!(context.moves(), &[mv]);
                 assert_eq!(context.move_stats().total, 1);
+            }
+        }
+    }
+
+    #[test]
+    fn center_stage_recorded_moves_replay_to_same_full_cube_state() {
+        for side_length in 4..=8 {
+            for seed in [0xC011_EC7u64, 0xA11_CE57u64] {
+                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut rng = XorShift64::new(seed ^ side_length as u64);
+                cube.scramble_random_moves(&mut rng, 120);
+                let initial = cube.clone();
+
+                let mut stage = CenterReductionStage::western_default();
+                let mut context = SolveContext::new(SolveOptions {
+                    thread_count: 1,
+                    record_moves: true,
+                });
+
+                <CenterReductionStage as SolverStage<Byte>>::run(
+                    &mut stage,
+                    &mut cube,
+                    &mut context,
+                )
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "center stage failed for replay test n={side_length}, seed={seed:#x}, score={}/{}: {error}\n{}",
+                        center_score(&cube),
+                        total_center_count(side_length),
+                        cube.net_string(),
+                    )
+                });
+
+                let mut replay = initial;
+                replay.apply_moves_untracked_with_threads(context.moves().iter().copied(), 1);
+
+                assert_cubes_match(&cube, &replay);
+                assert!(centers_are_solved(&cube));
             }
         }
     }
@@ -1564,18 +1597,26 @@ mod tests {
         cube
     }
 
-    fn center_signature(cube: &Cube<Byte>) -> Vec<Facelet> {
-        let mut signature = Vec::new();
+    fn assert_cubes_match<A: FaceletArray, B: FaceletArray>(actual: &Cube<A>, expected: &Cube<B>) {
+        assert_eq!(actual.side_len(), expected.side_len());
 
         for face in FaceId::ALL {
-            for row in 1..cube.side_len().saturating_sub(1) {
-                for column in 1..cube.side_len().saturating_sub(1) {
-                    signature.push(cube.face(face).get(row, column));
+            assert_eq!(
+                actual.face(face).rotation(),
+                expected.face(face).rotation(),
+                "face rotation mismatch on {face}"
+            );
+
+            for row in 0..actual.side_len() {
+                for col in 0..actual.side_len() {
+                    assert_eq!(
+                        actual.face(face).get(row, col),
+                        expected.face(face).get(row, col),
+                        "facelet mismatch on {face} at ({row}, {col})"
+                    );
                 }
             }
         }
-
-        signature
     }
 
     #[test]
