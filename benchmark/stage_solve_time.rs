@@ -6,13 +6,13 @@ use std::{
 };
 
 use rubik::{
-    default_thread_count, Axis, Byte, Byte3, CenterCommutatorTable, CenterReductionStage, Cube,
-    FaceId, Facelet, FaceletArray, Move, MoveAngle, MoveStats, Nibble, RandomSource, SolveContext,
-    SolveOptions, SolverStage, ThreeBit, XorShift64, DEFAULT_SCRAMBLE_ROUNDS,
-    GENERATED_CENTER_SCHEDULE,
+    default_thread_count, Axis, Byte, Byte3, CenterCommutatorTable, CenterReductionStage,
+    CornerReductionStage, Cube, EdgePairingStage, FaceId, Facelet, FaceletArray, Move, MoveAngle,
+    MoveStats, Nibble, RandomSource, SolveContext, SolveOptions, SolverStage, ThreeBit, XorShift64,
+    DEFAULT_SCRAMBLE_ROUNDS, GENERATED_CENTER_SCHEDULE,
 };
 
-const DEFAULT_SIDE_POWERS: &[usize] = &[10, 11];
+const DEFAULT_SIDE_POWERS: &[usize] = &[5];
 const DEFAULT_RANDOM_SEED: u64 = 0x57A6_EBEE_F00D;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -102,33 +102,23 @@ enum ScramblePlan {
     CenterCommutators(Vec<CenterCommutatorScramble>),
 }
 
-impl ScramblePlan {
-    fn operation_count(&self) -> usize {
-        match self {
-            Self::RandomMoves(moves) => moves.len(),
-            Self::CenterCommutators(operations) => operations.len(),
-        }
-    }
+#[derive(Copy, Clone, Debug)]
+struct SectionBenchmarkResult {
+    name: &'static str,
+    elapsed: Duration,
+    moves: usize,
+    fixes: Option<usize>,
 }
 
 #[derive(Clone, Debug)]
-struct StageBenchmarkResult {
+struct BenchmarkResult {
     storage: StorageKind,
     side_length: usize,
-    stage: &'static str,
     scramble_kind: ScrambleKind,
     allocation_threads: usize,
     move_threads: usize,
     storage_bytes: usize,
-    scramble_operations: usize,
-    scramble_stats: MoveStats,
-    scramble_elapsed: Duration,
-    solve_elapsed: Duration,
-    center_facelets: usize,
-    center_score_before: usize,
-    center_score_after: usize,
-    solved_facelets: usize,
-    stage_moves: MoveStats,
+    sections: [SectionBenchmarkResult; 5],
 }
 
 fn main() {
@@ -169,9 +159,9 @@ fn main() {
     );
 
     println!("stage solve benchmarks");
-    println!("  stages=center_reduction");
+    println!("  sections=[scramble, center, corner, edge, full]");
     println!("  side_powers={side_powers:?}");
-    println!("  storage={storage_kinds:?}");
+    println!("  storage={}", format_storage_kinds(&storage_kinds));
     println!("  scramble_kind={scramble_kind}");
     println!("  random_seed={random_seed}");
     println!("  scramble_rounds={scramble_rounds}");
@@ -200,31 +190,30 @@ fn main() {
         );
 
         for storage in storage_kinds.iter().copied() {
-            let result = run_stage_benchmark(
+            results.push(run_benchmark(
                 storage,
                 scramble_kind,
                 side_length,
                 &scramble_plan,
                 allocation_threads,
                 move_threads,
-            );
-            results.push(result);
+            ));
         }
     }
 
     print_results_table(&results);
 }
 
-fn run_stage_benchmark(
+fn run_benchmark(
     storage: StorageKind,
     scramble_kind: ScrambleKind,
     side_length: usize,
     scramble_plan: &ScramblePlan,
     allocation_threads: usize,
     move_threads: usize,
-) -> StageBenchmarkResult {
+) -> BenchmarkResult {
     match storage {
-        StorageKind::Byte => run_stage_benchmark_for::<Byte>(
+        StorageKind::Byte => run_benchmark_for::<Byte>(
             storage,
             scramble_kind,
             side_length,
@@ -232,7 +221,7 @@ fn run_stage_benchmark(
             allocation_threads,
             move_threads,
         ),
-        StorageKind::Nibble => run_stage_benchmark_for::<Nibble>(
+        StorageKind::Nibble => run_benchmark_for::<Nibble>(
             storage,
             scramble_kind,
             side_length,
@@ -240,7 +229,7 @@ fn run_stage_benchmark(
             allocation_threads,
             move_threads,
         ),
-        StorageKind::ThreeBit => run_stage_benchmark_for::<ThreeBit>(
+        StorageKind::ThreeBit => run_benchmark_for::<ThreeBit>(
             storage,
             scramble_kind,
             side_length,
@@ -248,7 +237,7 @@ fn run_stage_benchmark(
             allocation_threads,
             move_threads,
         ),
-        StorageKind::Byte3 => run_stage_benchmark_for::<Byte3>(
+        StorageKind::Byte3 => run_benchmark_for::<Byte3>(
             storage,
             scramble_kind,
             side_length,
@@ -259,14 +248,14 @@ fn run_stage_benchmark(
     }
 }
 
-fn run_stage_benchmark_for<S: FaceletArray + 'static>(
+fn run_benchmark_for<S: FaceletArray + 'static>(
     storage: StorageKind,
     scramble_kind: ScrambleKind,
     side_length: usize,
     scramble_plan: &ScramblePlan,
     allocation_threads: usize,
     move_threads: usize,
-) -> StageBenchmarkResult {
+) -> BenchmarkResult {
     let mut cube = Cube::<S>::new_solved_with_threads(side_length, allocation_threads);
     let storage_bytes = cube.estimated_storage_bytes();
 
@@ -274,51 +263,120 @@ fn run_stage_benchmark_for<S: FaceletArray + 'static>(
     let scramble_stats = apply_scramble_plan(&mut cube, scramble_plan, move_threads);
     let scramble_elapsed = scramble_start.elapsed();
 
-    let center_score_before = center_score(&cube);
-    let center_facelets = center_facelet_count(side_length);
-    let mut stage = CenterReductionStage::western_default();
-    let mut context = SolveContext::new(SolveOptions {
+    let total_before_solve = solved_facelet_count(&cube);
+
+    let center_before = center_score(&cube);
+    let center_start = Instant::now();
+    let mut center_stage = CenterReductionStage::western_default();
+    let mut center_context = SolveContext::new(SolveOptions {
         thread_count: move_threads,
         record_moves: false,
     });
-
-    let solve_start = Instant::now();
-    <CenterReductionStage as SolverStage<S>>::run(&mut stage, &mut cube, &mut context)
-        .expect("center stage failed");
-    let solve_elapsed = solve_start.elapsed();
-
-    let center_score_after = center_score(&cube);
+    <CenterReductionStage as SolverStage<S>>::run(
+        &mut center_stage,
+        &mut cube,
+        &mut center_context,
+    )
+    .expect("center stage failed");
+    let center_elapsed = center_start.elapsed();
+    let center_after = center_score(&cube);
     assert!(
         centers_are_solved(&cube),
         "center stage reported success without solved centers"
     );
 
+    let corner_before = corner_score(&cube);
+    let corner_start = Instant::now();
+    let mut corner_stage = CornerReductionStage::default();
+    let mut corner_context = SolveContext::new(SolveOptions {
+        thread_count: move_threads,
+        record_moves: false,
+    });
+    <CornerReductionStage as SolverStage<S>>::run(
+        &mut corner_stage,
+        &mut cube,
+        &mut corner_context,
+    )
+    .expect("corner stage failed");
+    let corner_elapsed = corner_start.elapsed();
+    let corner_after = corner_score(&cube);
+    assert!(
+        corners_are_solved(&cube),
+        "corner stage reported success without solved corners"
+    );
+
+    let edge_before = edge_score(&cube);
+    let full_start = center_start;
+    let edge_start = Instant::now();
+    let mut edge_stage = EdgePairingStage::default();
+    let mut edge_context = SolveContext::new(SolveOptions {
+        thread_count: move_threads,
+        record_moves: false,
+    });
+    <EdgePairingStage as SolverStage<S>>::run(&mut edge_stage, &mut cube, &mut edge_context)
+        .expect("edge stage failed");
+    let edge_elapsed = edge_start.elapsed();
+    let full_elapsed = full_start.elapsed();
+    let edge_after = edge_score(&cube);
+
+    assert!(
+        edges_are_solved(&cube),
+        "edge stage left some edge facelets unsolved"
+    );
+    assert!(cube.is_solved(), "full pipeline did not solve the cube");
+
+    let total_after_solve = solved_facelet_count(&cube);
+    let full_moves = center_context.move_stats().total
+        + corner_context.move_stats().total
+        + edge_context.move_stats().total;
+
     black_box(&cube);
 
-    StageBenchmarkResult {
+    BenchmarkResult {
         storage,
         side_length,
-        stage: "center_reduction",
         scramble_kind,
         allocation_threads,
         move_threads,
         storage_bytes,
-        scramble_operations: scramble_plan.operation_count(),
-        scramble_stats,
-        scramble_elapsed,
-        solve_elapsed,
-        center_facelets,
-        center_score_before,
-        center_score_after,
-        solved_facelets: center_score_after - center_score_before,
-        stage_moves: context.move_stats(),
+        sections: [
+            SectionBenchmarkResult {
+                name: "scramble",
+                elapsed: scramble_elapsed,
+                moves: scramble_stats.total,
+                fixes: None,
+            },
+            SectionBenchmarkResult {
+                name: "center",
+                elapsed: center_elapsed,
+                moves: center_context.move_stats().total,
+                fixes: Some(center_after.saturating_sub(center_before)),
+            },
+            SectionBenchmarkResult {
+                name: "corner",
+                elapsed: corner_elapsed,
+                moves: corner_context.move_stats().total,
+                fixes: Some(corner_after.saturating_sub(corner_before)),
+            },
+            SectionBenchmarkResult {
+                name: "edge",
+                elapsed: edge_elapsed,
+                moves: edge_context.move_stats().total,
+                fixes: Some(edge_after.saturating_sub(edge_before)),
+            },
+            SectionBenchmarkResult {
+                name: "full",
+                elapsed: full_elapsed,
+                moves: full_moves,
+                fixes: Some(total_after_solve.saturating_sub(total_before_solve)),
+            },
+        ],
     }
 }
 
-const TABLE_HEADERS: [&str; 29] = [
-    "storage", "n", "stage", "scramble", "athr", "mthr", "memory", "scr_ops", "scr_mv", "scr_ms",
-    "sol_ms", "centers", "before", "after", "fixed", "sol_mv", "mv/fix", "mv/ctr", "mv/s", "fix/s",
-    "outer", "inner", "x", "y", "z", "pos", "dbl", "neg", "scr/s",
+const TABLE_HEADERS: [&str; 13] = [
+    "storage", "n", "section", "scramble", "athr", "mthr", "memory", "ms", "moves", "fixes",
+    "mv/fix", "mv/s", "fix/s",
 ];
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -327,27 +385,11 @@ enum ColumnAlignment {
     Right,
 }
 
-const TABLE_ALIGNMENTS: [ColumnAlignment; 29] = [
+const TABLE_ALIGNMENTS: [ColumnAlignment; 13] = [
     ColumnAlignment::Left,
     ColumnAlignment::Right,
     ColumnAlignment::Left,
     ColumnAlignment::Left,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
     ColumnAlignment::Right,
     ColumnAlignment::Right,
     ColumnAlignment::Right,
@@ -359,8 +401,8 @@ const TABLE_ALIGNMENTS: [ColumnAlignment; 29] = [
     ColumnAlignment::Right,
 ];
 
-fn print_results_table(results: &[StageBenchmarkResult]) {
-    let rows = results.iter().map(result_cells).collect::<Vec<_>>();
+fn print_results_table(results: &[BenchmarkResult]) {
+    let rows = result_rows(results);
     let widths = table_widths(&rows);
 
     print_table_row(
@@ -373,6 +415,32 @@ fn print_results_table(results: &[StageBenchmarkResult]) {
     for row in rows {
         print_table_row(&row, &widths, &TABLE_ALIGNMENTS);
     }
+}
+
+fn result_rows(results: &[BenchmarkResult]) -> Vec<[String; TABLE_HEADERS.len()]> {
+    let mut rows = Vec::new();
+
+    for result in results {
+        for section in result.sections {
+            rows.push([
+                result.storage.to_string(),
+                result.side_length.to_string(),
+                section.name.to_owned(),
+                result.scramble_kind.to_string(),
+                result.allocation_threads.to_string(),
+                result.move_threads.to_string(),
+                format_bytes(result.storage_bytes),
+                format!("{:.1}", milliseconds(section.elapsed)),
+                section.moves.to_string(),
+                format_optional_usize(section.fixes),
+                format_optional_ratio(section.moves, section.fixes),
+                format!("{:.0}", per_second(section.moves, section.elapsed)),
+                format_optional_rate(section.fixes, section.elapsed),
+            ]);
+        }
+    }
+
+    rows
 }
 
 fn table_widths(rows: &[[String; TABLE_HEADERS.len()]]) -> [usize; TABLE_HEADERS.len()] {
@@ -413,55 +481,6 @@ fn print_separator(widths: &[usize; TABLE_HEADERS.len()]) {
         print!("{:-<width$}", "");
     }
     println!();
-}
-
-fn result_cells(result: &StageBenchmarkResult) -> [String; TABLE_HEADERS.len()] {
-    [
-        result.storage.to_string(),
-        result.side_length.to_string(),
-        result.stage.to_owned(),
-        result.scramble_kind.to_string(),
-        result.allocation_threads.to_string(),
-        result.move_threads.to_string(),
-        format_bytes(result.storage_bytes),
-        result.scramble_operations.to_string(),
-        result.scramble_stats.total.to_string(),
-        format!("{:.1}", milliseconds(result.scramble_elapsed)),
-        format!("{:.1}", milliseconds(result.solve_elapsed)),
-        result.center_facelets.to_string(),
-        result.center_score_before.to_string(),
-        result.center_score_after.to_string(),
-        result.solved_facelets.to_string(),
-        result.stage_moves.total.to_string(),
-        format!(
-            "{:.3}",
-            ratio(result.stage_moves.total, result.solved_facelets)
-        ),
-        format!(
-            "{:.3}",
-            ratio(result.stage_moves.total, result.center_facelets)
-        ),
-        format!(
-            "{:.0}",
-            per_second(result.stage_moves.total, result.solve_elapsed)
-        ),
-        format!(
-            "{:.0}",
-            per_second(result.solved_facelets, result.solve_elapsed)
-        ),
-        result.stage_moves.outer_layer.to_string(),
-        result.stage_moves.inner_layer.to_string(),
-        result.stage_moves.axis_x.to_string(),
-        result.stage_moves.axis_y.to_string(),
-        result.stage_moves.axis_z.to_string(),
-        result.stage_moves.positive.to_string(),
-        result.stage_moves.double.to_string(),
-        result.stage_moves.negative.to_string(),
-        format!(
-            "{:.0}",
-            per_second(result.scramble_stats.total, result.scramble_elapsed)
-        ),
-    ]
 }
 
 fn generate_scramble_plan(
@@ -695,27 +714,84 @@ fn face_layer_move(
     }
 }
 
+fn target_facelet(face: FaceId) -> Facelet {
+    Facelet::from_u8(face.index() as u8)
+}
+
 fn centers_are_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
-    FaceId::ALL.iter().copied().all(|face| {
-        let target = Facelet::from_u8(face.index() as u8);
-        for row in 1..cube.side_len().saturating_sub(1) {
-            for column in 1..cube.side_len().saturating_sub(1) {
-                if cube.face(face).get(row, column) != target {
-                    return false;
-                }
+    center_score(cube) == center_facelet_count(cube.side_len())
+}
+
+fn corners_are_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
+    corner_score(cube) == corner_facelet_count(cube.side_len())
+}
+
+fn edges_are_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
+    edge_score(cube) == edge_facelet_count(cube.side_len())
+}
+
+fn solved_facelet_count<S: FaceletArray>(cube: &Cube<S>) -> usize {
+    let mut count = 0;
+
+    for face in FaceId::ALL {
+        let target = target_facelet(face);
+        for row in 0..cube.side_len() {
+            for column in 0..cube.side_len() {
+                count += usize::from(cube.face(face).get(row, column) == target);
             }
         }
-        true
-    })
+    }
+
+    count
 }
 
 fn center_score<S: FaceletArray>(cube: &Cube<S>) -> usize {
     let mut score = 0;
 
     for face in FaceId::ALL {
-        let target = Facelet::from_u8(face.index() as u8);
+        let target = target_facelet(face);
         for row in 1..cube.side_len().saturating_sub(1) {
             for column in 1..cube.side_len().saturating_sub(1) {
+                score += usize::from(cube.face(face).get(row, column) == target);
+            }
+        }
+    }
+
+    score
+}
+
+fn corner_score<S: FaceletArray>(cube: &Cube<S>) -> usize {
+    let side_length = cube.side_len();
+    if side_length == 1 {
+        return solved_facelet_count(cube);
+    }
+
+    let last = side_length - 1;
+    let mut score = 0;
+
+    for face in FaceId::ALL {
+        let target = target_facelet(face);
+        for (row, column) in [(0, 0), (0, last), (last, 0), (last, last)] {
+            score += usize::from(cube.face(face).get(row, column) == target);
+        }
+    }
+
+    score
+}
+
+fn edge_score<S: FaceletArray>(cube: &Cube<S>) -> usize {
+    let side_length = cube.side_len();
+    let mut score = 0;
+
+    for face in FaceId::ALL {
+        let target = target_facelet(face);
+        for offset in 1..side_length.saturating_sub(1) {
+            for (row, column) in [
+                (0, offset),
+                (side_length - 1, offset),
+                (offset, 0),
+                (offset, side_length - 1),
+            ] {
                 score += usize::from(cube.face(face).get(row, column) == target);
             }
         }
@@ -727,6 +803,20 @@ fn center_score<S: FaceletArray>(cube: &Cube<S>) -> usize {
 fn center_facelet_count(side_length: usize) -> usize {
     let centers_per_face = side_length.saturating_sub(2);
     centers_per_face * centers_per_face * FaceId::ALL.len()
+}
+
+fn corner_facelet_count(side_length: usize) -> usize {
+    if side_length == 0 {
+        0
+    } else if side_length == 1 {
+        FaceId::ALL.len()
+    } else {
+        FaceId::ALL.len() * 4
+    }
+}
+
+fn edge_facelet_count(side_length: usize) -> usize {
+    FaceId::ALL.len() * 4 * side_length.saturating_sub(2)
 }
 
 fn environment_usize(name: &str, default: usize) -> usize {
@@ -792,6 +882,14 @@ fn environment_storage_list(name: &str) -> Option<Vec<StorageKind>> {
     )
 }
 
+fn format_storage_kinds(storage_kinds: &[StorageKind]) -> String {
+    let names: Vec<_> = storage_kinds
+        .iter()
+        .map(|storage| storage.as_str())
+        .collect();
+    format!("{names:?}")
+}
+
 fn milliseconds(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1000.0
 }
@@ -809,6 +907,24 @@ fn per_second(count: usize, duration: Duration) -> f64 {
         0.0
     } else {
         count as f64 / duration.as_secs_f64()
+    }
+}
+
+fn format_optional_usize(value: Option<usize>) -> String {
+    value.map_or_else(|| "-".to_owned(), |value| value.to_string())
+}
+
+fn format_optional_ratio(moves: usize, fixes: Option<usize>) -> String {
+    match fixes {
+        Some(fixes) if fixes > 0 => format!("{:.3}", ratio(moves, fixes)),
+        Some(_) | None => "-".to_owned(),
+    }
+}
+
+fn format_optional_rate(fixes: Option<usize>, duration: Duration) -> String {
+    match fixes {
+        Some(fixes) => format!("{:.0}", per_second(fixes, duration)),
+        None => "-".to_owned(),
     }
 }
 
