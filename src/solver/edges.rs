@@ -288,8 +288,8 @@ struct WingOrbitTable {
     setup_moves: Vec<Move>,
     setup_nodes: Vec<Option<SetupNode>>,
     start_key: usize,
-    base_moves: Vec<Move>,
-    inverse_base_moves: Vec<Move>,
+    base_plan: EdgeThreeCyclePlan,
+    inverse_base_plan: EdgeThreeCyclePlan,
     plan_cache: HashMap<usize, EdgeThreeCyclePlan>,
     orientation_generators: Vec<OrientationGenerator>,
     orientation_masks: Vec<u16>,
@@ -307,8 +307,8 @@ struct MiddleOrbitTable {
     setup_moves: Vec<Move>,
     setup_nodes: Vec<Option<SetupNode>>,
     start_key: usize,
-    base_moves: Vec<Move>,
-    inverse_base_moves: Vec<Move>,
+    base_plan: EdgeThreeCyclePlan,
+    inverse_base_plan: EdgeThreeCyclePlan,
     plan_cache: HashMap<usize, EdgeThreeCyclePlan>,
     orientation_generators: Vec<OrientationGenerator>,
     orientation_masks: Vec<u16>,
@@ -342,8 +342,7 @@ impl WingOrbitTable {
         let transitions = orbit_move_transitions(side_length, &positions, &setup_moves);
         let (setup_nodes, start_key, reachable_ordered_triples) =
             build_setup_table(base_triple, &transitions);
-        let base_moves = base_plan.moves().to_vec();
-        let inverse_base_moves = inverted_moves(&base_moves);
+        let inverse_base_plan = base_plan.inverted();
 
         Self {
             row,
@@ -353,8 +352,8 @@ impl WingOrbitTable {
             setup_moves,
             setup_nodes,
             start_key,
-            base_moves,
-            inverse_base_moves,
+            base_plan,
+            inverse_base_plan,
             plan_cache: HashMap::new(),
             orientation_generators: Vec::new(),
             orientation_masks: Vec::new(),
@@ -424,18 +423,13 @@ impl WingOrbitTable {
         let cache_key = setup_key * 2 + usize::from(use_inverse_base);
         if !self.plan_cache.contains_key(&cache_key) {
             let setup_moves = self.reconstruct_setup_moves(setup_key)?;
-            let base_moves = if use_inverse_base {
-                &self.inverse_base_moves
+            let base_plan = if use_inverse_base {
+                &self.inverse_base_plan
             } else {
-                &self.base_moves
+                &self.base_plan
             };
 
-            let mut moves = Vec::with_capacity(setup_moves.len() * 2 + base_moves.len());
-            moves.extend(setup_moves.iter().rev().copied().map(Move::inverse));
-            moves.extend(base_moves.iter().copied());
-            moves.extend(setup_moves.iter().copied());
-
-            let plan = EdgeThreeCyclePlan::try_from_moves(self.side_length, moves)?;
+            let plan = base_plan.conjugated_by_moves(&setup_moves);
             let actual = plan.cubies().map(|cubie| {
                 position_index(
                     &self.positions,
@@ -549,8 +543,7 @@ impl MiddleOrbitTable {
         let transitions = middle_move_transitions(side_length, &positions, &setup_moves);
         let (setup_nodes, start_key, reachable_ordered_triples) =
             build_setup_table_with_base(EDGE_MIDDLE_POSITION_COUNT, base_triple, &transitions);
-        let base_moves = base_plan.moves().to_vec();
-        let inverse_base_moves = inverted_moves(&base_moves);
+        let inverse_base_plan = base_plan.inverted();
 
         let mut this = Self {
             side_length,
@@ -560,8 +553,8 @@ impl MiddleOrbitTable {
             setup_moves,
             setup_nodes,
             start_key,
-            base_moves,
-            inverse_base_moves,
+            base_plan,
+            inverse_base_plan,
             plan_cache: HashMap::new(),
             orientation_generators: Vec::new(),
             orientation_masks: Vec::new(),
@@ -625,18 +618,13 @@ impl MiddleOrbitTable {
         let cache_key = setup_key * 2 + usize::from(use_inverse_base);
         if !self.plan_cache.contains_key(&cache_key) {
             let setup_moves = self.reconstruct_setup_moves(setup_key)?;
-            let base_moves = if use_inverse_base {
-                &self.inverse_base_moves
+            let base_plan = if use_inverse_base {
+                &self.inverse_base_plan
             } else {
-                &self.base_moves
+                &self.base_plan
             };
 
-            let mut moves = Vec::with_capacity(setup_moves.len() * 2 + base_moves.len());
-            moves.extend(setup_moves.iter().rev().copied().map(Move::inverse));
-            moves.extend(base_moves.iter().copied());
-            moves.extend(setup_moves.iter().copied());
-
-            let plan = EdgeThreeCyclePlan::try_from_moves(self.side_length, moves)?;
+            let plan = base_plan.conjugated_by_moves(&setup_moves);
             let actual = plan.cubies().map(|cubie| {
                 position_index(
                     &self.positions,
@@ -2369,6 +2357,73 @@ mod tests {
     }
 
     #[test]
+    fn generated_wing_setup_plans_match_literal_moves_on_full_cube_state() {
+        let side_length = 4;
+        let mut orbit = WingOrbitTable::new(side_length, 1);
+        let position_count = orbit.positions.len();
+
+        for first in 0..position_count {
+            for second in 0..position_count {
+                if second == first {
+                    continue;
+                }
+                for third in 0..position_count {
+                    if third == first || third == second {
+                        continue;
+                    }
+
+                    let plan = orbit
+                        .plan_for_cycle([first, second, third])
+                        .expect("every ordered wing triple must have a plan")
+                        .clone();
+
+                    let mut expected = patterned_cube::<Byte>(side_length, 41);
+                    expected.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+
+                    let mut actual = patterned_cube::<Byte>(side_length, 41);
+                    actual.apply_edge_three_cycle_plan_untracked(&plan);
+
+                    assert_cubes_match(&actual, &expected);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn generated_middle_setup_plans_match_literal_moves_on_full_cube_state() {
+        let side_length = 5;
+        let slot_setups = EdgeSlotSetupTable::new(side_length);
+        let mut orbit = MiddleOrbitTable::new(side_length, &slot_setups);
+        let position_count = orbit.positions.len();
+
+        for first in 0..position_count {
+            for second in 0..position_count {
+                if second == first {
+                    continue;
+                }
+                for third in 0..position_count {
+                    if third == first || third == second {
+                        continue;
+                    }
+
+                    let plan = orbit
+                        .plan_for_cycle([first, second, third])
+                        .expect("every ordered middle triple must have a plan")
+                        .clone();
+
+                    let mut expected = patterned_cube::<Byte>(side_length, 53);
+                    expected.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+
+                    let mut actual = patterned_cube::<Byte>(side_length, 53);
+                    actual.apply_edge_three_cycle_plan_untracked(&plan);
+
+                    assert_cubes_match(&actual, &expected);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn wing_orbit_scan_preserves_legal_color_multiset_after_single_moves() {
         let side_length = 4;
         let orbit = WingOrbitTable::new(side_length, 1);
@@ -2560,6 +2615,22 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn patterned_cube<S: FaceletArray>(side_length: usize, seed: usize) -> Cube<S> {
+        let mut cube = Cube::<S>::new_solved_with_threads(side_length, 1);
+
+        for face in FaceId::ALL {
+            for row in 0..side_length {
+                for col in 0..side_length {
+                    let color_index =
+                        (seed + face.index() * 5 + row * 3 + col * 2) % Facelet::ALL.len();
+                    cube.face_mut(face).set(row, col, Facelet::ALL[color_index]);
+                }
+            }
+        }
+
+        cube
     }
 
     fn next_permutation(values: &mut [usize]) -> bool {

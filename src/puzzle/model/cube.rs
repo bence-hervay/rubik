@@ -385,6 +385,55 @@ impl EdgeThreeCyclePlan {
     pub fn updates(&self) -> &[FaceletUpdate; 6] {
         &self.updates
     }
+
+    pub(crate) fn inverted(&self) -> Self {
+        let updates = self
+            .updates
+            .map(|update| FaceletUpdate {
+                from: update.to,
+                to: update.from,
+            })
+            .into_iter()
+            .collect();
+
+        let moves = self
+            .moves
+            .iter()
+            .rev()
+            .copied()
+            .map(Move::inverse)
+            .collect();
+
+        build_edge_three_cycle_plan(self.side_length, None, moves, updates)
+            .expect("inverse of an exact edge three-cycle must stay exact")
+    }
+
+    pub(crate) fn conjugated_by_moves(&self, setup_moves: &[Move]) -> Self {
+        if setup_moves.is_empty() {
+            return self.clone();
+        }
+
+        let updates = self
+            .updates
+            .map(|update| FaceletUpdate {
+                from: trace_facelet_location_through_moves(
+                    self.side_length,
+                    update.from,
+                    setup_moves,
+                ),
+                to: trace_facelet_location_through_moves(self.side_length, update.to, setup_moves),
+            })
+            .into_iter()
+            .collect();
+
+        let mut moves = Vec::with_capacity(setup_moves.len() * 2 + self.moves.len());
+        moves.extend(setup_moves.iter().rev().copied().map(Move::inverse));
+        moves.extend(self.moves.iter().copied());
+        moves.extend(setup_moves.iter().copied());
+
+        build_edge_three_cycle_plan(self.side_length, None, moves, updates)
+            .expect("conjugating an exact edge three-cycle must stay exact")
+    }
 }
 
 #[derive(Clone, Debug)]
