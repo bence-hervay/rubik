@@ -3,10 +3,9 @@ pub mod runtime;
 pub mod solver;
 pub mod storage;
 
-pub use puzzle::{layout, model, moves};
+pub(crate) use layout::geometry;
 pub use layout::matrix;
 pub use layout::strip as line;
-pub(crate) use layout::geometry;
 pub use layout::{LineBuffer, LineKind, Matrix, MoveScratch, StripSpec};
 pub use model::cube;
 pub use model::face;
@@ -18,8 +17,10 @@ pub use model::{
 };
 pub use moves::history;
 pub use moves::{Axis, Move, MoveAngle, MoveHistory};
+pub use puzzle::{layout, model, moves};
 pub use runtime::random;
 pub(crate) use runtime::threading;
+pub use runtime::threading::default_thread_count;
 pub use runtime::{RandomSource, XorShift64};
 pub use solver::{
     CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr,
@@ -29,4 +30,3 @@ pub use solver::{
     GENERATED_CENTER_SCHEDULE,
 };
 pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};
-pub use runtime::threading::default_thread_count;

@@ -141,7 +141,11 @@ pub(crate) fn edge_cubie_orbit_index(
     let [first, second] = cubie.stickers();
     let first = edge_facelet_orbit_index(side_length, first)?;
     let second = edge_facelet_orbit_index(side_length, second)?;
-    if first == second { Some(first) } else { None }
+    if first == second {
+        Some(first)
+    } else {
+        None
+    }
 }
 
 pub(crate) fn trace_edge_cubie_through_move(
@@ -185,7 +189,8 @@ pub(crate) fn trace_edge_cubie_through_move(
         first_location
     };
 
-    edge_cubie_location(side_length, anchor).expect("traced edge sticker must stay on an edge cubie")
+    edge_cubie_location(side_length, anchor)
+        .expect("traced edge sticker must stay on an edge cubie")
 }
 
 #[cfg(test)]
