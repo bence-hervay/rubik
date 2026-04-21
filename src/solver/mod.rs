@@ -6,7 +6,7 @@ mod corners;
 mod edges;
 
 use crate::{
-    cube::{Cube, FaceCommutator},
+    cube::{Cube, EdgeThreeCyclePlan, FaceCommutator, FaceCommutatorPlan},
     face::FaceId,
     facelet::Facelet,
     moves::{Axis, Move, MoveAngle},
@@ -144,6 +144,83 @@ impl MoveStats {
     }
 }
 
+pub trait StageOperation {
+    fn side_length(&self) -> usize;
+    fn is_valid(&self) -> bool;
+    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move));
+    fn apply_direct<S: FaceletArray>(&self, cube: &mut Cube<S>);
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct MoveSequenceOperation<'a> {
+    side_length: usize,
+    moves: &'a [Move],
+}
+
+impl<'a> MoveSequenceOperation<'a> {
+    pub const fn new(side_length: usize, moves: &'a [Move]) -> Self {
+        Self { side_length, moves }
+    }
+}
+
+impl StageOperation for FaceCommutatorPlan<'_> {
+    fn side_length(&self) -> usize {
+        FaceCommutatorPlan::side_length(*self)
+    }
+
+    fn is_valid(&self) -> bool {
+        FaceCommutatorPlan::is_valid(*self)
+    }
+
+    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move)) {
+        FaceCommutatorPlan::for_each_literal_move(*self, f);
+    }
+
+    fn apply_direct<S: FaceletArray>(&self, cube: &mut Cube<S>) {
+        cube.apply_face_commutator_plan_untracked(*self);
+    }
+}
+
+impl StageOperation for EdgeThreeCyclePlan {
+    fn side_length(&self) -> usize {
+        EdgeThreeCyclePlan::side_length(self)
+    }
+
+    fn is_valid(&self) -> bool {
+        EdgeThreeCyclePlan::is_valid(self)
+    }
+
+    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move)) {
+        for mv in self.moves().iter().copied() {
+            f(mv);
+        }
+    }
+
+    fn apply_direct<S: FaceletArray>(&self, cube: &mut Cube<S>) {
+        cube.apply_edge_three_cycle_plan_untracked(self);
+    }
+}
+
+impl StageOperation for MoveSequenceOperation<'_> {
+    fn side_length(&self) -> usize {
+        self.side_length
+    }
+
+    fn is_valid(&self) -> bool {
+        self.moves.iter().all(|mv| mv.depth < self.side_length)
+    }
+
+    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move)) {
+        for mv in self.moves.iter().copied() {
+            f(mv);
+        }
+    }
+
+    fn apply_direct<S: FaceletArray>(&self, cube: &mut Cube<S>) {
+        cube.apply_moves_untracked_with_threads(self.moves.iter().copied(), 1);
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SolveContext {
     options: SolveOptions,
@@ -187,6 +264,28 @@ impl SolveContext {
         self.moves
     }
 
+    pub fn apply_operation<S, O>(&mut self, cube: &mut Cube<S>, operation: &O)
+    where
+        S: FaceletArray,
+        O: StageOperation,
+    {
+        debug_assert_eq!(
+            cube.side_len(),
+            operation.side_length(),
+            "stage operation side length must match the cube",
+        );
+        debug_assert!(operation.is_valid(), "stage operation must be valid");
+
+        operation.for_each_literal_move(&mut |mv| {
+            self.move_stats.record(mv, cube.side_len());
+            if self.options.record_moves {
+                self.moves.push(mv);
+            }
+        });
+
+        operation.apply_direct(cube);
+    }
+
     pub fn apply_move<S: FaceletArray>(&mut self, cube: &mut Cube<S>, mv: Move) {
         self.move_stats.record(mv, cube.side_len());
         if self.options.record_moves {
@@ -215,23 +314,7 @@ impl SolveContext {
         columns: &[usize],
     ) {
         let plan = cube.face_commutator_plan(commutator, rows, columns);
-
-        if self.options.record_moves {
-            let literal_moves = plan.literal_moves();
-            self.move_stats
-                .record_all(literal_moves.iter().copied(), cube.side_len());
-            self.moves.extend(literal_moves);
-        } else {
-            record_center_commutator_move_stats(
-                &mut self.move_stats,
-                cube.side_len(),
-                commutator,
-                rows,
-                columns,
-            );
-        }
-
-        cube.apply_face_commutator_plan_untracked(plan);
+        self.apply_operation(cube, &plan);
     }
 
     pub fn apply_normalized_center_commutator<S: FaceletArray>(
@@ -242,23 +325,7 @@ impl SolveContext {
         columns: &[usize],
     ) {
         let plan = cube.normalized_face_commutator_plan(commutator, rows, columns);
-
-        if self.options.record_moves {
-            let literal_moves = plan.literal_moves();
-            self.move_stats
-                .record_all(literal_moves.iter().copied(), cube.side_len());
-            self.moves.extend(literal_moves);
-        } else {
-            record_normalized_center_commutator_move_stats(
-                &mut self.move_stats,
-                cube.side_len(),
-                commutator,
-                rows,
-                columns,
-            );
-        }
-
-        cube.apply_face_commutator_plan_untracked(plan);
+        self.apply_operation(cube, &plan);
     }
 
     pub fn apply_edge_three_cycle_plan<S: FaceletArray>(
@@ -266,13 +333,7 @@ impl SolveContext {
         cube: &mut Cube<S>,
         plan: &crate::cube::EdgeThreeCyclePlan,
     ) {
-        self.move_stats
-            .record_all(plan.moves().iter().copied(), cube.side_len());
-        if self.options.record_moves {
-            self.moves.extend(plan.moves().iter().copied());
-        }
-
-        cube.apply_edge_three_cycle_plan_untracked(plan);
+        self.apply_operation(cube, plan);
     }
 
     fn apply_center_face_rotation<S: FaceletArray>(
@@ -284,92 +345,6 @@ impl SolveContext {
         let mv = face_outer_move(cube.side_len(), face, angle);
         self.apply_move(cube, mv);
     }
-}
-
-fn record_center_commutator_move_stats(
-    stats: &mut MoveStats,
-    side_length: usize,
-    commutator: FaceCommutator,
-    rows: &[usize],
-    columns: &[usize],
-) {
-    let reverse = commutator.slice_angle().inverse();
-
-    for column in columns.iter().copied() {
-        stats.record(
-            face_layer_move(side_length, commutator.helper(), column, reverse),
-            side_length,
-        );
-    }
-    stats.record(
-        face_layer_move(
-            side_length,
-            commutator.destination(),
-            0,
-            MoveAngle::Positive,
-        ),
-        side_length,
-    );
-    for row in rows.iter().copied() {
-        stats.record(
-            face_layer_move(side_length, commutator.helper(), row, reverse),
-            side_length,
-        );
-    }
-    stats.record(
-        face_layer_move(
-            side_length,
-            commutator.destination(),
-            0,
-            MoveAngle::Negative,
-        ),
-        side_length,
-    );
-    for column in columns.iter().copied() {
-        stats.record(
-            face_layer_move(
-                side_length,
-                commutator.helper(),
-                column,
-                commutator.slice_angle(),
-            ),
-            side_length,
-        );
-    }
-    stats.record(
-        face_layer_move(
-            side_length,
-            commutator.destination(),
-            0,
-            MoveAngle::Positive,
-        ),
-        side_length,
-    );
-    for row in rows.iter().copied() {
-        stats.record(
-            face_layer_move(
-                side_length,
-                commutator.helper(),
-                row,
-                commutator.slice_angle(),
-            ),
-            side_length,
-        );
-    }
-}
-
-fn record_normalized_center_commutator_move_stats(
-    stats: &mut MoveStats,
-    side_length: usize,
-    commutator: FaceCommutator,
-    rows: &[usize],
-    columns: &[usize],
-) {
-    record_center_commutator_move_stats(stats, side_length, commutator, rows, columns);
-    stats.record(
-        face_outer_move(side_length, commutator.destination(), MoveAngle::Positive).inverse(),
-        side_length,
-    );
 }
 
 pub trait Solver<S: FaceletArray> {
@@ -1263,6 +1238,30 @@ mod tests {
                 assert_eq!(context.move_stats().total, 1);
             }
         }
+    }
+
+    #[test]
+    fn move_sequence_operation_matches_literal_move_application() {
+        let side_length = 5;
+        let moves = [
+            Move::new(Axis::X, 0, MoveAngle::Positive),
+            Move::new(Axis::Y, 2, MoveAngle::Negative),
+            Move::new(Axis::Z, 1, MoveAngle::Double),
+        ];
+        let mut expected = patterned_cube(side_length);
+        expected.apply_moves_untracked_with_threads(moves, 1);
+
+        let mut actual = patterned_cube(side_length);
+        let mut context = SolveContext::new(SolveOptions {
+            thread_count: 1,
+            record_moves: true,
+        });
+        let operation = MoveSequenceOperation::new(side_length, &moves);
+        context.apply_operation(&mut actual, &operation);
+
+        assert_cubes_match(&actual, &expected);
+        assert_eq!(context.moves(), &moves);
+        assert_eq!(context.move_stats().total, moves.len());
     }
 
     #[test]

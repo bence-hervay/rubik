@@ -167,25 +167,44 @@ impl<'a> FaceCommutatorPlan<'a> {
         self.layers.try_validate(self.side_length, self.commutator)
     }
 
-    pub fn literal_moves(self) -> Vec<Move> {
+    pub fn is_valid(self) -> bool {
+        self.try_validate().is_ok()
+    }
+
+    pub fn literal_move_count(self) -> usize {
+        let base = 2 * self.layers.rows.len() + 2 * self.layers.columns.len() + 3;
         match self.mode {
-            FaceCommutatorMode::Expanded => face_commutator_moves(
-                self.side_length,
-                self.commutator.destination,
-                self.commutator.helper,
-                self.layers.rows,
-                self.layers.columns,
-                self.commutator.slice_angle,
-            ),
-            FaceCommutatorMode::Normalized => normalized_face_commutator_moves(
-                self.side_length,
-                self.commutator.destination,
-                self.commutator.helper,
-                self.layers.rows,
-                self.layers.columns,
-                self.commutator.slice_angle,
-            ),
+            FaceCommutatorMode::Expanded => base,
+            FaceCommutatorMode::Normalized => base + 1,
         }
+    }
+
+    pub fn for_each_literal_move(self, mut f: impl FnMut(Move)) {
+        for_each_face_commutator_move(
+            self.side_length,
+            self.commutator.destination,
+            self.commutator.helper,
+            self.layers.rows,
+            self.layers.columns,
+            self.commutator.slice_angle,
+            &mut f,
+        );
+
+        if self.mode == FaceCommutatorMode::Normalized {
+            f(face_layer_move(
+                self.side_length,
+                self.commutator.destination,
+                0,
+                MoveAngle::Positive,
+            )
+            .inverse());
+        }
+    }
+
+    pub fn literal_moves(self) -> Vec<Move> {
+        let mut moves = Vec::with_capacity(self.literal_move_count());
+        self.for_each_literal_move(|mv| moves.push(mv));
+        moves
     }
 
     pub fn sparse_updates(self, row: usize, column: usize) -> [FaceletUpdate; 3] {
@@ -621,6 +640,23 @@ impl EdgeThreeCyclePlan {
 
     pub fn updates(&self) -> &[FaceletUpdate; 6] {
         &self.updates
+    }
+
+    pub fn is_valid(&self) -> bool {
+        if self
+            .cycle
+            .is_some_and(|cycle| try_validate_edge_three_cycle(self.side_length, cycle).is_err())
+        {
+            return false;
+        }
+
+        build_edge_three_cycle_plan(
+            self.side_length,
+            self.cycle,
+            self.moves.clone(),
+            self.updates.into_iter().collect(),
+        )
+        .is_some()
     }
 
     pub(crate) fn inverted(&self) -> Self {
@@ -1852,6 +1888,7 @@ fn raw_face_storages<S: FaceletArray>(faces: &mut [Face<S>; 6]) -> [S::RawStorag
     }
 }
 
+#[cfg(test)]
 fn face_commutator_moves(
     n: usize,
     destination: FaceId,
@@ -1860,28 +1897,14 @@ fn face_commutator_moves(
     columns: &[usize],
     slice_angle: MoveAngle,
 ) -> Vec<Move> {
-    let mut moves = Vec::with_capacity((columns.len() + rows.len()) * 2 + 3);
-    let reverse = slice_angle.inverse();
-
-    for column in columns.iter().copied() {
-        moves.push(face_layer_move(n, helper, column, reverse));
-    }
-    moves.push(face_layer_move(n, destination, 0, MoveAngle::Positive));
-    for row in rows.iter().copied() {
-        moves.push(face_layer_move(n, helper, row, reverse));
-    }
-    moves.push(face_layer_move(n, destination, 0, MoveAngle::Negative));
-    for column in columns.iter().copied() {
-        moves.push(face_layer_move(n, helper, column, slice_angle));
-    }
-    moves.push(face_layer_move(n, destination, 0, MoveAngle::Positive));
-    for row in rows.iter().copied() {
-        moves.push(face_layer_move(n, helper, row, slice_angle));
-    }
-
+    let mut moves = Vec::with_capacity(2 * rows.len() + 2 * columns.len() + 3);
+    for_each_face_commutator_move(n, destination, helper, rows, columns, slice_angle, |mv| {
+        moves.push(mv)
+    });
     moves
 }
 
+#[cfg(test)]
 fn normalized_face_commutator_moves(
     n: usize,
     destination: FaceId,
@@ -1893,6 +1916,34 @@ fn normalized_face_commutator_moves(
     let mut moves = face_commutator_moves(n, destination, helper, rows, columns, slice_angle);
     moves.push(face_layer_move(n, destination, 0, MoveAngle::Positive).inverse());
     moves
+}
+
+fn for_each_face_commutator_move(
+    n: usize,
+    destination: FaceId,
+    helper: FaceId,
+    rows: &[usize],
+    columns: &[usize],
+    slice_angle: MoveAngle,
+    mut f: impl FnMut(Move),
+) {
+    let reverse = slice_angle.inverse();
+
+    for column in columns.iter().copied() {
+        f(face_layer_move(n, helper, column, reverse));
+    }
+    f(face_layer_move(n, destination, 0, MoveAngle::Positive));
+    for row in rows.iter().copied() {
+        f(face_layer_move(n, helper, row, reverse));
+    }
+    f(face_layer_move(n, destination, 0, MoveAngle::Negative));
+    for column in columns.iter().copied() {
+        f(face_layer_move(n, helper, column, slice_angle));
+    }
+    f(face_layer_move(n, destination, 0, MoveAngle::Positive));
+    for row in rows.iter().copied() {
+        f(face_layer_move(n, helper, row, slice_angle));
+    }
 }
 
 fn try_validate_face_commutator_faces(

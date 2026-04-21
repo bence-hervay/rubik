@@ -7,9 +7,9 @@ use std::{
 use crate::{
     cube::{
         edge_cubie_for_facelet_location, edge_cubie_orbit_index,
-        edge_three_cycle_plan_from_updates, trace_edge_cubie_through_move, Cube,
-        EdgeCubieLocation, EdgeThreeCycle, EdgeThreeCycleDirection, EdgeThreeCyclePlan,
-        FaceletLocation, FaceletUpdate,
+        edge_three_cycle_plan_from_updates, trace_edge_cubie_through_move, Cube, EdgeCubieLocation,
+        EdgeThreeCycle, EdgeThreeCycleDirection, EdgeThreeCyclePlan, FaceletLocation,
+        FaceletUpdate,
     },
     face::FaceId,
     facelet::Facelet,
@@ -21,13 +21,9 @@ use crate::{
 use super::{SolveContext, SolveError, SolvePhase, SolveResult, SolverStage, SubStageSpec};
 
 const EDGE_WING_POSITION_COUNT: usize = 24;
-const EDGE_TRIPLE_STATE_COUNT: usize =
-    EDGE_WING_POSITION_COUNT * EDGE_WING_POSITION_COUNT * EDGE_WING_POSITION_COUNT;
 #[cfg(test)]
 const EDGE_WING_TRIPLE_COUNT: usize = 24 * 23 * 22;
 const EDGE_MIDDLE_POSITION_COUNT: usize = 12;
-const EDGE_MIDDLE_TRIPLE_STATE_COUNT: usize =
-    EDGE_MIDDLE_POSITION_COUNT * EDGE_MIDDLE_POSITION_COUNT * EDGE_MIDDLE_POSITION_COUNT;
 #[cfg(test)]
 const EDGE_MIDDLE_TRIPLE_COUNT: usize = 12 * 11 * 10;
 
@@ -339,12 +335,7 @@ struct WingOrbitTable {
     side_length: usize,
     positions: Vec<FixedEdgePosition>,
     slot_positions: [[usize; 2]; 12],
-    setup_moves: Vec<Move>,
-    setup_nodes: Arc<[Option<SetupNode>]>,
-    start_key: usize,
-    base_plan: EdgeThreeCyclePlan,
-    inverse_base_plan: EdgeThreeCyclePlan,
-    plan_cache: HashMap<usize, EdgeThreeCyclePlan>,
+    planner: OrbitCyclePlanner,
     orientation_generators: Vec<OrientationGenerator>,
     orientation_masks: Vec<u16>,
     orientation_nodes: Vec<Option<MaskNode>>,
@@ -380,12 +371,7 @@ struct MiddleOrbitTable {
     positions: Vec<FixedEdgePosition>,
     slot_positions: [usize; 12],
     target_slot_index: BTreeMap<EdgeColorKey, usize>,
-    setup_moves: Vec<Move>,
-    setup_nodes: Vec<Option<SetupNode>>,
-    start_key: usize,
-    base_plan: EdgeThreeCyclePlan,
-    inverse_base_plan: EdgeThreeCyclePlan,
-    plan_cache: HashMap<usize, EdgeThreeCyclePlan>,
+    planner: OrbitCyclePlanner,
     orientation_generators: Vec<OrientationGenerator>,
     orientation_masks: Vec<u16>,
     orientation_nodes: Vec<Option<MaskNode>>,
@@ -398,6 +384,168 @@ struct EdgeSlotSetupTable {
     to_destination: [Vec<Move>; 12],
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+struct OrbitThreeCycleSpec {
+    position_count: usize,
+    ordered_positions: [usize; 3],
+}
+
+impl OrbitThreeCycleSpec {
+    fn new(position_count: usize, ordered_positions: [usize; 3]) -> Self {
+        Self::try_new(position_count, ordered_positions)
+            .expect("orbit three-cycle positions must be distinct valid orbit indices")
+    }
+
+    fn try_new(position_count: usize, ordered_positions: [usize; 3]) -> Option<Self> {
+        if ordered_positions
+            .iter()
+            .any(|index| *index >= position_count)
+        {
+            return None;
+        }
+        if ordered_positions[0] == ordered_positions[1]
+            || ordered_positions[0] == ordered_positions[2]
+            || ordered_positions[1] == ordered_positions[2]
+        {
+            return None;
+        }
+
+        Some(Self {
+            position_count,
+            ordered_positions,
+        })
+    }
+
+    fn ordered_positions(self) -> [usize; 3] {
+        self.ordered_positions
+    }
+
+    fn reversed(self) -> Self {
+        Self {
+            position_count: self.position_count,
+            ordered_positions: [
+                self.ordered_positions[0],
+                self.ordered_positions[2],
+                self.ordered_positions[1],
+            ],
+        }
+    }
+
+    fn encode(self) -> usize {
+        encode_triple_with_base(self.position_count, self.ordered_positions)
+    }
+
+    fn decode(position_count: usize, key: usize) -> Self {
+        Self::new(position_count, decode_triple_with_base(position_count, key))
+    }
+}
+
+#[derive(Clone, Debug)]
+struct OrbitCyclePlanner {
+    position_count: usize,
+    setup_moves: Vec<Move>,
+    setup_nodes: Arc<[Option<SetupNode>]>,
+    start_key: usize,
+    base_plan: EdgeThreeCyclePlan,
+    inverse_base_plan: EdgeThreeCyclePlan,
+    plan_cache: HashMap<usize, EdgeThreeCyclePlan>,
+}
+
+impl OrbitCyclePlanner {
+    fn new(
+        position_count: usize,
+        setup_moves: Vec<Move>,
+        setup_nodes: Arc<[Option<SetupNode>]>,
+        start_key: usize,
+        base_plan: EdgeThreeCyclePlan,
+    ) -> Self {
+        let inverse_base_plan = base_plan.inverted();
+
+        Self {
+            position_count,
+            setup_moves,
+            setup_nodes,
+            start_key,
+            base_plan,
+            inverse_base_plan,
+            plan_cache: HashMap::new(),
+        }
+    }
+
+    fn plan_for_cycle(
+        &mut self,
+        cycle: OrbitThreeCycleSpec,
+        positions: &[FixedEdgePosition],
+        side_length: usize,
+    ) -> Option<&EdgeThreeCyclePlan> {
+        if cycle.position_count != self.position_count {
+            return None;
+        }
+
+        let direct_key = cycle.encode();
+        if self.has_setup(direct_key) {
+            return self.plan_for_encoded_cycle(direct_key, false, positions, side_length);
+        }
+
+        let reverse_key = cycle.reversed().encode();
+        if self.has_setup(reverse_key) {
+            return self.plan_for_encoded_cycle(reverse_key, true, positions, side_length);
+        }
+
+        None
+    }
+
+    fn has_setup(&self, setup_key: usize) -> bool {
+        self.setup_nodes
+            .get(setup_key)
+            .and_then(|node| *node)
+            .is_some()
+    }
+
+    fn plan_for_encoded_cycle(
+        &mut self,
+        setup_key: usize,
+        use_inverse_base: bool,
+        positions: &[FixedEdgePosition],
+        side_length: usize,
+    ) -> Option<&EdgeThreeCyclePlan> {
+        let cache_key = setup_key * 2 + usize::from(use_inverse_base);
+        if !self.plan_cache.contains_key(&cache_key) {
+            let setup_moves = self.reconstruct_setup_moves(setup_key)?;
+            let base_plan = if use_inverse_base {
+                &self.inverse_base_plan
+            } else {
+                &self.base_plan
+            };
+
+            let plan = base_plan.conjugated_by_moves(&setup_moves);
+            let actual = plan_cubie_positions_in_orbit(side_length, positions, plan.cubies())?;
+            let expected = OrbitThreeCycleSpec::decode(self.position_count, setup_key);
+            if !same_cyclic_order(actual, expected.ordered_positions()) {
+                return None;
+            }
+
+            self.plan_cache.insert(cache_key, plan);
+        }
+
+        self.plan_cache.get(&cache_key)
+    }
+
+    fn reconstruct_setup_moves(&self, target_key: usize) -> Option<Vec<Move>> {
+        let mut current_key = target_key;
+        let mut reversed = Vec::new();
+
+        while current_key != self.start_key {
+            let node = self.setup_nodes.get(current_key).and_then(|entry| *entry)?;
+            reversed.push(self.setup_moves[node.move_index as usize]);
+            current_key = node.prev as usize;
+        }
+
+        reversed.reverse();
+        Some(reversed)
+    }
+}
+
 impl WingOrbitTable {
     fn new(side_length: usize, row: usize, setup_template: &WingOrbitSetupTemplate) -> Self {
         let positions = wing_orbit_positions(side_length, row);
@@ -408,7 +556,9 @@ impl WingOrbitTable {
         );
 
         let slot_positions = wing_slot_positions();
-        let base_plan = setup_template.base_plan.instantiate(side_length, row, &positions);
+        let base_plan = setup_template
+            .base_plan
+            .instantiate(side_length, row, &positions);
         let base_triple = base_plan.cubies().map(|cubie| {
             position_index(&positions, fixed_edge_position(side_length, cubie))
                 .expect("base cubie must be in orbit")
@@ -419,19 +569,20 @@ impl WingOrbitTable {
             start_key, setup_template.start_key,
             "shared wing setup template must match every row-specific base triple",
         );
-        let inverse_base_plan = base_plan.inverted();
+        let planner = OrbitCyclePlanner::new(
+            positions.len(),
+            setup_moves,
+            setup_template.setup_nodes.clone(),
+            setup_template.start_key,
+            base_plan,
+        );
 
         Self {
             row,
             side_length,
             positions,
             slot_positions,
-            setup_moves,
-            setup_nodes: setup_template.setup_nodes.clone(),
-            start_key: setup_template.start_key,
-            base_plan,
-            inverse_base_plan,
-            plan_cache: HashMap::new(),
+            planner,
             orientation_generators: Vec::new(),
             orientation_masks: Vec::new(),
             orientation_nodes: Vec::new(),
@@ -475,79 +626,9 @@ impl WingOrbitTable {
             .collect()
     }
 
-    fn plan_for_cycle(&mut self, ordered_positions: [usize; 3]) -> Option<&EdgeThreeCyclePlan> {
-        let direct_key = encode_triple(ordered_positions);
-        if self
-            .setup_nodes
-            .get(direct_key)
-            .and_then(|node| *node)
-            .is_some()
-        {
-            return self.plan_for_encoded_cycle(direct_key, false);
-        }
-
-        let reverse_key = encode_triple([
-            ordered_positions[0],
-            ordered_positions[2],
-            ordered_positions[1],
-        ]);
-        if self
-            .setup_nodes
-            .get(reverse_key)
-            .and_then(|node| *node)
-            .is_some()
-        {
-            return self.plan_for_encoded_cycle(reverse_key, true);
-        }
-
-        None
-    }
-
-    fn plan_for_encoded_cycle(
-        &mut self,
-        setup_key: usize,
-        use_inverse_base: bool,
-    ) -> Option<&EdgeThreeCyclePlan> {
-        let cache_key = setup_key * 2 + usize::from(use_inverse_base);
-        if !self.plan_cache.contains_key(&cache_key) {
-            let setup_moves = self.reconstruct_setup_moves(setup_key)?;
-            let base_plan = if use_inverse_base {
-                &self.inverse_base_plan
-            } else {
-                &self.base_plan
-            };
-
-            let plan = base_plan.conjugated_by_moves(&setup_moves);
-            let actual = plan.cubies().map(|cubie| {
-                position_index(
-                    &self.positions,
-                    fixed_edge_position(self.side_length, cubie),
-                )
-                .expect("cached cubie must stay in orbit")
-            });
-            let expected = decode_triple(setup_key);
-            if !same_cyclic_order(actual, expected) {
-                return None;
-            }
-
-            self.plan_cache.insert(cache_key, plan);
-        }
-
-        self.plan_cache.get(&cache_key)
-    }
-
-    fn reconstruct_setup_moves(&self, target_key: usize) -> Option<Vec<Move>> {
-        let mut current_key = target_key;
-        let mut reversed = Vec::new();
-
-        while current_key != self.start_key {
-            let node = self.setup_nodes.get(current_key).and_then(|entry| *entry)?;
-            reversed.push(self.setup_moves[node.move_index as usize]);
-            current_key = node.prev as usize;
-        }
-
-        reversed.reverse();
-        Some(reversed)
+    fn plan_for_cycle(&mut self, cycle: OrbitThreeCycleSpec) -> Option<&EdgeThreeCyclePlan> {
+        self.planner
+            .plan_for_cycle(cycle, &self.positions, self.side_length)
     }
 
     fn set_orientation_cache(&mut self, cache: WingOrientationCache) {
@@ -612,7 +693,6 @@ impl WingOrbitTable {
         reversed.reverse();
         Some(reversed)
     }
-
 }
 
 impl WingOrbitSetupTemplate {
@@ -635,8 +715,9 @@ impl WingOrbitSetupTemplate {
         let setup_moves = orbit_setup_moves(side_length, representative_row);
         let transitions = orbit_move_transitions(side_length, &positions, &setup_moves);
         let (setup_nodes, start_key, reachable_ordered_triples) =
-            build_setup_table(base_triple, &transitions);
-        let base_plan_template = WingBasePlanTemplate::from_plan(side_length, &positions, &base_plan);
+            build_setup_table(EDGE_WING_POSITION_COUNT, base_triple, &transitions);
+        let base_plan_template =
+            WingBasePlanTemplate::from_plan(side_length, &positions, &base_plan);
 
         Self {
             setup_nodes: Arc::from(setup_nodes),
@@ -658,7 +739,8 @@ impl WingBasePlanTemplate {
                 .expect("representative wing base cubie must stay in the orbit")
         });
 
-        let source_cubies = sources.map(|index| cubie_from_fixed_position(side_length, positions[index]));
+        let source_cubies =
+            sources.map(|index| cubie_from_fixed_position(side_length, positions[index]));
         let destinations = sources.map(|source_index| {
             let source_cubie = cubie_from_fixed_position(side_length, positions[source_index]);
             sources
@@ -749,20 +831,21 @@ impl MiddleOrbitTable {
         let setup_moves = middle_setup_moves(side_length);
         let transitions = middle_move_transitions(side_length, &positions, &setup_moves);
         let (setup_nodes, start_key, reachable_ordered_triples) =
-            build_setup_table_with_base(EDGE_MIDDLE_POSITION_COUNT, base_triple, &transitions);
-        let inverse_base_plan = base_plan.inverted();
+            build_setup_table(EDGE_MIDDLE_POSITION_COUNT, base_triple, &transitions);
+        let planner = OrbitCyclePlanner::new(
+            positions.len(),
+            setup_moves,
+            Arc::from(setup_nodes),
+            start_key,
+            base_plan,
+        );
 
         let mut this = Self {
             side_length,
             positions,
             slot_positions,
             target_slot_index,
-            setup_moves,
-            setup_nodes,
-            start_key,
-            base_plan,
-            inverse_base_plan,
-            plan_cache: HashMap::new(),
+            planner,
             orientation_generators: Vec::new(),
             orientation_masks: Vec::new(),
             orientation_nodes: Vec::new(),
@@ -799,82 +882,9 @@ impl MiddleOrbitTable {
             .collect()
     }
 
-    fn plan_for_cycle(&mut self, ordered_positions: [usize; 3]) -> Option<&EdgeThreeCyclePlan> {
-        let direct_key = encode_triple_with_base(EDGE_MIDDLE_POSITION_COUNT, ordered_positions);
-        if self
-            .setup_nodes
-            .get(direct_key)
-            .and_then(|node| *node)
-            .is_some()
-        {
-            return self.plan_for_encoded_cycle(direct_key, false);
-        }
-
-        let reverse_key = encode_triple_with_base(
-            EDGE_MIDDLE_POSITION_COUNT,
-            [
-                ordered_positions[0],
-                ordered_positions[2],
-                ordered_positions[1],
-            ],
-        );
-        if self
-            .setup_nodes
-            .get(reverse_key)
-            .and_then(|node| *node)
-            .is_some()
-        {
-            return self.plan_for_encoded_cycle(reverse_key, true);
-        }
-
-        None
-    }
-
-    fn plan_for_encoded_cycle(
-        &mut self,
-        setup_key: usize,
-        use_inverse_base: bool,
-    ) -> Option<&EdgeThreeCyclePlan> {
-        let cache_key = setup_key * 2 + usize::from(use_inverse_base);
-        if !self.plan_cache.contains_key(&cache_key) {
-            let setup_moves = self.reconstruct_setup_moves(setup_key)?;
-            let base_plan = if use_inverse_base {
-                &self.inverse_base_plan
-            } else {
-                &self.base_plan
-            };
-
-            let plan = base_plan.conjugated_by_moves(&setup_moves);
-            let actual = plan.cubies().map(|cubie| {
-                position_index(
-                    &self.positions,
-                    fixed_edge_position(self.side_length, cubie),
-                )
-                .expect("cached middle-edge cubie must stay in orbit")
-            });
-            let expected = decode_triple_with_base(EDGE_MIDDLE_POSITION_COUNT, setup_key);
-            if !same_cyclic_order(actual, expected) {
-                return None;
-            }
-
-            self.plan_cache.insert(cache_key, plan);
-        }
-
-        self.plan_cache.get(&cache_key)
-    }
-
-    fn reconstruct_setup_moves(&self, target_key: usize) -> Option<Vec<Move>> {
-        let mut current_key = target_key;
-        let mut reversed = Vec::new();
-
-        while current_key != self.start_key {
-            let node = self.setup_nodes.get(current_key).and_then(|entry| *entry)?;
-            reversed.push(self.setup_moves[node.move_index as usize]);
-            current_key = node.prev as usize;
-        }
-
-        reversed.reverse();
-        Some(reversed)
+    fn plan_for_cycle(&mut self, cycle: OrbitThreeCycleSpec) -> Option<&EdgeThreeCyclePlan> {
+        self.planner
+            .plan_for_cycle(cycle, &self.positions, self.side_length)
     }
 
     fn build_orientation_cache(&mut self, slot_setups: &EdgeSlotSetupTable) {
@@ -1601,9 +1611,10 @@ fn permutation_is_identity(permutation: &[usize]) -> bool {
         .all(|(index, target)| index == *target)
 }
 
-fn ordered_three_cycles_for_assignment(assignment: &[usize]) -> Option<Vec<[usize; 3]>> {
+fn ordered_three_cycles_for_assignment(assignment: &[usize]) -> Option<Vec<OrbitThreeCycleSpec>> {
     let mut piece_at_position = assignment.to_vec();
     let mut cycles = Vec::new();
+    let position_count = assignment.len();
 
     while piece_at_position
         .iter()
@@ -1611,7 +1622,7 @@ fn ordered_three_cycles_for_assignment(assignment: &[usize]) -> Option<Vec<[usiz
         .any(|(position, piece)| position != *piece)
     {
         if let Some(cycle) = first_cycle_with_min_len(&piece_at_position, 3) {
-            let triple = [cycle[0], cycle[1], cycle[2]];
+            let triple = OrbitThreeCycleSpec::new(position_count, [cycle[0], cycle[1], cycle[2]]);
             apply_ordered_three_cycle(&mut piece_at_position, triple);
             cycles.push(triple);
             continue;
@@ -1627,8 +1638,8 @@ fn ordered_three_cycles_for_assignment(assignment: &[usize]) -> Option<Vec<[usiz
 
         let [a, b] = two_cycles[0];
         let [c, d] = two_cycles[1];
-        let first = [a, c, b];
-        let second = [c, b, d];
+        let first = OrbitThreeCycleSpec::new(position_count, [a, c, b]);
+        let second = OrbitThreeCycleSpec::new(position_count, [c, b, d]);
         apply_ordered_three_cycle(&mut piece_at_position, first);
         apply_ordered_three_cycle(&mut piece_at_position, second);
         cycles.push(first);
@@ -1684,8 +1695,10 @@ fn collect_two_cycles(piece_at_position: &[usize]) -> Vec<[usize; 2]> {
     pairs
 }
 
-fn apply_ordered_three_cycle(piece_at_position: &mut [usize], cycle: [usize; 3]) {
-    let [first, second, third] = cycle;
+fn apply_ordered_three_cycle(piece_at_position: &mut [usize], cycle: OrbitThreeCycleSpec) {
+    debug_assert_eq!(cycle.position_count, piece_at_position.len());
+
+    let [first, second, third] = cycle.ordered_positions();
     let first_piece = piece_at_position[first];
     piece_at_position[first] = piece_at_position[third];
     piece_at_position[third] = piece_at_position[second];
@@ -1792,7 +1805,9 @@ fn edge_transfer_orientation(
     }
 
     match (mapped_first?, mapped_second?) {
-        (first, second) if first == destination_first && second == destination_second => Some(false),
+        (first, second) if first == destination_first && second == destination_second => {
+            Some(false)
+        }
         (first, second) if first == destination_second && second == destination_first => Some(true),
         _ => None,
     }
@@ -1887,7 +1902,10 @@ fn wing_orbit_positions(side_length: usize, row: usize) -> Vec<FixedEdgePosition
     );
     assert!(row > 0 && row + 1 < side_length, "wing row must be inner");
     if side_length % 2 == 1 {
-        assert!(row != side_length / 2, "wing row cannot be the odd middle layer");
+        assert!(
+            row != side_length / 2,
+            "wing row cannot be the odd middle layer"
+        );
     }
 
     let last = side_length - 1;
@@ -2055,26 +2073,12 @@ fn orbit_move_transitions(
     positions: &[FixedEdgePosition],
     setup_moves: &[Move],
 ) -> Vec<[u8; EDGE_WING_POSITION_COUNT]> {
-    setup_moves
-        .iter()
-        .copied()
-        .map(|mv| {
-            let mut next = [0u8; EDGE_WING_POSITION_COUNT];
-            for (index, position) in positions.iter().copied().enumerate() {
-                let cubie = cubie_from_fixed_position(side_length, position);
-                let traced = fixed_edge_position(
-                    side_length,
-                    trace_edge_cubie_through_move(side_length, cubie, mv),
-                );
-                next[index] = position_index(positions, traced).unwrap_or_else(|| {
-                    panic!(
-                        "setup move must preserve orbit: n={side_length}, mv={mv}, position={position:?}, traced={traced:?}",
-                    )
-                }) as u8;
-            }
-            next
-        })
-        .collect()
+    move_transitions_for_positions::<EDGE_WING_POSITION_COUNT>(
+        side_length,
+        positions,
+        setup_moves,
+        "setup move must preserve orbit",
+    )
 }
 
 fn middle_move_transitions(
@@ -2082,11 +2086,31 @@ fn middle_move_transitions(
     positions: &[FixedEdgePosition],
     setup_moves: &[Move],
 ) -> Vec<[u8; EDGE_MIDDLE_POSITION_COUNT]> {
+    move_transitions_for_positions::<EDGE_MIDDLE_POSITION_COUNT>(
+        side_length,
+        positions,
+        setup_moves,
+        "middle setup move must preserve orbit",
+    )
+}
+
+fn move_transitions_for_positions<const POSITION_COUNT: usize>(
+    side_length: usize,
+    positions: &[FixedEdgePosition],
+    setup_moves: &[Move],
+    context: &'static str,
+) -> Vec<[u8; POSITION_COUNT]> {
+    assert_eq!(
+        positions.len(),
+        POSITION_COUNT,
+        "orbit transition builder position count mismatch",
+    );
+
     setup_moves
         .iter()
         .copied()
         .map(|mv| {
-            let mut next = [0u8; EDGE_MIDDLE_POSITION_COUNT];
+            let mut next = [0u8; POSITION_COUNT];
             for (index, position) in positions.iter().copied().enumerate() {
                 let cubie = cubie_from_fixed_position(side_length, position);
                 let traced = fixed_edge_position(
@@ -2095,7 +2119,7 @@ fn middle_move_transitions(
                 );
                 next[index] = position_index(positions, traced).unwrap_or_else(|| {
                     panic!(
-                        "middle setup move must preserve orbit: n={side_length}, mv={mv}, position={position:?}, traced={traced:?}",
+                        "{context}: n={side_length}, mv={mv}, position={position:?}, traced={traced:?}",
                     )
                 }) as u8;
             }
@@ -2104,52 +2128,12 @@ fn middle_move_transitions(
         .collect()
 }
 
-fn build_setup_table(
-    start_triple: [usize; 3],
-    transitions: &[[u8; EDGE_WING_POSITION_COUNT]],
-) -> (Vec<Option<SetupNode>>, usize, usize) {
-    let mut nodes = vec![None; EDGE_TRIPLE_STATE_COUNT];
-    let start_key = encode_triple(start_triple);
-    nodes[start_key] = Some(SetupNode {
-        prev: start_key as u16,
-        move_index: u8::MAX,
-    });
-
-    let mut queue = VecDeque::new();
-    queue.push_back(start_triple.map(|index| index as u8));
-    let mut visited = 1usize;
-
-    while let Some(state) = queue.pop_front() {
-        let state_key = encode_triple(state.map(usize::from));
-        for (move_index, transition) in transitions.iter().enumerate() {
-            let next = [
-                transition[state[0] as usize],
-                transition[state[1] as usize],
-                transition[state[2] as usize],
-            ];
-            let next_key = encode_triple(next.map(usize::from));
-            if nodes[next_key].is_some() {
-                continue;
-            }
-
-            nodes[next_key] = Some(SetupNode {
-                prev: state_key as u16,
-                move_index: move_index as u8,
-            });
-            visited += 1;
-            queue.push_back(next);
-        }
-    }
-
-    (nodes, start_key, visited)
-}
-
-fn build_setup_table_with_base(
+fn build_setup_table<const POSITION_COUNT: usize>(
     position_count: usize,
     start_triple: [usize; 3],
-    transitions: &[[u8; EDGE_MIDDLE_POSITION_COUNT]],
+    transitions: &[[u8; POSITION_COUNT]],
 ) -> (Vec<Option<SetupNode>>, usize, usize) {
-    let mut nodes = vec![None; EDGE_MIDDLE_TRIPLE_STATE_COUNT];
+    let mut nodes = vec![None; position_count * position_count * position_count];
     let start_key = encode_triple_with_base(position_count, start_triple);
     nodes[start_key] = Some(SetupNode {
         prev: start_key as u16,
@@ -2195,14 +2179,6 @@ fn encode_triple_with_base(base: usize, triple: [usize; 3]) -> usize {
     triple[0] * base * base + triple[1] * base + triple[2]
 }
 
-fn decode_triple(value: usize) -> [usize; 3] {
-    [
-        value / (EDGE_WING_POSITION_COUNT * EDGE_WING_POSITION_COUNT),
-        (value / EDGE_WING_POSITION_COUNT) % EDGE_WING_POSITION_COUNT,
-        value % EDGE_WING_POSITION_COUNT,
-    ]
-}
-
 fn decode_triple_with_base(base: usize, value: usize) -> [usize; 3] {
     [value / (base * base), (value / base) % base, value % base]
 }
@@ -2215,6 +2191,18 @@ fn same_cyclic_order(left: [usize; 3], right: [usize; 3]) -> bool {
 
 fn position_index(positions: &[FixedEdgePosition], target: FixedEdgePosition) -> Option<usize> {
     positions.iter().position(|position| *position == target)
+}
+
+fn plan_cubie_positions_in_orbit(
+    side_length: usize,
+    positions: &[FixedEdgePosition],
+    cubies: &[EdgeCubieLocation; 3],
+) -> Option<[usize; 3]> {
+    let mut mapped = [0usize; 3];
+    for (index, cubie) in cubies.iter().copied().enumerate() {
+        mapped[index] = position_index(positions, fixed_edge_position(side_length, cubie))?;
+    }
+    Some(mapped)
 }
 
 fn inverted_moves(moves: &[Move]) -> Vec<Move> {
@@ -2636,6 +2624,13 @@ mod tests {
     }
 
     #[test]
+    fn orbit_three_cycle_spec_validates_positions() {
+        assert!(OrbitThreeCycleSpec::try_new(24, [0, 1, 2]).is_some());
+        assert!(OrbitThreeCycleSpec::try_new(24, [0, 0, 2]).is_none());
+        assert!(OrbitThreeCycleSpec::try_new(24, [0, 1, 24]).is_none());
+    }
+
+    #[test]
     fn edge_stage_replays_to_the_same_full_cube_state() {
         for side_length in 4..=8 {
             for seed in [0xED63_AAA1u64, 0xE442_9A7Eu64] {
@@ -2676,6 +2671,20 @@ mod tests {
     }
 
     #[test]
+    fn edge_stage_pairs_random_scrambles_for_sizes_three_to_five() {
+        for side_length in 3..=5 {
+            for seed in [
+                0xE005_0001u64,
+                0xE005_0002u64,
+                0xE005_0003u64,
+                0xE005_0004u64,
+            ] {
+                run_edge_stage_for_storage::<Byte>(side_length, seed ^ side_length as u64);
+            }
+        }
+    }
+
+    #[test]
     fn edge_stage_solves_wings_to_home_slots_on_odd_cubes() {
         for side_length in [5usize, 7] {
             run_edge_stage_for_storage::<Byte>(side_length, 0xE000_1000 ^ side_length as u64);
@@ -2705,8 +2714,10 @@ mod tests {
                 let positions = wing_orbit_positions(side_length, row);
                 let moves = orbit_setup_moves(side_length, row);
                 let transitions = orbit_move_transitions(side_length, &positions, &moves);
-                let plan =
-                    EdgeThreeCyclePlan::from_cycle(side_length, EdgeThreeCycle::front_right_wing(row));
+                let plan = EdgeThreeCyclePlan::from_cycle(
+                    side_length,
+                    EdgeThreeCycle::front_right_wing(row),
+                );
                 let key = encode_triple(plan.cubies().map(|cubie| {
                     position_index(&positions, fixed_edge_position(side_length, cubie))
                         .expect("row-specific base cubie must stay in the orbit")
@@ -2801,7 +2812,8 @@ mod tests {
         let row = 1;
         let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
         cube.apply_moves_untracked_with_threads(wing_row_parity_fix_moves(side_length, row), 1);
-        let orbit = WingOrbitTable::new(side_length, row, &WingOrbitSetupTemplate::new(side_length));
+        let orbit =
+            WingOrbitTable::new(side_length, row, &WingOrbitSetupTemplate::new(side_length));
         let view = EdgeScanView::from_cube(&cube);
         for slot in EdgeSlot::ALL {
             let expected = if slot == EdgeSlot::FR {
@@ -2915,32 +2927,43 @@ mod tests {
 
     #[test]
     fn generated_wing_setup_plans_match_literal_moves_on_full_cube_state() {
-        let side_length = 4;
-        let mut orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
-        let position_count = orbit.positions.len();
+        for side_length in 4..=5 {
+            let setup_template = WingOrbitSetupTemplate::new(side_length);
+            for row in 1..=(side_length - 2) / 2 {
+                let mut orbit = WingOrbitTable::new(side_length, row, &setup_template);
+                let position_count = orbit.positions.len();
 
-        for first in 0..position_count {
-            for second in 0..position_count {
-                if second == first {
-                    continue;
-                }
-                for third in 0..position_count {
-                    if third == first || third == second {
-                        continue;
+                for first in 0..position_count {
+                    for second in 0..position_count {
+                        if second == first {
+                            continue;
+                        }
+                        for third in 0..position_count {
+                            if third == first || third == second {
+                                continue;
+                            }
+
+                            let cycle =
+                                OrbitThreeCycleSpec::new(position_count, [first, second, third]);
+                            let plan = orbit
+                                .plan_for_cycle(cycle)
+                                .expect("every ordered wing triple must have a plan")
+                                .clone();
+
+                            let mut expected =
+                                patterned_cube::<Byte>(side_length, 41 + row * 7 + side_length);
+                            expected.apply_moves_untracked_with_threads(
+                                plan.moves().iter().copied(),
+                                1,
+                            );
+
+                            let mut actual =
+                                patterned_cube::<Byte>(side_length, 41 + row * 7 + side_length);
+                            actual.apply_edge_three_cycle_plan_untracked(&plan);
+
+                            assert_cubes_match(&actual, &expected);
+                        }
                     }
-
-                    let plan = orbit
-                        .plan_for_cycle([first, second, third])
-                        .expect("every ordered wing triple must have a plan")
-                        .clone();
-
-                    let mut expected = patterned_cube::<Byte>(side_length, 41);
-                    expected.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
-
-                    let mut actual = patterned_cube::<Byte>(side_length, 41);
-                    actual.apply_edge_three_cycle_plan_untracked(&plan);
-
-                    assert_cubes_match(&actual, &expected);
                 }
             }
         }
@@ -2948,33 +2971,37 @@ mod tests {
 
     #[test]
     fn generated_middle_setup_plans_match_literal_moves_on_full_cube_state() {
-        let side_length = 5;
-        let slot_setups = EdgeSlotSetupTable::new(side_length);
-        let mut orbit = MiddleOrbitTable::new(side_length, &slot_setups);
-        let position_count = orbit.positions.len();
+        for side_length in [3usize, 5] {
+            let slot_setups = EdgeSlotSetupTable::new(side_length);
+            let mut orbit = MiddleOrbitTable::new(side_length, &slot_setups);
+            let position_count = orbit.positions.len();
 
-        for first in 0..position_count {
-            for second in 0..position_count {
-                if second == first {
-                    continue;
-                }
-                for third in 0..position_count {
-                    if third == first || third == second {
+            for first in 0..position_count {
+                for second in 0..position_count {
+                    if second == first {
                         continue;
                     }
+                    for third in 0..position_count {
+                        if third == first || third == second {
+                            continue;
+                        }
 
-                    let plan = orbit
-                        .plan_for_cycle([first, second, third])
-                        .expect("every ordered middle triple must have a plan")
-                        .clone();
+                        let cycle =
+                            OrbitThreeCycleSpec::new(position_count, [first, second, third]);
+                        let plan = orbit
+                            .plan_for_cycle(cycle)
+                            .expect("every ordered middle triple must have a plan")
+                            .clone();
 
-                    let mut expected = patterned_cube::<Byte>(side_length, 53);
-                    expected.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+                        let mut expected = patterned_cube::<Byte>(side_length, 53 + side_length);
+                        expected
+                            .apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
 
-                    let mut actual = patterned_cube::<Byte>(side_length, 53);
-                    actual.apply_edge_three_cycle_plan_untracked(&plan);
+                        let mut actual = patterned_cube::<Byte>(side_length, 53 + side_length);
+                        actual.apply_edge_three_cycle_plan_untracked(&plan);
 
-                    assert_cubes_match(&actual, &expected);
+                        assert_cubes_match(&actual, &expected);
+                    }
                 }
             }
         }
