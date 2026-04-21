@@ -2862,6 +2862,60 @@ mod tests {
     }
 
     #[test]
+    fn middle_edge_precheck_style_sequence_only_changes_edge_locations() {
+        let n = 5;
+        let middle = n / 2;
+        let mut moves = Vec::new();
+        moves.push(face_layer_move(n, FaceId::D, middle, MoveAngle::Positive));
+        moves.extend(flip_right_edge_moves(n));
+        moves.push(face_layer_move(n, FaceId::D, middle, MoveAngle::Negative));
+        moves.extend(unflip_right_edge_moves(n));
+
+        let updates = move_sequence_updates(n, &moves).expect("probe sequence must be valid");
+        assert!(!updates.is_empty());
+        assert!(
+            updates
+                .iter()
+                .all(|update| edge_cubie_location(n, update.from).is_some()
+                    && edge_cubie_location(n, update.to).is_some()),
+            "precheck-style sequence must stay edge-only",
+        );
+    }
+
+    #[test]
+    fn parity_fix_style_sequence_only_changes_edge_locations() {
+        let n = 6;
+        let row = 1usize;
+        let moves = vec![
+            face_layer_move(n, FaceId::D, row, MoveAngle::Negative),
+            face_layer_move(n, FaceId::R, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::U, row, MoveAngle::Positive),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::U, row, MoveAngle::Negative),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::D, row, MoveAngle::Double),
+            face_layer_move(n, FaceId::R, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::D, row, MoveAngle::Positive),
+            face_layer_move(n, FaceId::R, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::D, row, MoveAngle::Negative),
+            face_layer_move(n, FaceId::R, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Double),
+            face_layer_move(n, FaceId::D, row, MoveAngle::Double),
+            face_layer_move(n, FaceId::F, 0, MoveAngle::Double),
+        ];
+
+        let updates = move_sequence_updates(n, &moves).expect("probe sequence must be valid");
+        assert!(!updates.is_empty());
+        assert!(
+            updates
+                .iter()
+                .any(|update| edge_cubie_location(n, update.from).is_none()
+                    || edge_cubie_location(n, update.to).is_none()),
+            "parity-fix sequence is expected to touch non-edge locations and must stay as literal moves",
+        );
+    }
+
+    #[test]
     fn direct_face_commutators_work_for_all_storage_backends() {
         let side_length = 7;
         let rows = [1usize, 4];

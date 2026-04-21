@@ -119,13 +119,13 @@ impl Default for EdgePairingStage {
                 ),
                 SubStageSpec::new(
                     SolvePhase::Edges,
-                    "edge pairing cycles",
-                    "reduce each wing orbit to paired edge bands using exact sparse three-cycles",
+                    "edge wing cycles",
+                    "solve each wing orbit to the home edge-slot colors using exact sparse three-cycles",
                 ),
                 SubStageSpec::new(
                     SolvePhase::Edges,
-                    "reduced edge validation",
-                    "verify that every wing orbit matches the reduced edge target colors",
+                    "edge wing validation",
+                    "verify that every wing orbit matches the solved edge-slot colors",
                 ),
             ],
             cache: None,
@@ -171,10 +171,7 @@ impl<S: FaceletArray> SolverStage<S> for EdgePairingStage {
             return Ok(());
         }
 
-        let slot_keys = reduced_edge_slot_keys(cube).ok_or(SolveError::StageFailed {
-            stage: "edge pairing",
-            reason: "could not derive reduced edge slot colors",
-        })?;
+        let slot_keys = solved_edge_slot_keys();
         let cache = self.ensure_cache(cube.side_len());
 
         for orbit in &mut cache.wing_orbits {
@@ -182,12 +179,12 @@ impl<S: FaceletArray> SolverStage<S> for EdgePairingStage {
         }
 
         let view = EdgeScanView::from_cube(cube);
-        if reduced_wings_are_paired(cache, &view, &slot_keys) {
+        if wings_match_solved_slots(cache, &view, &slot_keys) {
             Ok(())
         } else {
             Err(SolveError::StageFailed {
                 stage: "edge pairing",
-                reason: "wing pairing left a reduced edge orbit unsolved",
+                reason: "wing solving left a home edge-slot orbit unsolved",
             })
         }
     }
@@ -518,7 +515,7 @@ fn solve_wing_orbit<S: FaceletArray>(
     }
 }
 
-fn reduced_wings_are_paired(
+fn wings_match_solved_slots(
     cache: &PreparedEdgeStage,
     view: &EdgeScanView,
     slot_keys: &[EdgeColorKey; 12],
@@ -715,32 +712,13 @@ fn apply_ordered_three_cycle(piece_at_position: &mut [usize], cycle: [usize; 3])
     piece_at_position[second] = first_piece;
 }
 
-fn reduced_edge_slot_keys<S: FaceletArray>(cube: &Cube<S>) -> Option<[EdgeColorKey; 12]> {
-    if cube.side_len() % 2 == 0 {
-        return Some(EdgeSlot::ALL.map(EdgeSlot::solved_key));
-    }
+fn solved_edge_slot_keys() -> [EdgeColorKey; 12] {
+    EdgeSlot::ALL.map(EdgeSlot::solved_key)
+}
 
-    let view = EdgeScanView::from_cube(cube);
-    let middle = cube.side_len() / 2;
-    let middle_positions = enumerate_edge_orbit_positions(cube.side_len(), middle);
-    if middle_positions.len() != EdgeSlot::ALL.len() {
-        return None;
-    }
-
-    let mut slot_keys = EdgeSlot::ALL.map(EdgeSlot::solved_key);
-    let mut counts = [0usize; 12];
-    for position in middle_positions {
-        let slot = slot_of_position(position);
-        slot_keys[slot.index()] =
-            read_edge_key_from_view(&view, cube.side_len(), cubie_from_fixed_position(cube.side_len(), position));
-        counts[slot.index()] += 1;
-    }
-
-    if counts == [1; 12] {
-        Some(slot_keys)
-    } else {
-        None
-    }
+#[cfg(test)]
+fn home_facelet_for_face(face: FaceId) -> Facelet {
+    Facelet::from_u8(face.index() as u8)
 }
 
 fn read_edge_key_from_view(
@@ -1030,7 +1008,7 @@ mod tests {
                 replay.apply_moves_untracked_with_threads(context.moves().iter().copied(), 1);
 
                 assert_cubes_match(&cube, &replay);
-                assert!(stage_reduced_wings_are_paired(&cube));
+                assert!(stage_wings_match_solved_slots(&cube));
             }
         }
     }
@@ -1041,6 +1019,34 @@ mod tests {
         run_edge_stage_for_storage::<Byte3>(6, 0xE000_0002);
         run_edge_stage_for_storage::<Nibble>(6, 0xE000_0003);
         run_edge_stage_for_storage::<ThreeBit>(6, 0xE000_0004);
+    }
+
+    #[test]
+    fn edge_stage_solves_wings_to_home_slots_on_odd_cubes() {
+        for side_length in [5usize, 7] {
+            run_edge_stage_for_storage::<Byte>(side_length, 0xE000_1000 ^ side_length as u64);
+        }
+    }
+
+    #[test]
+    fn edge_stage_does_not_claim_to_solve_odd_middle_edges() {
+        let side_length = 5;
+        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        cube.apply_edge_three_cycle_untracked(EdgeThreeCycle::front_right_middle(
+            crate::cube::EdgeThreeCycleDirection::Positive,
+        ));
+
+        let mut stage = EdgePairingStage::default();
+        let mut context = SolveContext::new(super::super::SolveOptions {
+            thread_count: 1,
+            record_moves: false,
+        });
+
+        <EdgePairingStage as SolverStage<Byte>>::run(&mut stage, &mut cube, &mut context)
+            .expect("wing stage should still succeed");
+
+        assert!(stage_wings_match_solved_slots(&cube));
+        assert!(!middle_edges_match_home_slots(&cube));
     }
 
     #[test]
@@ -1221,15 +1227,32 @@ mod tests {
         <EdgePairingStage as SolverStage<S>>::run(&mut stage, &mut cube, &mut context)
             .unwrap_or_else(|error| panic!("edge stage failed for n={side_length}: {error}"));
 
-        assert!(stage_reduced_wings_are_paired(&cube));
+        assert!(stage_wings_match_solved_slots(&cube));
     }
 
-    fn stage_reduced_wings_are_paired<S: FaceletArray>(cube: &Cube<S>) -> bool {
-        let Some(slot_keys) = reduced_edge_slot_keys(cube) else {
-            return false;
-        };
+    fn stage_wings_match_solved_slots<S: FaceletArray>(cube: &Cube<S>) -> bool {
+        let slot_keys = solved_edge_slot_keys();
         let cache = PreparedEdgeStage::new(cube.side_len());
-        reduced_wings_are_paired(&cache, &EdgeScanView::from_cube(cube), &slot_keys)
+        wings_match_solved_slots(&cache, &EdgeScanView::from_cube(cube), &slot_keys)
+    }
+
+    fn middle_edges_match_home_slots<S: FaceletArray>(cube: &Cube<S>) -> bool {
+        if cube.side_len() < 3 || cube.side_len() % 2 == 0 {
+            return true;
+        }
+
+        let side_length = cube.side_len();
+        let middle = side_length / 2;
+        let view = EdgeScanView::from_cube(cube);
+
+        enumerate_edge_orbit_positions(side_length, middle)
+            .into_iter()
+            .all(|position| {
+                let cubie = cubie_from_fixed_position(side_length, position);
+                let [first, second] = cubie.stickers();
+                view.get(first, side_length) == home_facelet_for_face(first.face)
+                    && view.get(second, side_length) == home_facelet_for_face(second.face)
+            })
     }
 
     fn assert_cubes_match<S: FaceletArray>(left: &Cube<S>, right: &Cube<S>) {
