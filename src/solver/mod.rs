@@ -1574,6 +1574,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn generated_center_schedule_matches_normalized_sparse_updates() {
+        let cube = Cube::<Byte>::new_solved_with_threads(9, 1);
+        let table = CenterCommutatorTable::new();
+        let row = 2usize;
+        let column = 5usize;
+
+        for step in GENERATED_CENTER_SCHEDULE.iter().copied() {
+            let commutator = table
+                .get(step.destination, step.helper, step.angle)
+                .expect("generated step must have a commutator");
+            let updates = cube.normalized_face_commutator_sparse_updates(commutator, row, column);
+            let transfer = updates
+                .into_iter()
+                .find(|update| {
+                    update.from.face == step.source && update.to.face == step.destination
+                })
+                .expect("generated step must correspond to a source->destination sparse update");
+
+            let expected_source = step.source_location.eval(cube.side_len(), row, column);
+            let expected_destination = step.destination_location.eval(cube.side_len(), row, column);
+
+            assert_eq!(transfer.from.face, expected_source.face);
+            assert_eq!(transfer.from.row, expected_source.row);
+            assert_eq!(transfer.from.col, expected_source.column);
+            assert_eq!(transfer.to.face, expected_destination.face);
+            assert_eq!(transfer.to.row, expected_destination.row);
+            assert_eq!(transfer.to.col, expected_destination.column);
+        }
+    }
+
     fn center_schedule_sort_key(
         step: CenterScheduleStep,
     ) -> (usize, usize, usize, usize, usize, usize, usize, usize) {

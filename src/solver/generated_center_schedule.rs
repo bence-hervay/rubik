@@ -208,12 +208,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Double,
         source_location: Location {
             face: U,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: D,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },
@@ -224,12 +224,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Double,
         source_location: Location {
             face: U,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: D,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -241,12 +241,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: U,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: D,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -257,12 +257,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: U,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: D,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -272,13 +272,13 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Negative,
         source_location: Location {
             face: R,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: D,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -288,13 +288,13 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Positive,
         source_location: Location {
             face: R,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: D,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -304,13 +304,13 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Positive,
         source_location: Location {
             face: L,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: D,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -320,13 +320,13 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Negative,
         source_location: Location {
             face: L,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: D,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -336,12 +336,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Positive,
         source_location: Location {
             face: F,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: D,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },
@@ -352,12 +352,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Negative,
         source_location: Location {
             face: F,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: D,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -368,12 +368,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Negative,
         source_location: Location {
             face: B,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: D,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },
@@ -384,12 +384,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Positive,
         source_location: Location {
             face: B,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: D,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -593,11 +593,11 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: U,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: L,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },
@@ -609,11 +609,11 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: U,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: L,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -625,11 +625,11 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: D,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: L,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },
@@ -641,11 +641,11 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: D,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: L,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -657,12 +657,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: R,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: L,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -673,12 +673,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: R,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: L,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -688,12 +688,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Double,
         source_location: Location {
             face: R,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: L,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },
@@ -704,12 +704,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Double,
         source_location: Location {
             face: R,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: L,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -721,12 +721,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: F,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: L,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -737,12 +737,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: F,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: L,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -753,12 +753,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: B,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: L,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -769,12 +769,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: B,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: L,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -976,12 +976,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Negative,
         source_location: Location {
             face: U,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: B,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -992,12 +992,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Positive,
         source_location: Location {
             face: U,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: B,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },
@@ -1008,12 +1008,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Positive,
         source_location: Location {
             face: D,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: B,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -1024,12 +1024,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Negative,
         source_location: Location {
             face: D,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: B,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },
@@ -1041,12 +1041,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: R,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: B,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -1057,12 +1057,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: R,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: B,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -1073,12 +1073,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: L,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: B,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -1089,12 +1089,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: L,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: B,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -1105,12 +1105,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: F,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
         destination_location: Location {
             face: B,
             row: Column,
-            column: ReverseRow,
+            column: Row,
         },
     },
     Step {
@@ -1121,12 +1121,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         source_location: Location {
             face: F,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
         destination_location: Location {
             face: B,
             row: ReverseColumn,
-            column: Row,
+            column: ReverseRow,
         },
     },
     Step {
@@ -1136,12 +1136,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Double,
         source_location: Location {
             face: F,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
         destination_location: Location {
             face: B,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
     },
@@ -1152,12 +1152,12 @@ pub const GENERATED_CENTER_SCHEDULE: &[Step] = &[
         angle: Double,
         source_location: Location {
             face: F,
-            row: Row,
+            row: ReverseRow,
             column: Column,
         },
         destination_location: Location {
             face: B,
-            row: ReverseRow,
+            row: Row,
             column: ReverseColumn,
         },
     },

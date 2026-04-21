@@ -32,11 +32,12 @@ fn generate() -> String {
 
             for angle in MoveAngle::ALL {
                 let commutator = FaceCommutator::new(destination, helper, angle);
-                for update in
-                    cube.face_commutator_sparse_updates(commutator, TEMPLATE_ROW, TEMPLATE_COLUMN)
-                {
-                    let final_destination = normalized_destination(destination, update.to);
-                    if final_destination.face != destination || update.from.face == destination {
+                for update in cube.normalized_face_commutator_sparse_updates(
+                    commutator,
+                    TEMPLATE_ROW,
+                    TEMPLATE_COLUMN,
+                ) {
+                    if update.to.face != destination || update.from.face == destination {
                         continue;
                     }
 
@@ -46,7 +47,7 @@ fn generate() -> String {
                         helper,
                         angle,
                         source_location: location_expr(update.from),
-                        destination_location: location_expr(final_destination),
+                        destination_location: location_expr(update.to),
                     });
                 }
             }
@@ -116,24 +117,6 @@ fn render(steps: &[CenterScheduleStep]) -> String {
     out
 }
 
-fn normalized_destination(destination: FaceId, location: FaceletLocation) -> FaceletLocation {
-    if location.face != destination {
-        return location;
-    }
-
-    let (row, col) = rotate_face_location(
-        location.row,
-        location.col,
-        baseline_destination_angle(destination).inverse(),
-    );
-
-    FaceletLocation {
-        face: location.face,
-        row,
-        col,
-    }
-}
-
 fn location_expr(location: FaceletLocation) -> CenterLocationExpr {
     CenterLocationExpr {
         face: location.face,
@@ -149,21 +132,6 @@ fn coord_expr(value: usize) -> CenterCoordExpr {
         value if value == TEMPLATE_N - 1 - TEMPLATE_ROW => CenterCoordExpr::ReverseRow,
         value if value == TEMPLATE_N - 1 - TEMPLATE_COLUMN => CenterCoordExpr::ReverseColumn,
         _ => panic!("coordinate {value} is not represented by row/column template expressions"),
-    }
-}
-
-fn rotate_face_location(row: usize, column: usize, angle: MoveAngle) -> (usize, usize) {
-    match angle {
-        MoveAngle::Positive => (column, TEMPLATE_N - 1 - row),
-        MoveAngle::Double => (TEMPLATE_N - 1 - row, TEMPLATE_N - 1 - column),
-        MoveAngle::Negative => (TEMPLATE_N - 1 - column, row),
-    }
-}
-
-fn baseline_destination_angle(destination: FaceId) -> MoveAngle {
-    match destination {
-        FaceId::U | FaceId::R | FaceId::F => MoveAngle::Positive,
-        FaceId::D | FaceId::L | FaceId::B => MoveAngle::Negative,
     }
 }
 
