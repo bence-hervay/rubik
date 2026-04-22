@@ -51,6 +51,7 @@ fn recorded_default_pipeline_replays_to_the_same_final_cube_state() {
         let mut cube = scrambled_cube(side_length, 0xC7A6_1000, 80);
         let initial = cube.clone();
         let history_before = cube.history().len();
+        let history_before_moves = initial.history().as_slice().to_vec();
         let mut solver = default_solver(ExecutionMode::Standard);
 
         let outcome = solver.solve(&mut cube).unwrap_or_else(|error| {
@@ -102,11 +103,9 @@ fn recorded_default_pipeline_replays_to_the_same_final_cube_state() {
                 .sum::<usize>(),
             outcome.moves.len(),
         );
-        assert_eq!(cube.history().len(), history_before + outcome.moves.len());
-        assert_eq!(
-            &cube.history().as_slice()[history_before..],
-            outcome.moves.as_slice(),
-        );
+        assert_eq!(outcome.move_stats.total, outcome.moves.len());
+        assert_eq!(cube.history().len(), history_before);
+        assert_eq!(cube.history().as_slice(), history_before_moves.as_slice());
     }
 }
 
@@ -132,6 +131,7 @@ fn unrecorded_default_pipeline_keeps_reported_move_counts_without_storing_moves(
 
     assert!(cube.is_solved(), "pipeline did not solve n={side_length}");
     assert!(outcome.moves.is_empty());
+    assert_eq!(outcome.move_stats.total, total_reported_moves);
     assert_eq!(outcome.reports.len(), 3);
     assert_eq!(
         outcome.reports.last().map(|report| report.moves_after),

@@ -248,6 +248,7 @@ impl StageReport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SolveOutcome {
     pub moves: MoveSequence,
+    pub move_stats: MoveStats,
     pub reports: Vec<StageReport>,
 }
 
@@ -353,8 +354,12 @@ impl SolveContext {
         self.move_stats
     }
 
-    pub fn into_moves(self) -> MoveSequence {
-        self.moves
+    pub fn into_outcome(self, reports: Vec<StageReport>) -> SolveOutcome {
+        SolveOutcome {
+            moves: self.moves,
+            move_stats: self.move_stats,
+            reports,
+        }
     }
 
     pub fn apply_algorithm<S, A>(&mut self, cube: &mut Cube<S>, algorithm: &A)
@@ -393,11 +398,9 @@ impl SolveContext {
 
     pub fn apply_move<S: FaceletArray>(&mut self, cube: &mut Cube<S>, mv: Move) {
         self.move_stats.record(mv, cube.side_len());
+        cube.apply_move_untracked_with_threads(mv, self.options.thread_count);
         if self.execution_mode().records_moves() {
-            cube.apply_move_with_threads(mv, self.options.thread_count);
             self.moves.push(mv);
-        } else {
-            cube.apply_move_untracked_with_threads(mv, self.options.thread_count);
         }
     }
 
@@ -562,10 +565,7 @@ impl<S: FaceletArray + 'static> Solver<S> for ReductionSolver<S> {
             });
         }
 
-        Ok(SolveOutcome {
-            moves: context.into_moves(),
-            reports,
-        })
+        Ok(context.into_outcome(reports))
     }
 }
 
@@ -1340,8 +1340,7 @@ mod tests {
 
         assert_eq!(recorded_context.moves().len(), expected_total);
         assert_eq!(recorded_context.move_stats(), stats);
-        assert_eq!(recorded_cube.history().len(), expected_total);
-        assert_eq!(recorded_cube.history().as_slice(), recorded_context.moves());
+        assert!(recorded_cube.history().is_empty());
         assert!(unrecorded_cube.history().is_empty());
     }
 
@@ -1365,7 +1364,7 @@ mod tests {
                 assert_cubes_match(&optimized, &physical);
                 assert_eq!(context.moves(), &[mv]);
                 assert_eq!(context.move_stats().total, 1);
-                assert_eq!(optimized.history().as_slice(), &[mv]);
+                assert!(optimized.history().is_empty());
             }
         }
     }
@@ -1392,7 +1391,7 @@ mod tests {
         assert_cubes_match(&actual, &expected);
         assert_eq!(context.moves(), &moves);
         assert_eq!(context.move_stats().total, moves.len());
-        assert_eq!(actual.history().as_slice(), &moves);
+        assert!(actual.history().is_empty());
     }
 
     #[test]
@@ -1404,6 +1403,7 @@ mod tests {
                 cube.scramble_random_moves(&mut rng, 120);
                 let initial = cube.clone();
                 let history_before = cube.history().len();
+                let history_before_moves = initial.history().as_slice().to_vec();
 
                 let mut stage = CenterReductionStage::western_default();
                 let mut context = SolveContext::new(SolveOptions {
@@ -1430,11 +1430,8 @@ mod tests {
 
                 assert_cubes_match(&cube, &replay);
                 assert!(centers_are_solved(&cube));
-                assert_eq!(cube.history().len(), history_before + context.moves().len());
-                assert_eq!(
-                    &cube.history().as_slice()[history_before..],
-                    context.moves()
-                );
+                assert_eq!(cube.history().len(), history_before);
+                assert_eq!(cube.history().as_slice(), history_before_moves.as_slice());
             }
         }
     }
@@ -1597,6 +1594,7 @@ mod tests {
             .expect("default stages should run on a solved cube");
 
         assert!(outcome.moves.is_empty());
+        assert_eq!(outcome.move_stats, MoveStats::default());
         assert_eq!(outcome.reports.len(), 3);
         assert_eq!(outcome.reports[0].phase, SolvePhase::Centers);
         assert_eq!(outcome.reports[1].phase, SolvePhase::Corners);

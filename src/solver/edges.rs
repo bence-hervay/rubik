@@ -2647,6 +2647,7 @@ mod tests {
                 cube.scramble_random_moves(&mut rng, 120);
                 let initial = cube.clone();
                 let history_before = cube.history().len();
+                let history_before_moves = initial.history().as_slice().to_vec();
 
                 let mut stage = EdgePairingStage::default();
                 let mut context = SolveContext::new(super::super::SolveOptions {
@@ -2667,11 +2668,8 @@ mod tests {
 
                 assert_cubes_match(&cube, &replay);
                 assert!(stage_wings_match_solved_slots(&cube));
-                assert_eq!(cube.history().len(), history_before + context.moves().len());
-                assert_eq!(
-                    &cube.history().as_slice()[history_before..],
-                    context.moves()
-                );
+                assert_eq!(cube.history().len(), history_before);
+                assert_eq!(cube.history().as_slice(), history_before_moves.as_slice());
             }
         }
     }
