@@ -1,7 +1,7 @@
 use rubik::{
-    Axis, Byte, CenterReductionStage, CornerReductionStage, Cube, EdgePairingStage, ExecutionMode,
-    FaceId, FaceletArray, Move, MoveAngle, ReductionSolver, SolveOptions, SolvePhase, Solver,
-    XorShift64,
+    Axis, Byte, CenterReductionStage, CornerReductionStage, Cube, CubeReachability,
+    EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, ReductionSolver,
+    SolveOptions, SolvePhase, Solver, XorShift64,
 };
 
 fn scrambled_cube(side_length: usize, seed: u64, move_count: usize) -> Cube<Byte> {
@@ -139,4 +139,42 @@ fn unrecorded_default_pipeline_keeps_reported_move_counts_without_storing_moves(
     );
     assert!(total_reported_moves > 0);
     assert_eq!(cube.history().len(), history_before);
+}
+
+#[test]
+fn standard_and_optimized_default_pipelines_reach_the_same_final_cube_state() {
+    for side_length in [4usize, 5] {
+        let initial = scrambled_cube(side_length, 0xC7A6_3000, 80);
+        let mut standard_cube = initial.clone();
+        let mut optimized_cube = initial;
+
+        let mut standard_solver = default_solver(ExecutionMode::Standard);
+        let standard_outcome = standard_solver
+            .solve(&mut standard_cube)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "standard default pipeline failed for n={side_length}: {error}\n{}",
+                    standard_cube.net_string(),
+                )
+            });
+
+        let mut optimized_solver = default_solver(ExecutionMode::Optimized);
+        let optimized_outcome =
+            optimized_solver
+                .solve(&mut optimized_cube)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "optimized default pipeline failed for n={side_length}: {error}\n{}",
+                        optimized_cube.net_string(),
+                    )
+                });
+
+        assert_cubes_match(&standard_cube, &optimized_cube);
+        assert_eq!(
+            standard_outcome.move_stats.total,
+            optimized_outcome.move_stats.total
+        );
+        assert_eq!(standard_cube.reachability(), CubeReachability::Reachable);
+        assert_eq!(optimized_cube.reachability(), CubeReachability::Reachable);
+    }
 }

@@ -168,3 +168,77 @@ impl<S: FaceletArray> Matrix<S> {
         out
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{line::LineKind, Byte, Byte3, Nibble, ThreeBit};
+
+    fn assert_line_io_round_trip<S: FaceletArray>() {
+        let mut matrix = Matrix::<S>::new_filled_with_threads(3, Facelet::White, 1);
+        matrix.set(0, 0, Facelet::White);
+        matrix.set(0, 1, Facelet::Yellow);
+        matrix.set(0, 2, Facelet::Red);
+        matrix.set(1, 0, Facelet::Orange);
+        matrix.set(1, 1, Facelet::Green);
+        matrix.set(1, 2, Facelet::Blue);
+        matrix.set(2, 0, Facelet::Red);
+        matrix.set(2, 1, Facelet::Blue);
+        matrix.set(2, 2, Facelet::White);
+
+        let mut line = LineBuffer::with_len(3, Facelet::White);
+        matrix.read_line_into(LineKind::Row, 1, false, &mut line);
+        assert_eq!(
+            line.as_slice(),
+            &[Facelet::Orange, Facelet::Green, Facelet::Blue]
+        );
+
+        matrix.read_line_into(LineKind::Col, 2, true, &mut line);
+        assert_eq!(
+            line.as_slice(),
+            &[Facelet::White, Facelet::Blue, Facelet::Red]
+        );
+
+        let src = LineBuffer::with_len(3, Facelet::Yellow);
+        matrix.write_line_from(LineKind::Row, 2, false, &src);
+        assert_eq!(matrix.get(2, 0), Facelet::Yellow);
+        assert_eq!(matrix.get(2, 1), Facelet::Yellow);
+        assert_eq!(matrix.get(2, 2), Facelet::Yellow);
+
+        let mut reversed = LineBuffer::with_len(3, Facelet::White);
+        reversed
+            .as_mut_slice()
+            .copy_from_slice(&[Facelet::Green, Facelet::Blue, Facelet::Orange]);
+        matrix.write_line_from(LineKind::Col, 0, true, &reversed);
+        assert_eq!(matrix.get(0, 0), Facelet::Orange);
+        assert_eq!(matrix.get(1, 0), Facelet::Blue);
+        assert_eq!(matrix.get(2, 0), Facelet::Green);
+    }
+
+    #[test]
+    fn matrix_line_io_works_across_storage_backends() {
+        assert_line_io_round_trip::<Byte>();
+        assert_line_io_round_trip::<Byte3>();
+        assert_line_io_round_trip::<Nibble>();
+        assert_line_io_round_trip::<ThreeBit>();
+    }
+
+    #[test]
+    fn matrix_from_storage_fill_and_preview_follow_row_major_layout() {
+        let mut storage = Byte::with_len_with_threads(4, Facelet::White, 1);
+        storage.set(0, Facelet::White);
+        storage.set(1, Facelet::Yellow);
+        storage.set(2, Facelet::Red);
+        storage.set(3, Facelet::Orange);
+
+        let mut matrix = Matrix::from_storage(2, storage);
+        assert_eq!(matrix.get(0, 0), Facelet::White);
+        assert_eq!(matrix.get(0, 1), Facelet::Yellow);
+        assert_eq!(matrix.get(1, 0), Facelet::Red);
+        assert_eq!(matrix.get(1, 1), Facelet::Orange);
+        assert_eq!(matrix.preview_string(), "W Y\nR O\n");
+
+        matrix.fill(Facelet::Blue);
+        assert_eq!(matrix.preview_string(), "B B\nB B\n");
+    }
+}
