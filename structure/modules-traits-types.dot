@@ -30,270 +30,325 @@ digraph {
     ];
 
     "rubik" [label="crate|rubik", fillcolor="#5397c8"]; // "crate" node
-    "rubik::puzzle" [label="pub mod|puzzle", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::layout" [label="pub mod|puzzle::layout", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::layout::geometry" [label="pub(crate) mod|puzzle::layout::geometry", fillcolor="#f8c04c"]; // "mod" node
-    "rubik::puzzle::layout::geometry::Coord3" [label="pub(crate) struct|puzzle::layout::geometry::Coord3", fillcolor="#f8c04c"]; // "struct" node
-    "rubik::puzzle::layout::geometry::Dir3" [label="pub(crate) struct|puzzle::layout::geometry::Dir3", fillcolor="#f8c04c"]; // "struct" node
-    "rubik::puzzle::layout::matrix" [label="pub mod|puzzle::layout::matrix", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::layout::matrix::Matrix" [label="pub struct|puzzle::layout::matrix::Matrix", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::layout::strip" [label="pub mod|puzzle::layout::strip", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::layout::strip::LineBuffer" [label="pub struct|puzzle::layout::strip::LineBuffer", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::layout::strip::LineChunk" [label="pub(crate) struct|puzzle::layout::strip::LineChunk", fillcolor="#f8c04c"]; // "struct" node
-    "rubik::puzzle::layout::strip::LineCycleJob" [label="pub(self) struct|puzzle::layout::strip::LineCycleJob", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::layout::strip::LineCycleRunner" [label="pub(crate) enum|puzzle::layout::strip::LineCycleRunner", fillcolor="#f8c04c"]; // "enum" node
-    "rubik::puzzle::layout::strip::LineCycleShared" [label="pub(crate) struct|puzzle::layout::strip::LineCycleShared", fillcolor="#f8c04c"]; // "struct" node
-    "rubik::puzzle::layout::strip::LineCycleState" [label="pub(self) struct|puzzle::layout::strip::LineCycleState", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::layout::strip::LineKind" [label="pub enum|puzzle::layout::strip::LineKind", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::layout::strip::LineTraversal" [label="pub(crate) struct|puzzle::layout::strip::LineTraversal", fillcolor="#f8c04c"]; // "struct" node
-    "rubik::puzzle::layout::strip::MoveScratch" [label="pub struct|puzzle::layout::strip::MoveScratch", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::layout::strip::StripSpec" [label="pub struct|puzzle::layout::strip::StripSpec", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model" [label="pub mod|puzzle::model", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::model::cube" [label="pub mod|puzzle::model::cube", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::model::cube::BoundCenterCommutator" [label="pub(self) struct|puzzle::model::cube::BoundCenterCommutator", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::model::cube::BoundPositionUpdate" [label="pub(self) struct|puzzle::model::cube::BoundPositionUpdate", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::model::cube::CenterCommutatorTemplate" [label="pub(self) struct|puzzle::model::cube::CenterCommutatorTemplate", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::model::cube::ColorScheme" [label="pub struct|puzzle::model::cube::ColorScheme", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::CoordinateExpr" [label="pub(self) enum|puzzle::model::cube::CoordinateExpr", fillcolor="#db5367"]; // "enum" node
-    "rubik::puzzle::model::cube::CornerCubieLocation" [label="pub struct|puzzle::model::cube::CornerCubieLocation", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::Cube" [label="pub struct|puzzle::model::cube::Cube", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::EdgeCubieLocation" [label="pub struct|puzzle::model::cube::EdgeCubieLocation", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::EdgeThreeCycle" [label="pub struct|puzzle::model::cube::EdgeThreeCycle", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::EdgeThreeCycleDirection" [label="pub enum|puzzle::model::cube::EdgeThreeCycleDirection", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::model::cube::EdgeThreeCycleKind" [label="pub enum|puzzle::model::cube::EdgeThreeCycleKind", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::model::cube::EdgeThreeCyclePlan" [label="pub struct|puzzle::model::cube::EdgeThreeCyclePlan", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::EdgeThreeCycleValidationError" [label="pub enum|puzzle::model::cube::EdgeThreeCycleValidationError", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::model::cube::FaceCommutator" [label="pub struct|puzzle::model::cube::FaceCommutator", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::FaceCommutatorLayers" [label="pub struct|puzzle::model::cube::FaceCommutatorLayers", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::FaceCommutatorMode" [label="pub enum|puzzle::model::cube::FaceCommutatorMode", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::model::cube::FaceCommutatorPlan" [label="pub struct|puzzle::model::cube::FaceCommutatorPlan", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::FaceCommutatorValidationError" [label="pub enum|puzzle::model::cube::FaceCommutatorValidationError", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::model::cube::FacePosition" [label="pub(self) struct|puzzle::model::cube::FacePosition", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::model::cube::FacePositionExpr" [label="pub(self) struct|puzzle::model::cube::FacePositionExpr", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::model::cube::FaceletLocation" [label="pub struct|puzzle::model::cube::FaceletLocation", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::FaceletUpdate" [label="pub struct|puzzle::model::cube::FaceletUpdate", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::cube::LayerSetKind" [label="pub enum|puzzle::model::cube::LayerSetKind", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::model::cube::LayerSetValidationError" [label="pub enum|puzzle::model::cube::LayerSetValidationError", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::model::cube::NetLayer" [label="pub(self) enum|puzzle::model::cube::NetLayer", fillcolor="#db5367"]; // "enum" node
-    "rubik::puzzle::model::cube::PositionUpdateExpr" [label="pub(self) struct|puzzle::model::cube::PositionUpdateExpr", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::model::cube::RawCellStream" [label="pub(self) struct|puzzle::model::cube::RawCellStream", fillcolor="#db5367"]; // "struct" node
-    "rubik::puzzle::model::face" [label="pub mod|puzzle::model::face", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::model::face::Face" [label="pub struct|puzzle::model::face::Face", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::face::FaceAngle" [label="pub struct|puzzle::model::face::FaceAngle", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::model::face::FaceId" [label="pub enum|puzzle::model::face::FaceId", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::model::facelet" [label="pub mod|puzzle::model::facelet", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::model::facelet::Facelet" [label="pub enum|puzzle::model::facelet::Facelet", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::moves" [label="pub mod|puzzle::moves", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::moves::Axis" [label="pub enum|puzzle::moves::Axis", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::moves::Move" [label="pub struct|puzzle::moves::Move", fillcolor="#81c169"]; // "struct" node
-    "rubik::puzzle::moves::MoveAngle" [label="pub enum|puzzle::moves::MoveAngle", fillcolor="#81c169"]; // "enum" node
-    "rubik::puzzle::moves::history" [label="pub mod|puzzle::moves::history", fillcolor="#81c169"]; // "mod" node
-    "rubik::puzzle::moves::history::MoveHistory" [label="pub struct|puzzle::moves::history::MoveHistory", fillcolor="#81c169"]; // "struct" node
-    "rubik::runtime" [label="pub mod|runtime", fillcolor="#81c169"]; // "mod" node
-    "rubik::runtime::random" [label="pub mod|runtime::random", fillcolor="#81c169"]; // "mod" node
-    "rubik::runtime::random::RandomSource" [label="pub trait|runtime::random::RandomSource", fillcolor="#81c169"]; // "trait" node
-    "rubik::runtime::random::XorShift64" [label="pub struct|runtime::random::XorShift64", fillcolor="#81c169"]; // "struct" node
-    "rubik::runtime::threading" [label="pub(crate) mod|runtime::threading", fillcolor="#f8c04c"]; // "mod" node
+    "rubik::algorithms" [label="pub mod|algorithms", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::centers" [label="pub mod|algorithms::centers", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::centers::face_commutator" [label="pub mod|algorithms::centers::face_commutator", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::centers::face_commutator::CenterCommutatorTemplate" [label="pub(super) struct|algorithms::centers::face_commutator::CenterCommutatorTemplate", fillcolor="#fe9454"]; // "struct" node
+    "rubik::algorithms::centers::face_commutator::CoordinateExpr" [label="pub(self) enum|algorithms::centers::face_commutator::CoordinateExpr", fillcolor="#db5367"]; // "enum" node
+    "rubik::algorithms::centers::face_commutator::FaceCommutator" [label="pub struct|algorithms::centers::face_commutator::FaceCommutator", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::centers::face_commutator::FaceCommutatorLayers" [label="pub struct|algorithms::centers::face_commutator::FaceCommutatorLayers", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::centers::face_commutator::FaceCommutatorMode" [label="pub enum|algorithms::centers::face_commutator::FaceCommutatorMode", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::centers::face_commutator::FaceCommutatorPlan" [label="pub struct|algorithms::centers::face_commutator::FaceCommutatorPlan", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::centers::face_commutator::FaceCommutatorValidationError" [label="pub enum|algorithms::centers::face_commutator::FaceCommutatorValidationError", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::centers::face_commutator::FacePositionExpr" [label="pub(self) struct|algorithms::centers::face_commutator::FacePositionExpr", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::centers::face_commutator::LayerSetKind" [label="pub enum|algorithms::centers::face_commutator::LayerSetKind", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::centers::face_commutator::LayerSetValidationError" [label="pub enum|algorithms::centers::face_commutator::LayerSetValidationError", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::centers::face_commutator::PositionUpdateExpr" [label="pub(self) struct|algorithms::centers::face_commutator::PositionUpdateExpr", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::centers::precompute" [label="pub mod|algorithms::centers::precompute", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::centers::precompute::AngleCommutators" [label="pub(self) struct|algorithms::centers::precompute::AngleCommutators", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::centers::precompute::CenterCommutatorTable" [label="pub struct|algorithms::centers::precompute::CenterCommutatorTable", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::centers::precompute::CenterCoordExpr" [label="pub enum|algorithms::centers::precompute::CenterCoordExpr", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::centers::precompute::CenterLocation" [label="pub struct|algorithms::centers::precompute::CenterLocation", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::centers::precompute::CenterLocationExpr" [label="pub struct|algorithms::centers::precompute::CenterLocationExpr", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::centers::precompute::CenterScheduleStep" [label="pub struct|algorithms::centers::precompute::CenterScheduleStep", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::centers::precompute::generated_center_schedule" [label="pub(self) mod|algorithms::centers::precompute::generated_center_schedule", fillcolor="#db5367"]; // "mod" node
+    "rubik::algorithms::centers::reduction" [label="pub mod|algorithms::centers::reduction", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::centers::reduction::CenterReductionAlgorithm" [label="pub struct|algorithms::centers::reduction::CenterReductionAlgorithm", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::centers::reduction::CenterReductionStage" [label="pub type|algorithms::centers::reduction::CenterReductionStage", fillcolor="#81c169"]; // "type" node
+    "rubik::algorithms::centers::reduction::CenterScanStream" [label="pub(self) struct|algorithms::centers::reduction::CenterScanStream", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::centers::reduction::CenterTransferSpec" [label="pub struct|algorithms::centers::reduction::CenterTransferSpec", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::corners" [label="pub mod|algorithms::corners", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::corners::reduction" [label="pub mod|algorithms::corners::reduction", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::corners::reduction::CornerReductionAlgorithm" [label="pub struct|algorithms::corners::reduction::CornerReductionAlgorithm", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::corners::reduction::CornerReductionStage" [label="pub type|algorithms::corners::reduction::CornerReductionStage", fillcolor="#81c169"]; // "type" node
+    "rubik::algorithms::corners::reduction::CornerSlot" [label="pub enum|algorithms::corners::reduction::CornerSlot", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::corners::search" [label="pub mod|algorithms::corners::search", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::corners::search::CornerMoveEffect" [label="pub(self) struct|algorithms::corners::search::CornerMoveEffect", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::corners::search::CornerMoveSpec" [label="pub(super) struct|algorithms::corners::search::CornerMoveSpec", fillcolor="#fe9454"]; // "struct" node
+    "rubik::algorithms::corners::search::CornerMoveTables" [label="pub(super) struct|algorithms::corners::search::CornerMoveTables", fillcolor="#fe9454"]; // "struct" node
+    "rubik::algorithms::corners::search::CornerState" [label="pub(super) struct|algorithms::corners::search::CornerState", fillcolor="#fe9454"]; // "struct" node
+    "rubik::algorithms::edges" [label="pub mod|algorithms::edges", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::edges::core" [label="pub mod|algorithms::edges::core", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::edges::core::EdgeColorKey" [label="pub(super) struct|algorithms::edges::core::EdgeColorKey", fillcolor="#fe9454"]; // "struct" node
+    "rubik::algorithms::edges::core::EdgeScanView" [label="pub(self) struct|algorithms::edges::core::EdgeScanView", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::EdgeSlotSetupTable" [label="pub(crate) struct|algorithms::edges::core::EdgeSlotSetupTable", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::algorithms::edges::core::FaceBoundary" [label="pub(self) struct|algorithms::edges::core::FaceBoundary", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::FaceMap" [label="pub(self) struct|algorithms::edges::core::FaceMap", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::FixedEdgePosition" [label="pub(self) struct|algorithms::edges::core::FixedEdgePosition", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::MaskNode" [label="pub(self) struct|algorithms::edges::core::MaskNode", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::MiddleOrbitTable" [label="pub(crate) struct|algorithms::edges::core::MiddleOrbitTable", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::algorithms::edges::core::OrbitCyclePlanner" [label="pub(self) struct|algorithms::edges::core::OrbitCyclePlanner", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::OrbitThreeCycleSpec" [label="pub(self) struct|algorithms::edges::core::OrbitThreeCycleSpec", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::OrientationGenerator" [label="pub(self) struct|algorithms::edges::core::OrientationGenerator", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::OrientationGeneratorKind" [label="pub(self) enum|algorithms::edges::core::OrientationGeneratorKind", fillcolor="#db5367"]; // "enum" node
+    "rubik::algorithms::edges::core::OrientedEdgeKey" [label="pub(self) struct|algorithms::edges::core::OrientedEdgeKey", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::SetupNode" [label="pub(self) struct|algorithms::edges::core::SetupNode", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::SlotOrientationState" [label="pub(self) enum|algorithms::edges::core::SlotOrientationState", fillcolor="#db5367"]; // "enum" node
+    "rubik::algorithms::edges::core::WingBasePlanTemplate" [label="pub(self) struct|algorithms::edges::core::WingBasePlanTemplate", fillcolor="#db5367"]; // "struct" node
+    "rubik::algorithms::edges::core::WingOrbitSetupTemplate" [label="pub(crate) struct|algorithms::edges::core::WingOrbitSetupTemplate", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::algorithms::edges::core::WingOrbitTable" [label="pub(crate) struct|algorithms::edges::core::WingOrbitTable", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::algorithms::edges::core::WingOrientationCache" [label="pub(crate) struct|algorithms::edges::core::WingOrientationCache", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::algorithms::edges::pairing" [label="pub mod|algorithms::edges::pairing", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::edges::pairing::EdgePairingAlgorithm" [label="pub struct|algorithms::edges::pairing::EdgePairingAlgorithm", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::edges::pairing::EdgePairingStage" [label="pub type|algorithms::edges::pairing::EdgePairingStage", fillcolor="#81c169"]; // "type" node
+    "rubik::algorithms::edges::pairing::EdgeSlot" [label="pub enum|algorithms::edges::pairing::EdgeSlot", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::edges::prepared" [label="pub mod|algorithms::edges::prepared", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::edges::prepared::PreparedEdgeTables" [label="pub(crate) struct|algorithms::edges::prepared::PreparedEdgeTables", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::algorithms::edges::three_cycle" [label="pub mod|algorithms::edges::three_cycle", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::edges::three_cycle::EdgeThreeCycle" [label="pub struct|algorithms::edges::three_cycle::EdgeThreeCycle", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::edges::three_cycle::EdgeThreeCycleDirection" [label="pub enum|algorithms::edges::three_cycle::EdgeThreeCycleDirection", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::edges::three_cycle::EdgeThreeCycleKind" [label="pub enum|algorithms::edges::three_cycle::EdgeThreeCycleKind", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::edges::three_cycle::EdgeThreeCyclePlan" [label="pub struct|algorithms::edges::three_cycle::EdgeThreeCyclePlan", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::edges::three_cycle::EdgeThreeCycleValidationError" [label="pub enum|algorithms::edges::three_cycle::EdgeThreeCycleValidationError", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::operation" [label="pub mod|algorithms::operation", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::operation::MoveSequenceOperation" [label="pub struct|algorithms::operation::MoveSequenceOperation", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::operation::Operation" [label="pub trait|algorithms::operation::Operation", fillcolor="#81c169"]; // "trait" node
+    "rubik::algorithms::operation::OptimizedOperation" [label="pub trait|algorithms::operation::OptimizedOperation", fillcolor="#81c169"]; // "trait" node
+    "rubik::algorithms::three_by_three" [label="pub mod|algorithms::three_by_three", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::three_by_three::ThreeByThreeAlgorithm" [label="pub struct|algorithms::three_by_three::ThreeByThreeAlgorithm", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::three_by_three::ThreeByThreeStage" [label="pub type|algorithms::three_by_three::ThreeByThreeStage", fillcolor="#81c169"]; // "type" node
+    "rubik::algorithms::traits" [label="pub mod|algorithms::traits", fillcolor="#81c169"]; // "mod" node
+    "rubik::algorithms::traits::AlgorithmContract" [label="pub struct|algorithms::traits::AlgorithmContract", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::traits::AlgorithmExecutionSupport" [label="pub enum|algorithms::traits::AlgorithmExecutionSupport", fillcolor="#81c169"]; // "enum" node
+    "rubik::algorithms::traits::AlgorithmSideLengthSupport" [label="pub struct|algorithms::traits::AlgorithmSideLengthSupport", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::traits::AlgorithmStepSpec" [label="pub struct|algorithms::traits::AlgorithmStepSpec", fillcolor="#81c169"]; // "struct" node
+    "rubik::algorithms::traits::SolveAlgorithm" [label="pub trait|algorithms::traits::SolveAlgorithm", fillcolor="#81c169"]; // "trait" node
+    "rubik::layout" [label="pub mod|layout", fillcolor="#81c169"]; // "mod" node
+    "rubik::layout::geometry" [label="pub(crate) mod|layout::geometry", fillcolor="#f8c04c"]; // "mod" node
+    "rubik::layout::geometry::Coord3" [label="pub(crate) struct|layout::geometry::Coord3", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::layout::geometry::Dir3" [label="pub(crate) struct|layout::geometry::Dir3", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::layout::matrix" [label="pub mod|layout::matrix", fillcolor="#81c169"]; // "mod" node
+    "rubik::layout::matrix::Matrix" [label="pub struct|layout::matrix::Matrix", fillcolor="#81c169"]; // "struct" node
+    "rubik::layout::strip" [label="pub mod|layout::strip", fillcolor="#81c169"]; // "mod" node
+    "rubik::layout::strip::LineBuffer" [label="pub struct|layout::strip::LineBuffer", fillcolor="#81c169"]; // "struct" node
+    "rubik::layout::strip::LineKind" [label="pub enum|layout::strip::LineKind", fillcolor="#81c169"]; // "enum" node
+    "rubik::layout::strip::LineTraversal" [label="pub(crate) struct|layout::strip::LineTraversal", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::layout::strip::MoveScratch" [label="pub struct|layout::strip::MoveScratch", fillcolor="#81c169"]; // "struct" node
+    "rubik::layout::strip::StripSpec" [label="pub struct|layout::strip::StripSpec", fillcolor="#81c169"]; // "struct" node
+    "rubik::model" [label="pub mod|model", fillcolor="#81c169"]; // "mod" node
+    "rubik::model::cube" [label="pub mod|model::cube", fillcolor="#81c169"]; // "mod" node
+    "rubik::model::cube::state" [label="pub(self) mod|model::cube::state", fillcolor="#db5367"]; // "mod" node
+    "rubik::model::cube::types" [label="pub(self) mod|model::cube::types", fillcolor="#db5367"]; // "mod" node
+    "rubik::model::cube::types::ColorScheme" [label="pub struct|model::cube::types::ColorScheme", fillcolor="#81c169"]; // "struct" node
+    "rubik::model::cube::types::Cube" [label="pub struct|model::cube::types::Cube", fillcolor="#81c169"]; // "struct" node
+    "rubik::model::cube::types::CubeReachability" [label="pub enum|model::cube::types::CubeReachability", fillcolor="#81c169"]; // "enum" node
+    "rubik::model::face" [label="pub mod|model::face", fillcolor="#81c169"]; // "mod" node
+    "rubik::model::face::Face" [label="pub struct|model::face::Face", fillcolor="#81c169"]; // "struct" node
+    "rubik::model::face::FaceAngle" [label="pub struct|model::face::FaceAngle", fillcolor="#81c169"]; // "struct" node
+    "rubik::model::face::FaceId" [label="pub enum|model::face::FaceId", fillcolor="#81c169"]; // "enum" node
+    "rubik::model::facelet" [label="pub mod|model::facelet", fillcolor="#81c169"]; // "mod" node
+    "rubik::model::facelet::Facelet" [label="pub enum|model::facelet::Facelet", fillcolor="#81c169"]; // "enum" node
+    "rubik::moves" [label="pub mod|moves", fillcolor="#81c169"]; // "mod" node
+    "rubik::moves::history" [label="pub mod|moves::history", fillcolor="#81c169"]; // "mod" node
+    "rubik::moves::history::MoveHistory" [label="pub struct|moves::history::MoveHistory", fillcolor="#81c169"]; // "struct" node
+    "rubik::moves::r#move" [label="pub mod|moves::r#move", fillcolor="#81c169"]; // "mod" node
+    "rubik::moves::r#move::Axis" [label="pub enum|moves::r#move::Axis", fillcolor="#81c169"]; // "enum" node
+    "rubik::moves::r#move::Move" [label="pub struct|moves::r#move::Move", fillcolor="#81c169"]; // "struct" node
+    "rubik::moves::r#move::MoveAngle" [label="pub enum|moves::r#move::MoveAngle", fillcolor="#81c169"]; // "enum" node
+    "rubik::simulation" [label="pub mod|simulation", fillcolor="#81c169"]; // "mod" node
+    "rubik::simulation::apply" [label="pub mod|simulation::apply", fillcolor="#81c169"]; // "mod" node
+    "rubik::simulation::conventions" [label="pub mod|simulation::conventions", fillcolor="#81c169"]; // "mod" node
+    "rubik::simulation::derived" [label="pub mod|simulation::derived", fillcolor="#81c169"]; // "mod" node
+    "rubik::simulation::derived::pieces" [label="pub(self) mod|simulation::derived::pieces", fillcolor="#db5367"]; // "mod" node
+    "rubik::simulation::derived::pieces::FacePosition" [label="pub(crate) struct|simulation::derived::pieces::FacePosition", fillcolor="#f8c04c"]; // "struct" node
+    "rubik::simulation::derived::types" [label="pub(self) mod|simulation::derived::types", fillcolor="#db5367"]; // "mod" node
+    "rubik::simulation::derived::types::CornerCubieLocation" [label="pub struct|simulation::derived::types::CornerCubieLocation", fillcolor="#81c169"]; // "struct" node
+    "rubik::simulation::derived::types::EdgeCubieLocation" [label="pub struct|simulation::derived::types::EdgeCubieLocation", fillcolor="#81c169"]; // "struct" node
+    "rubik::simulation::derived::types::FaceletLocation" [label="pub struct|simulation::derived::types::FaceletLocation", fillcolor="#81c169"]; // "struct" node
+    "rubik::simulation::derived::types::FaceletUpdate" [label="pub struct|simulation::derived::types::FaceletUpdate", fillcolor="#81c169"]; // "struct" node
+    "rubik::simulation::render" [label="pub mod|simulation::render", fillcolor="#81c169"]; // "mod" node
+    "rubik::simulation::render::net" [label="pub mod|simulation::render::net", fillcolor="#81c169"]; // "mod" node
+    "rubik::simulation::render::net::NetLayer" [label="pub(self) enum|simulation::render::net::NetLayer", fillcolor="#db5367"]; // "enum" node
     "rubik::solver" [label="pub mod|solver", fillcolor="#81c169"]; // "mod" node
-    "rubik::solver::AngleCommutators" [label="pub(self) struct|solver::AngleCommutators", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::CenterCommutatorTable" [label="pub struct|solver::CenterCommutatorTable", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::CenterReductionStage" [label="pub struct|solver::CenterReductionStage", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::CenterScanStream" [label="pub(self) struct|solver::CenterScanStream", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::CenterTransferSpec" [label="pub struct|solver::CenterTransferSpec", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::MoveSequence" [label="pub type|solver::MoveSequence", fillcolor="#81c169"]; // "type" node
-    "rubik::solver::MoveSequenceOperation" [label="pub struct|solver::MoveSequenceOperation", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::MoveStats" [label="pub struct|solver::MoveStats", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::ReductionSolver" [label="pub struct|solver::ReductionSolver", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::SolveContext" [label="pub struct|solver::SolveContext", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::SolveError" [label="pub enum|solver::SolveError", fillcolor="#81c169"]; // "enum" node
-    "rubik::solver::SolveOptions" [label="pub struct|solver::SolveOptions", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::SolveOutcome" [label="pub struct|solver::SolveOutcome", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::SolvePhase" [label="pub enum|solver::SolvePhase", fillcolor="#81c169"]; // "enum" node
-    "rubik::solver::SolveResult" [label="pub type|solver::SolveResult", fillcolor="#81c169"]; // "type" node
-    "rubik::solver::Solver" [label="pub trait|solver::Solver", fillcolor="#81c169"]; // "trait" node
-    "rubik::solver::SolverStage" [label="pub trait|solver::SolverStage", fillcolor="#81c169"]; // "trait" node
-    "rubik::solver::StageOperation" [label="pub trait|solver::StageOperation", fillcolor="#81c169"]; // "trait" node
-    "rubik::solver::StageReport" [label="pub struct|solver::StageReport", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::SubStageSpec" [label="pub struct|solver::SubStageSpec", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::ThreeByThreeStage" [label="pub struct|solver::ThreeByThreeStage", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::center_schedule" [label="pub(self) mod|solver::center_schedule", fillcolor="#db5367"]; // "mod" node
-    "rubik::solver::center_schedule::CenterCoordExpr" [label="pub enum|solver::center_schedule::CenterCoordExpr", fillcolor="#81c169"]; // "enum" node
-    "rubik::solver::center_schedule::CenterLocation" [label="pub struct|solver::center_schedule::CenterLocation", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::center_schedule::CenterLocationExpr" [label="pub struct|solver::center_schedule::CenterLocationExpr", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::center_schedule::CenterScheduleStep" [label="pub struct|solver::center_schedule::CenterScheduleStep", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::center_schedule::generated_center_schedule" [label="pub(self) mod|solver::center_schedule::generated_center_schedule", fillcolor="#db5367"]; // "mod" node
-    "rubik::solver::corners" [label="pub(self) mod|solver::corners", fillcolor="#db5367"]; // "mod" node
-    "rubik::solver::corners::CornerMoveEffect" [label="pub(self) struct|solver::corners::CornerMoveEffect", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::corners::CornerMoveSpec" [label="pub(self) struct|solver::corners::CornerMoveSpec", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::corners::CornerMoveTables" [label="pub(self) struct|solver::corners::CornerMoveTables", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::corners::CornerReductionStage" [label="pub struct|solver::corners::CornerReductionStage", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::corners::CornerSlot" [label="pub enum|solver::corners::CornerSlot", fillcolor="#81c169"]; // "enum" node
-    "rubik::solver::corners::CornerState" [label="pub(self) struct|solver::corners::CornerState", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges" [label="pub(self) mod|solver::edges", fillcolor="#db5367"]; // "mod" node
-    "rubik::solver::edges::EdgeColorKey" [label="pub(self) struct|solver::edges::EdgeColorKey", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::EdgePairingStage" [label="pub struct|solver::edges::EdgePairingStage", fillcolor="#81c169"]; // "struct" node
-    "rubik::solver::edges::EdgeScanView" [label="pub(self) struct|solver::edges::EdgeScanView", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::EdgeSlot" [label="pub enum|solver::edges::EdgeSlot", fillcolor="#81c169"]; // "enum" node
-    "rubik::solver::edges::EdgeSlotSetupTable" [label="pub(self) struct|solver::edges::EdgeSlotSetupTable", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::FaceBoundary" [label="pub(self) struct|solver::edges::FaceBoundary", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::FaceMap" [label="pub(self) struct|solver::edges::FaceMap", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::FixedEdgePosition" [label="pub(self) struct|solver::edges::FixedEdgePosition", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::MaskNode" [label="pub(self) struct|solver::edges::MaskNode", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::MiddleOrbitTable" [label="pub(self) struct|solver::edges::MiddleOrbitTable", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::OrbitCyclePlanner" [label="pub(self) struct|solver::edges::OrbitCyclePlanner", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::OrbitThreeCycleSpec" [label="pub(self) struct|solver::edges::OrbitThreeCycleSpec", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::OrientationGenerator" [label="pub(self) struct|solver::edges::OrientationGenerator", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::OrientationGeneratorKind" [label="pub(self) enum|solver::edges::OrientationGeneratorKind", fillcolor="#db5367"]; // "enum" node
-    "rubik::solver::edges::OrientedEdgeKey" [label="pub(self) struct|solver::edges::OrientedEdgeKey", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::PreparedEdgeStage" [label="pub(self) struct|solver::edges::PreparedEdgeStage", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::SetupNode" [label="pub(self) struct|solver::edges::SetupNode", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::SlotOrientationState" [label="pub(self) enum|solver::edges::SlotOrientationState", fillcolor="#db5367"]; // "enum" node
-    "rubik::solver::edges::WingBasePlanTemplate" [label="pub(self) struct|solver::edges::WingBasePlanTemplate", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::WingOrbitSetupTemplate" [label="pub(self) struct|solver::edges::WingOrbitSetupTemplate", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::WingOrbitTable" [label="pub(self) struct|solver::edges::WingOrbitTable", fillcolor="#db5367"]; // "struct" node
-    "rubik::solver::edges::WingOrientationCache" [label="pub(self) struct|solver::edges::WingOrientationCache", fillcolor="#db5367"]; // "struct" node
+    "rubik::solver::context" [label="pub(self) mod|solver::context", fillcolor="#db5367"]; // "mod" node
+    "rubik::solver::context::SolveContext" [label="pub struct|solver::context::SolveContext", fillcolor="#81c169"]; // "struct" node
+    "rubik::solver::error" [label="pub(self) mod|solver::error", fillcolor="#db5367"]; // "mod" node
+    "rubik::solver::error::SolveError" [label="pub enum|solver::error::SolveError", fillcolor="#81c169"]; // "enum" node
+    "rubik::solver::error::SolveResult" [label="pub type|solver::error::SolveResult", fillcolor="#81c169"]; // "type" node
+    "rubik::solver::execution_mode" [label="pub(self) mod|solver::execution_mode", fillcolor="#db5367"]; // "mod" node
+    "rubik::solver::execution_mode::ExecutionMode" [label="pub enum|solver::execution_mode::ExecutionMode", fillcolor="#81c169"]; // "enum" node
+    "rubik::solver::options" [label="pub(self) mod|solver::options", fillcolor="#db5367"]; // "mod" node
+    "rubik::solver::options::SolveOptions" [label="pub struct|solver::options::SolveOptions", fillcolor="#81c169"]; // "struct" node
+    "rubik::solver::phase" [label="pub(self) mod|solver::phase", fillcolor="#db5367"]; // "mod" node
+    "rubik::solver::phase::SolvePhase" [label="pub enum|solver::phase::SolvePhase", fillcolor="#81c169"]; // "enum" node
+    "rubik::solver::pipeline" [label="pub(self) mod|solver::pipeline", fillcolor="#db5367"]; // "mod" node
+    "rubik::solver::pipeline::ReductionSolver" [label="pub struct|solver::pipeline::ReductionSolver", fillcolor="#81c169"]; // "struct" node
+    "rubik::solver::pipeline::Solver" [label="pub trait|solver::pipeline::Solver", fillcolor="#81c169"]; // "trait" node
+    "rubik::solver::report" [label="pub(self) mod|solver::report", fillcolor="#db5367"]; // "mod" node
+    "rubik::solver::report::AlgorithmReport" [label="pub struct|solver::report::AlgorithmReport", fillcolor="#81c169"]; // "struct" node
+    "rubik::solver::report::MoveSequence" [label="pub type|solver::report::MoveSequence", fillcolor="#81c169"]; // "type" node
+    "rubik::solver::report::MoveStats" [label="pub struct|solver::report::MoveStats", fillcolor="#81c169"]; // "struct" node
+    "rubik::solver::report::SolveOutcome" [label="pub struct|solver::report::SolveOutcome", fillcolor="#81c169"]; // "struct" node
     "rubik::storage" [label="pub mod|storage", fillcolor="#81c169"]; // "mod" node
     "rubik::storage::backends" [label="pub(self) mod|storage::backends", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::byte" [label="pub(self) mod|storage::backends::byte", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::byte3" [label="pub(self) mod|storage::backends::byte3", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::byte3::Byte3" [label="pub struct|storage::backends::byte3::Byte3", fillcolor="#81c169"]; // "struct" node
-    "rubik::storage::backends::byte3::Byte3::RawStorage" [label="pub(self) type|storage::backends::byte3::Byte3::RawStorage", fillcolor="#db5367"]; // "type" node
     "rubik::storage::backends::byte::Byte" [label="pub struct|storage::backends::byte::Byte", fillcolor="#81c169"]; // "struct" node
-    "rubik::storage::backends::byte::Byte::RawStorage" [label="pub(self) type|storage::backends::byte::Byte::RawStorage", fillcolor="#db5367"]; // "type" node
     "rubik::storage::backends::nibble" [label="pub(self) mod|storage::backends::nibble", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::nibble::Nibble" [label="pub struct|storage::backends::nibble::Nibble", fillcolor="#81c169"]; // "struct" node
-    "rubik::storage::backends::nibble::Nibble::RawStorage" [label="pub(self) type|storage::backends::nibble::Nibble::RawStorage", fillcolor="#db5367"]; // "type" node
     "rubik::storage::backends::three_bit" [label="pub(self) mod|storage::backends::three_bit", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::three_bit::ThreeBit" [label="pub struct|storage::backends::three_bit::ThreeBit", fillcolor="#81c169"]; // "struct" node
-    "rubik::storage::backends::three_bit::ThreeBit::RawStorage" [label="pub(self) type|storage::backends::three_bit::ThreeBit::RawStorage", fillcolor="#db5367"]; // "type" node
     "rubik::storage::facelet_array" [label="pub(self) mod|storage::facelet_array", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::facelet_array::FaceletArray" [label="pub trait|storage::facelet_array::FaceletArray", fillcolor="#81c169"]; // "trait" node
-    "rubik::storage::facelet_array::StoragePtr" [label="pub struct|storage::facelet_array::StoragePtr", fillcolor="#81c169"]; // "struct" node
     "rubik::storage::init" [label="pub(self) mod|storage::init", fillcolor="#db5367"]; // "mod" node
+    "rubik::util" [label="pub mod|util", fillcolor="#81c169"]; // "mod" node
+    "rubik::util::random" [label="pub mod|util::random", fillcolor="#81c169"]; // "mod" node
+    "rubik::util::random::RandomSource" [label="pub trait|util::random::RandomSource", fillcolor="#81c169"]; // "trait" node
+    "rubik::util::random::XorShift64" [label="pub struct|util::random::XorShift64", fillcolor="#81c169"]; // "struct" node
+    "rubik::util::threading" [label="pub(crate) mod|util::threading", fillcolor="#f8c04c"]; // "mod" node
 
-    "rubik" -> "rubik::puzzle" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik" -> "rubik::runtime" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik" -> "rubik::algorithms" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik" -> "rubik::layout" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik" -> "rubik::model" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik" -> "rubik::moves" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik" -> "rubik::simulation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik" -> "rubik::solver" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik" -> "rubik::storage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle" -> "rubik::puzzle::layout" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle" -> "rubik::puzzle::model" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle" -> "rubik::puzzle::moves" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout" -> "rubik::puzzle::layout::geometry" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout" -> "rubik::puzzle::layout::matrix" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout" -> "rubik::puzzle::layout::strip" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::geometry" -> "rubik::puzzle::layout::geometry::Coord3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::geometry" -> "rubik::puzzle::layout::geometry::Dir3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::matrix" -> "rubik::puzzle::layout::matrix::Matrix" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::LineBuffer" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::LineChunk" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::LineCycleJob" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::LineCycleRunner" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::LineCycleShared" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::LineCycleState" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::LineKind" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::LineTraversal" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::MoveScratch" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::layout::strip" -> "rubik::puzzle::layout::strip::StripSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model" -> "rubik::puzzle::model::cube" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model" -> "rubik::puzzle::model::face" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model" -> "rubik::puzzle::model::facelet" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::BoundCenterCommutator" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::BoundPositionUpdate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::CenterCommutatorTemplate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::ColorScheme" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::CoordinateExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::CornerCubieLocation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::Cube" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::EdgeCubieLocation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::EdgeThreeCycle" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::EdgeThreeCycleDirection" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::EdgeThreeCycleKind" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::EdgeThreeCyclePlan" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::EdgeThreeCycleValidationError" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FaceCommutator" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FaceCommutatorLayers" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FaceCommutatorMode" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FaceCommutatorPlan" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FaceCommutatorValidationError" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FacePosition" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FacePositionExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FaceletLocation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::FaceletUpdate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::LayerSetKind" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::LayerSetValidationError" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::NetLayer" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::PositionUpdateExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::cube" -> "rubik::puzzle::model::cube::RawCellStream" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::face" -> "rubik::puzzle::model::face::Face" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::face" -> "rubik::puzzle::model::face::FaceAngle" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::face" -> "rubik::puzzle::model::face::FaceId" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::model::facelet" -> "rubik::puzzle::model::facelet::Facelet" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::moves" -> "rubik::puzzle::moves::Axis" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::moves" -> "rubik::puzzle::moves::Move" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::moves" -> "rubik::puzzle::moves::MoveAngle" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::moves" -> "rubik::puzzle::moves::history" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::puzzle::moves::history" -> "rubik::puzzle::moves::history::MoveHistory" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::runtime" -> "rubik::runtime::random" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::runtime" -> "rubik::runtime::threading" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::runtime::random" -> "rubik::runtime::random::RandomSource" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::runtime::random" -> "rubik::runtime::random::XorShift64" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::AngleCommutators" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::CenterCommutatorTable" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::CenterReductionStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::CenterScanStream" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::CenterTransferSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::MoveSequence" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::MoveSequenceOperation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::MoveStats" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::ReductionSolver" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::SolveContext" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::SolveError" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::SolveOptions" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::SolveOutcome" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::SolvePhase" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::SolveResult" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::Solver" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::SolverStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::StageOperation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::StageReport" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::SubStageSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::ThreeByThreeStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::center_schedule" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::corners" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver" -> "rubik::solver::edges" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::center_schedule" -> "rubik::solver::center_schedule::CenterCoordExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::center_schedule" -> "rubik::solver::center_schedule::CenterLocation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::center_schedule" -> "rubik::solver::center_schedule::CenterLocationExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::center_schedule" -> "rubik::solver::center_schedule::CenterScheduleStep" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::center_schedule" -> "rubik::solver::center_schedule::generated_center_schedule" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::corners" -> "rubik::solver::corners::CornerMoveEffect" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::corners" -> "rubik::solver::corners::CornerMoveSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::corners" -> "rubik::solver::corners::CornerMoveTables" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::corners" -> "rubik::solver::corners::CornerReductionStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::corners" -> "rubik::solver::corners::CornerSlot" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::corners" -> "rubik::solver::corners::CornerState" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::EdgeColorKey" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::EdgePairingStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::EdgeScanView" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::EdgeSlot" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::EdgeSlotSetupTable" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::FaceBoundary" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::FaceMap" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::FixedEdgePosition" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::MaskNode" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::MiddleOrbitTable" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::OrbitCyclePlanner" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::OrbitThreeCycleSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::OrientationGenerator" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::OrientationGeneratorKind" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::OrientedEdgeKey" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::PreparedEdgeStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::SetupNode" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::SlotOrientationState" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::WingBasePlanTemplate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::WingOrbitSetupTemplate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::WingOrbitTable" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::solver::edges" -> "rubik::solver::edges::WingOrientationCache" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik" -> "rubik::util" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms" -> "rubik::algorithms::centers" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms" -> "rubik::algorithms::corners" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms" -> "rubik::algorithms::edges" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms" -> "rubik::algorithms::operation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms" -> "rubik::algorithms::three_by_three" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms" -> "rubik::algorithms::traits" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers" -> "rubik::algorithms::centers::face_commutator" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers" -> "rubik::algorithms::centers::precompute" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers" -> "rubik::algorithms::centers::reduction" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::CenterCommutatorTemplate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::CoordinateExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::FaceCommutator" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::FaceCommutatorLayers" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::FaceCommutatorMode" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::FaceCommutatorPlan" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::FaceCommutatorValidationError" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::FacePositionExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::LayerSetKind" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::LayerSetValidationError" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::face_commutator" -> "rubik::algorithms::centers::face_commutator::PositionUpdateExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::precompute" -> "rubik::algorithms::centers::precompute::AngleCommutators" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::precompute" -> "rubik::algorithms::centers::precompute::CenterCommutatorTable" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::precompute" -> "rubik::algorithms::centers::precompute::CenterCoordExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::precompute" -> "rubik::algorithms::centers::precompute::CenterLocation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::precompute" -> "rubik::algorithms::centers::precompute::CenterLocationExpr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::precompute" -> "rubik::algorithms::centers::precompute::CenterScheduleStep" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::precompute" -> "rubik::algorithms::centers::precompute::generated_center_schedule" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::reduction" -> "rubik::algorithms::centers::reduction::CenterReductionAlgorithm" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::reduction" -> "rubik::algorithms::centers::reduction::CenterReductionStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::reduction" -> "rubik::algorithms::centers::reduction::CenterScanStream" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::centers::reduction" -> "rubik::algorithms::centers::reduction::CenterTransferSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners" -> "rubik::algorithms::corners::reduction" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners" -> "rubik::algorithms::corners::search" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners::reduction" -> "rubik::algorithms::corners::reduction::CornerReductionAlgorithm" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners::reduction" -> "rubik::algorithms::corners::reduction::CornerReductionStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners::reduction" -> "rubik::algorithms::corners::reduction::CornerSlot" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners::search" -> "rubik::algorithms::corners::search::CornerMoveEffect" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners::search" -> "rubik::algorithms::corners::search::CornerMoveSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners::search" -> "rubik::algorithms::corners::search::CornerMoveTables" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::corners::search" -> "rubik::algorithms::corners::search::CornerState" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges" -> "rubik::algorithms::edges::core" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges" -> "rubik::algorithms::edges::pairing" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges" -> "rubik::algorithms::edges::prepared" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges" -> "rubik::algorithms::edges::three_cycle" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::EdgeColorKey" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::EdgeScanView" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::EdgeSlotSetupTable" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::FaceBoundary" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::FaceMap" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::FixedEdgePosition" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::MaskNode" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::MiddleOrbitTable" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::OrbitCyclePlanner" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::OrbitThreeCycleSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::OrientationGenerator" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::OrientationGeneratorKind" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::OrientedEdgeKey" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::SetupNode" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::SlotOrientationState" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::WingBasePlanTemplate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::WingOrbitSetupTemplate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::WingOrbitTable" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::core" -> "rubik::algorithms::edges::core::WingOrientationCache" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::pairing" -> "rubik::algorithms::edges::pairing::EdgePairingAlgorithm" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::pairing" -> "rubik::algorithms::edges::pairing::EdgePairingStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::pairing" -> "rubik::algorithms::edges::pairing::EdgeSlot" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::prepared" -> "rubik::algorithms::edges::prepared::PreparedEdgeTables" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::three_cycle" -> "rubik::algorithms::edges::three_cycle::EdgeThreeCycle" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::three_cycle" -> "rubik::algorithms::edges::three_cycle::EdgeThreeCycleDirection" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::three_cycle" -> "rubik::algorithms::edges::three_cycle::EdgeThreeCycleKind" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::three_cycle" -> "rubik::algorithms::edges::three_cycle::EdgeThreeCyclePlan" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::edges::three_cycle" -> "rubik::algorithms::edges::three_cycle::EdgeThreeCycleValidationError" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::operation" -> "rubik::algorithms::operation::MoveSequenceOperation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::operation" -> "rubik::algorithms::operation::Operation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::operation" -> "rubik::algorithms::operation::OptimizedOperation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::three_by_three" -> "rubik::algorithms::three_by_three::ThreeByThreeAlgorithm" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::three_by_three" -> "rubik::algorithms::three_by_three::ThreeByThreeStage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::traits" -> "rubik::algorithms::traits::AlgorithmContract" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::traits" -> "rubik::algorithms::traits::AlgorithmExecutionSupport" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::traits" -> "rubik::algorithms::traits::AlgorithmSideLengthSupport" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::traits" -> "rubik::algorithms::traits::AlgorithmStepSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::algorithms::traits" -> "rubik::algorithms::traits::SolveAlgorithm" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout" -> "rubik::layout::geometry" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout" -> "rubik::layout::matrix" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout" -> "rubik::layout::strip" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout::geometry" -> "rubik::layout::geometry::Coord3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout::geometry" -> "rubik::layout::geometry::Dir3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout::matrix" -> "rubik::layout::matrix::Matrix" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout::strip" -> "rubik::layout::strip::LineBuffer" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout::strip" -> "rubik::layout::strip::LineKind" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout::strip" -> "rubik::layout::strip::LineTraversal" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout::strip" -> "rubik::layout::strip::MoveScratch" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::layout::strip" -> "rubik::layout::strip::StripSpec" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model" -> "rubik::model::cube" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model" -> "rubik::model::face" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model" -> "rubik::model::facelet" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::cube" -> "rubik::model::cube::state" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::cube" -> "rubik::model::cube::types" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::cube::types" -> "rubik::model::cube::types::ColorScheme" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::cube::types" -> "rubik::model::cube::types::Cube" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::cube::types" -> "rubik::model::cube::types::CubeReachability" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::face" -> "rubik::model::face::Face" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::face" -> "rubik::model::face::FaceAngle" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::face" -> "rubik::model::face::FaceId" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::model::facelet" -> "rubik::model::facelet::Facelet" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::moves" -> "rubik::moves::history" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::moves" -> "rubik::moves::r#move" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::moves::history" -> "rubik::moves::history::MoveHistory" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::moves::r#move" -> "rubik::moves::r#move::Axis" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::moves::r#move" -> "rubik::moves::r#move::Move" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::moves::r#move" -> "rubik::moves::r#move::MoveAngle" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation" -> "rubik::simulation::apply" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation" -> "rubik::simulation::conventions" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation" -> "rubik::simulation::derived" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation" -> "rubik::simulation::render" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::derived" -> "rubik::simulation::derived::pieces" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::derived" -> "rubik::simulation::derived::types" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::derived::pieces" -> "rubik::simulation::derived::pieces::FacePosition" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::derived::types" -> "rubik::simulation::derived::types::CornerCubieLocation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::derived::types" -> "rubik::simulation::derived::types::EdgeCubieLocation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::derived::types" -> "rubik::simulation::derived::types::FaceletLocation" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::derived::types" -> "rubik::simulation::derived::types::FaceletUpdate" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::render" -> "rubik::simulation::render::net" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::simulation::render::net" -> "rubik::simulation::render::net::NetLayer" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver" -> "rubik::solver::context" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver" -> "rubik::solver::error" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver" -> "rubik::solver::execution_mode" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver" -> "rubik::solver::options" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver" -> "rubik::solver::phase" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver" -> "rubik::solver::pipeline" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver" -> "rubik::solver::report" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::context" -> "rubik::solver::context::SolveContext" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::error" -> "rubik::solver::error::SolveError" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::error" -> "rubik::solver::error::SolveResult" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::execution_mode" -> "rubik::solver::execution_mode::ExecutionMode" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::options" -> "rubik::solver::options::SolveOptions" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::phase" -> "rubik::solver::phase::SolvePhase" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::pipeline" -> "rubik::solver::pipeline::ReductionSolver" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::pipeline" -> "rubik::solver::pipeline::Solver" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::report" -> "rubik::solver::report::AlgorithmReport" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::report" -> "rubik::solver::report::MoveSequence" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::report" -> "rubik::solver::report::MoveStats" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::solver::report" -> "rubik::solver::report::SolveOutcome" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage" -> "rubik::storage::backends" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage" -> "rubik::storage::facelet_array" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage" -> "rubik::storage::init" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
@@ -303,13 +358,12 @@ digraph {
     "rubik::storage::backends" -> "rubik::storage::backends::three_bit" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::byte" -> "rubik::storage::backends::byte::Byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::byte3" -> "rubik::storage::backends::byte3::Byte3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::RawStorage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte::Byte" -> "rubik::storage::backends::byte::Byte::RawStorage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::nibble" -> "rubik::storage::backends::nibble::Nibble" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::nibble::Nibble" -> "rubik::storage::backends::nibble::Nibble::RawStorage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::three_bit" -> "rubik::storage::backends::three_bit::ThreeBit" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::three_bit::ThreeBit" -> "rubik::storage::backends::three_bit::ThreeBit::RawStorage" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::facelet_array" -> "rubik::storage::facelet_array::FaceletArray" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::facelet_array" -> "rubik::storage::facelet_array::StoragePtr" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::util" -> "rubik::util::random" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::util" -> "rubik::util::threading" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::util::random" -> "rubik::util::random::RandomSource" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::util::random" -> "rubik::util::random::XorShift64" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
 
 }

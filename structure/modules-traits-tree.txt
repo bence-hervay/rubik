@@ -1,34 +1,65 @@
 
 crate rubik
-├── mod puzzle: pub
-│   ├── mod layout: pub
-│   │   ├── mod geometry: pub(crate)
-│   │   ├── mod matrix: pub
-│   │   └── mod strip: pub
-│   ├── mod model: pub
-│   │   ├── mod cube: pub
-│   │   ├── mod face: pub
-│   │   └── mod facelet: pub
-│   └── mod moves: pub
-│       └── mod history: pub
-├── mod runtime: pub
-│   ├── mod random: pub
-│   │   └── trait RandomSource: pub
-│   └── mod threading: pub(crate)
+├── mod algorithms: pub
+│   ├── mod centers: pub
+│   │   ├── mod face_commutator: pub
+│   │   ├── mod precompute: pub
+│   │   │   └── mod generated_center_schedule: pub(self)
+│   │   └── mod reduction: pub
+│   ├── mod corners: pub
+│   │   ├── mod reduction: pub
+│   │   └── mod search: pub
+│   ├── mod edges: pub
+│   │   ├── mod core: pub
+│   │   ├── mod pairing: pub
+│   │   ├── mod prepared: pub
+│   │   └── mod three_cycle: pub
+│   ├── mod operation: pub
+│   │   ├── trait Operation: pub
+│   │   └── trait OptimizedOperation: pub
+│   ├── mod three_by_three: pub
+│   └── mod traits: pub
+│       └── trait SolveAlgorithm: pub
+├── mod layout: pub
+│   ├── mod geometry: pub(crate)
+│   ├── mod matrix: pub
+│   └── mod strip: pub
+├── mod model: pub
+│   ├── mod cube: pub
+│   │   ├── mod state: pub(self)
+│   │   └── mod types: pub(self)
+│   ├── mod face: pub
+│   └── mod facelet: pub
+├── mod moves: pub
+│   ├── mod history: pub
+│   └── mod r#move: pub
+├── mod simulation: pub
+│   ├── mod apply: pub
+│   ├── mod conventions: pub
+│   ├── mod derived: pub
+│   │   ├── mod pieces: pub(self)
+│   │   └── mod types: pub(self)
+│   └── mod render: pub
+│       └── mod net: pub
 ├── mod solver: pub
-│   ├── trait Solver: pub
-│   ├── trait SolverStage: pub
-│   ├── trait StageOperation: pub
-│   ├── mod center_schedule: pub(self)
-│   │   └── mod generated_center_schedule: pub(self)
-│   ├── mod corners: pub(self)
-│   └── mod edges: pub(self)
-└── mod storage: pub
-    ├── mod backends: pub(self)
-    │   ├── mod byte: pub(self)
-    │   ├── mod byte3: pub(self)
-    │   ├── mod nibble: pub(self)
-    │   └── mod three_bit: pub(self)
-    ├── mod facelet_array: pub(self)
-    │   └── trait FaceletArray: pub
-    └── mod init: pub(self)
+│   ├── mod context: pub(self)
+│   ├── mod error: pub(self)
+│   ├── mod execution_mode: pub(self)
+│   ├── mod options: pub(self)
+│   ├── mod phase: pub(self)
+│   ├── mod pipeline: pub(self)
+│   │   └── trait Solver: pub
+│   └── mod report: pub(self)
+├── mod storage: pub
+│   ├── mod backends: pub(self)
+│   │   ├── mod byte: pub(self)
+│   │   ├── mod byte3: pub(self)
+│   │   ├── mod nibble: pub(self)
+│   │   └── mod three_bit: pub(self)
+│   ├── mod facelet_array: pub(self)
+│   │   └── trait FaceletArray: pub
+│   └── mod init: pub(self)
+└── mod util: pub
+    ├── mod random: pub
+    │   └── trait RandomSource: pub
+    └── mod threading: pub(crate)

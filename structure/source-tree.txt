@@ -1,47 +1,86 @@
 Cargo.toml
 
 src
+├── algorithms
+│   ├── centers
+│   │   ├── face_commutator.rs
+│   │   ├── generated_center_schedule.rs
+│   │   ├── mod.rs
+│   │   ├── precompute.rs
+│   │   └── reduction.rs
+│   ├── corners
+│   │   ├── mod.rs
+│   │   ├── reduction.rs
+│   │   └── search.rs
+│   ├── edges
+│   │   ├── core.rs
+│   │   ├── mod.rs
+│   │   ├── pairing.rs
+│   │   ├── prepared.rs
+│   │   └── three_cycle.rs
+│   ├── mod.rs
+│   ├── operation.rs
+│   ├── three_by_three.rs
+│   └── traits.rs
 ├── bin
 │   └── generate_center_schedule.rs
+├── layout
+│   ├── geometry.rs
+│   ├── matrix.rs
+│   ├── mod.rs
+│   └── strip.rs
 ├── lib.rs
 ├── main.rs
-├── puzzle
-│   ├── layout
-│   │   ├── geometry.rs
-│   │   ├── matrix.rs
+├── model
+│   ├── cube
 │   │   ├── mod.rs
-│   │   └── strip.rs
-│   ├── mod.rs
-│   ├── model
-│   │   ├── cube.rs
-│   │   ├── face.rs
-│   │   ├── facelet.rs
-│   │   └── mod.rs
-│   └── moves
-│       ├── history.rs
-│       └── mod.rs
-├── runtime
-│   ├── mod.rs
-│   ├── random.rs
-│   └── threading.rs
-├── solver
-│   ├── center_schedule.rs
-│   ├── corners.rs
-│   ├── edges.rs
-│   ├── generated_center_schedule.rs
+│   │   ├── state.rs
+│   │   ├── tests.rs
+│   │   └── types.rs
+│   ├── face.rs
+│   ├── facelet.rs
 │   └── mod.rs
-└── storage
-    ├── backends
-    │   ├── byte.rs
-    │   ├── byte3.rs
-    │   ├── mod.rs
-    │   ├── nibble.rs
-    │   └── three_bit.rs
-    ├── facelet_array.rs
-    ├── init.rs
-    └── mod.rs
+├── moves
+│   ├── history.rs
+│   ├── mod.rs
+│   └── move.rs
+├── simulation
+│   ├── apply
+│   │   └── mod.rs
+│   ├── conventions.rs
+│   ├── derived
+│   │   ├── mod.rs
+│   │   ├── pieces.rs
+│   │   └── types.rs
+│   ├── mod.rs
+│   └── render
+│       ├── mod.rs
+│       └── net.rs
+├── solver
+│   ├── context.rs
+│   ├── error.rs
+│   ├── execution_mode.rs
+│   ├── mod.rs
+│   ├── options.rs
+│   ├── phase.rs
+│   ├── pipeline.rs
+│   └── report.rs
+├── storage
+│   ├── backends
+│   │   ├── byte.rs
+│   │   ├── byte3.rs
+│   │   ├── mod.rs
+│   │   ├── nibble.rs
+│   │   └── three_bit.rs
+│   ├── facelet_array.rs
+│   ├── init.rs
+│   └── mod.rs
+└── util
+    ├── mod.rs
+    ├── random.rs
+    └── threading.rs
 benchmark
 ├── large_cube_memory_and_move_time.rs
 └── stage_solve_time.rs
 
-11 directories, 32 files
+19 directories, 63 files

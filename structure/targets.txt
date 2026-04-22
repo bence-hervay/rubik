@@ -1,5 +1,8 @@
 rubik                            lib
 generate_center_schedule         bin
 rubik                            bin
+characterization_operations      test
+characterization_pipeline        test
+stage_contracts                  test
 large_cube_memory_and_move_time  bench
 stage_solve_time                 bench
