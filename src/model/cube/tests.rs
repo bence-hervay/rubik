@@ -1244,21 +1244,15 @@ fn face_rotation_accumulates_angles_modulo_four() {
 #[test]
 fn net_uses_traditional_geometry() {
     let cube = Cube::<Byte>::new_solved(2);
+    let net = cube.net_string();
 
-    assert_eq!(
-        cube.net_string(),
-        concat!(
-            "Cube(n=2, history=0, storage~24 bytes)\n",
-            "      W W\n",
-            "      W W\n",
-            "\n",
-            "O O   G G   R R   B B\n",
-            "O O   G G   R R   B B\n",
-            "\n",
-            "      Y Y\n",
-            "      Y Y\n",
-        )
-    );
+    assert!(net.contains("Cube(n=2, history=0, storage~24 bytes)\n"));
+    assert!(net.contains("      +-----+\n"));
+    assert!(net.contains("      | W W |\n"));
+    assert!(net.contains("+-----+-----+-----+-----+\n"));
+    assert!(net.contains("| O O | G G | R R | B B |\n"));
+    assert!(net.contains("      | Y Y |\n"));
+    assert!(!net.contains("| O O |   | G G |"));
 }
 
 #[test]
@@ -1282,23 +1276,20 @@ fn net_keeps_unfolded_face_orientations() {
         }
     }
 
-    assert_eq!(
-        cube.net_string(),
-        concat!(
-            "Cube(n=3, history=0, storage~54 bytes)\n",
-            "        W W W\n",
-            "        Y Y Y\n",
-            "        R R R\n",
-            "\n",
-            "W Y R   W Y R   R Y W   R Y W\n",
-            "Y R O   W Y R   O R Y   R Y W\n",
-            "R O G   W Y R   G O R   R Y W\n",
-            "\n",
-            "        R R R\n",
-            "        Y Y Y\n",
-            "        W W W\n",
-        )
-    );
+    let net = cube.net_string();
+
+    assert!(net.contains("Cube(n=3, history=0, storage~54 bytes)\n"));
+    assert!(net.contains("        +-------+\n"));
+    assert!(net.contains("        | W W W |\n"));
+    assert!(net.contains("        | Y Y Y |\n"));
+    assert!(net.contains("        | R R R |\n"));
+    assert!(net.contains("+-------+-------+-------+-------+\n"));
+    assert!(net.contains("| W Y R | W Y R | R Y W | R Y W |\n"));
+    assert!(net.contains("| Y R O | W Y R | O R Y | R Y W |\n"));
+    assert!(net.contains("| R O G | W Y R | G O R | R Y W |\n"));
+    assert!(net.contains("        | R R R |\n"));
+    assert!(net.contains("        | Y Y Y |\n"));
+    assert!(net.contains("        | W W W |\n"));
 }
 
 #[test]
@@ -1307,42 +1298,170 @@ fn net_prints_full_small_faces() {
     let net = cube.net_string();
 
     assert!(!net.contains("..."));
-    assert!(net.contains("W W W W"));
-    assert!(net.contains("O O O O   G G G G   R R R R   B B B B"));
+    assert!(net.contains("+---------+"));
+    assert!(net.contains("| W W W W |"));
+    assert!(net.contains("| O O O O | G G G G | R R R R | B B B B |"));
 }
 
 #[test]
-fn net_prints_full_large_faces_without_ellipsis_markers() {
-    let cube = Cube::<Byte>::new_solved(8);
+fn net_prints_full_faces_up_to_seven_layers() {
+    let cube = Cube::<Byte>::new_solved(7);
     let net = cube.net_string();
 
     assert!(!net.contains("..."));
-    assert!(!net.contains("-"));
-    assert!(net.contains("                  W W W W W W W W\n"));
-    assert!(net.contains("O O O O O O O O   G G G G G G G G   R R R R R R R R   B B B B B B B B\n"));
-    assert!(net.contains("                  Y Y Y Y Y Y Y Y\n"));
+    assert!(net.contains("+---------------+---------------+---------------+---------------+\n"));
+    assert!(net.contains("| W W W W W W W |"));
+    assert!(net.contains("| O O O O O O O | G G G G G G G | R R R R R R R | B B B B B B B |\n"));
+    assert!(net.contains("| Y Y Y Y Y Y Y |"));
 }
 
 #[test]
-fn net_limits_large_faces_to_outer_four_layers_with_separator() {
-    let mut cube = Cube::<Byte>::new_solved(10);
+fn net_limits_even_large_faces_to_two_outer_and_two_middle_layers() {
+    let mut cube = Cube::<Byte>::new_solved(8);
 
-    cube.face_mut(FaceId::U).set(0, 0, Facelet::Red);
-    cube.face_mut(FaceId::U).set(0, 3, Facelet::Green);
-    cube.face_mut(FaceId::U).set(0, 4, Facelet::Orange);
-    cube.face_mut(FaceId::U).set(0, 5, Facelet::Yellow);
-    cube.face_mut(FaceId::U).set(0, 6, Facelet::Blue);
-    cube.face_mut(FaceId::U).set(0, 9, Facelet::Red);
+    for (row, facelet) in [
+        Facelet::White,
+        Facelet::Yellow,
+        Facelet::Red,
+        Facelet::Orange,
+        Facelet::Green,
+        Facelet::Blue,
+        Facelet::White,
+        Facelet::Yellow,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        for col in 0..8 {
+            cube.face_mut(FaceId::U).set(row, col, facelet);
+        }
+    }
 
     let net = cube.net_string();
 
     assert!(!net.contains("..."));
-    assert!(net.contains("                    R W W G - B W W R\n"));
-    assert!(net.contains("                    - - - - - - - - -\n"));
+    assert!(
+        net.contains("+-----------------+-----------------+-----------------+-----------------+\n")
+    );
+    assert!(net.contains("| W W   W W   W W |\n"));
+    assert!(net.contains("| Y Y   Y Y   Y Y |\n"));
+    assert!(net.contains("|                 |\n"));
+    assert!(
+        net.contains("| O O   O O   O O | G G   G G   G G | R R   R R   R R | B B   B B   B B |\n")
+    );
+    assert!(!net.contains("| O O   O O   O O |   | G G   G G   G G |"));
+}
+
+#[test]
+fn net_limits_odd_large_faces_to_two_outer_and_three_middle_layers() {
+    let mut cube = Cube::<Byte>::new_solved(9);
+
+    for (row, facelet) in [
+        Facelet::White,
+        Facelet::Yellow,
+        Facelet::Red,
+        Facelet::Orange,
+        Facelet::Green,
+        Facelet::Blue,
+        Facelet::Red,
+        Facelet::Yellow,
+        Facelet::White,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        for col in 0..9 {
+            cube.face_mut(FaceId::U).set(row, col, facelet);
+        }
+    }
+
+    let net = cube.net_string();
+
+    assert!(!net.contains("..."));
     assert!(net.contains(
-        "O O O O - O O O O   G G G G - G G G G   R R R R - R R R R   B B B B - B B B B\n"
+        "+-------------------+-------------------+-------------------+-------------------+\n"
     ));
+    assert!(net.contains("| W W   W W W   W W |\n"));
+    assert!(net.contains("| Y Y   Y Y Y   Y Y |\n"));
+    assert!(net.contains("|                   |\n"));
     assert!(net.contains(
-        "- - - - - - - - -   - - - - - - - - -   - - - - - - - - -   - - - - - - - - -\n"
+        "| O O   O O O   O O | G G   G G G   G G | R R   R R R   R R | B B   B B B   B B |\n"
     ));
+    assert!(!net.contains("| O O   O O O   O O |   | G G   G G G   G G |"));
+}
+
+#[test]
+fn net_keeps_u_and_d_aligned_with_front_face_across_sizes() {
+    fn positions(line: &str, needle: u8) -> Vec<usize> {
+        line.as_bytes()
+            .iter()
+            .enumerate()
+            .filter_map(|(index, byte)| (*byte == needle).then_some(index))
+            .collect()
+    }
+
+    for n in [2usize, 3, 4, 7, 8, 9, 10, 11] {
+        let net = Cube::<Byte>::new_solved(n).net_string();
+        let lines: Vec<_> = net.lines().collect();
+
+        let u_border = lines
+            .iter()
+            .copied()
+            .skip(1)
+            .find(|line| line.starts_with(' ') && line.contains('+'))
+            .unwrap();
+        let middle_border = lines
+            .iter()
+            .copied()
+            .find(|line| line.starts_with('+'))
+            .unwrap();
+        let d_border = lines
+            .iter()
+            .copied()
+            .rev()
+            .find(|line| line.starts_with(' ') && line.contains('+'))
+            .unwrap();
+
+        let u_content = lines
+            .iter()
+            .copied()
+            .skip(1)
+            .find(|line| line.starts_with(' ') && line.contains('|'))
+            .unwrap();
+        let middle_content = lines
+            .iter()
+            .copied()
+            .find(|line| line.starts_with('|'))
+            .unwrap();
+        let d_content = lines
+            .iter()
+            .copied()
+            .rev()
+            .find(|line| line.starts_with(' ') && line.contains('|'))
+            .unwrap();
+
+        let middle_border_positions = positions(middle_border, b'+');
+        let middle_content_positions = positions(middle_content, b'|');
+
+        assert_eq!(
+            positions(u_border, b'+'),
+            middle_border_positions[1..=2],
+            "U border misaligned for n={n}\n{net}"
+        );
+        assert_eq!(
+            positions(d_border, b'+'),
+            middle_border_positions[1..=2],
+            "D border misaligned for n={n}\n{net}"
+        );
+        assert_eq!(
+            positions(u_content, b'|'),
+            middle_content_positions[1..=2],
+            "U content misaligned for n={n}\n{net}"
+        );
+        assert_eq!(
+            positions(d_content, b'|'),
+            middle_content_positions[1..=2],
+            "D content misaligned for n={n}\n{net}"
+        );
+    }
 }
