@@ -19,7 +19,7 @@ pub use model::{
 };
 pub use moves::history;
 pub use moves::{Axis, Move, MoveAngle, MoveHistory};
-pub use puzzle::{layout, model, moves};
+pub use puzzle::{conventions, layout, model, moves};
 pub use runtime::random;
 pub(crate) use runtime::threading;
 pub use runtime::threading::default_thread_count;

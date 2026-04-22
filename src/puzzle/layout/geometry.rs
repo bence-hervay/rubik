@@ -1,4 +1,5 @@
 use crate::{
+    conventions::face_axis,
     face::FaceId,
     line::{LineKind, StripSpec},
     moves::Axis,
@@ -35,14 +36,6 @@ pub(crate) fn face_normal(face: FaceId) -> Dir3 {
         FaceId::L => Dir3::NEG_X,
         FaceId::F => Dir3::POS_Z,
         FaceId::B => Dir3::NEG_Z,
-    }
-}
-
-fn normal_axis(face: FaceId) -> Axis {
-    match face {
-        FaceId::R | FaceId::L => Axis::X,
-        FaceId::U | FaceId::D => Axis::Y,
-        FaceId::F | FaceId::B => Axis::Z,
     }
 }
 
@@ -193,7 +186,7 @@ fn line_point(spec: StripSpec, t: usize, n: usize) -> (usize, usize) {
 }
 
 fn strip_base_for_face(face: FaceId, axis: Axis, depth: usize, n: usize) -> Option<StripSpec> {
-    if normal_axis(face) == axis {
+    if face_axis(face) == axis {
         return None;
     }
 

@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::{
+    conventions::{face_axis, face_outer_move, home_facelet_for_face},
     cube::{trace_facelet_location_through_move, Cube, FaceletLocation},
     face::FaceId,
     facelet::Facelet,
@@ -14,8 +15,8 @@ use crate::cube::{
 };
 
 use super::{
-    face_outer_move, MoveSequenceOperation, SolveContext, SolveError, SolvePhase, SolveResult,
-    SolverStage, SubStageSpec,
+    MoveSequenceOperation, SolveContext, SolveError, SolvePhase, SolveResult, SolverStage,
+    SubStageSpec,
 };
 
 const CORNER_ORIENTATION_STATE_COUNT: usize = 2_187;
@@ -557,14 +558,6 @@ fn move_is_redundant(previous_face: Option<FaceId>, next_face: FaceId) -> bool {
     face_axis(previous_face) == face_axis(next_face) && previous_face.index() > next_face.index()
 }
 
-fn face_axis(face: FaceId) -> usize {
-    match face {
-        FaceId::U | FaceId::D => 0,
-        FaceId::R | FaceId::L => 1,
-        FaceId::F | FaceId::B => 2,
-    }
-}
-
 fn encode_corner_orientation(orientation: [u8; 8]) -> usize {
     let mut index = 0usize;
 
@@ -690,10 +683,6 @@ fn all_corner_facelets_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
     }
 
     true
-}
-
-fn home_facelet_for_face(face: FaceId) -> Facelet {
-    Facelet::from_u8(face.index() as u8)
 }
 
 #[cfg(test)]

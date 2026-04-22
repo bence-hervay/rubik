@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::{
+    conventions::{face_layer_move, face_outer_move, home_facelet_for_face, normalize_face_pair},
     cube::{
         edge_cubie_for_facelet_location, edge_cubie_orbit_index,
         edge_three_cycle_plan_from_updates, trace_edge_cubie_through_move, Cube, EdgeCubieLocation,
@@ -1733,10 +1734,6 @@ fn build_mask_solution_table(generator_masks: &[u16]) -> Vec<Option<MaskNode>> {
     nodes
 }
 
-fn home_facelet_for_face(face: FaceId) -> Facelet {
-    Facelet::from_u8(face.index() as u8)
-}
-
 fn solved_edge_slot_keys() -> [EdgeColorKey; 12] {
     EdgeSlot::ALL.map(EdgeSlot::solved_key)
 }
@@ -1841,13 +1838,13 @@ fn edge_transfer_updates(
 fn wing_cycle_literal_moves(side_length: usize, row: usize) -> Vec<Move> {
     let mirror = side_length - 1 - row;
     let mut moves = Vec::with_capacity(18);
-    moves.push(super::face_layer_move(
+    moves.push(face_layer_move(
         side_length,
         FaceId::D,
         row,
         MoveAngle::Positive,
     ));
-    moves.push(super::face_layer_move(
+    moves.push(face_layer_move(
         side_length,
         FaceId::D,
         mirror,
@@ -1857,7 +1854,7 @@ fn wing_cycle_literal_moves(side_length: usize, row: usize) -> Vec<Move> {
         side_length,
         FaceMap::identity(),
     ));
-    moves.push(super::face_layer_move(
+    moves.push(face_layer_move(
         side_length,
         FaceId::D,
         row,
@@ -1867,7 +1864,7 @@ fn wing_cycle_literal_moves(side_length: usize, row: usize) -> Vec<Move> {
         side_length,
         FaceMap::identity(),
     ));
-    moves.push(super::face_layer_move(
+    moves.push(face_layer_move(
         side_length,
         FaceId::D,
         mirror,
@@ -2048,7 +2045,7 @@ fn orbit_setup_moves(side_length: usize, row: usize) -> Vec<Move> {
     for face in FaceId::ALL {
         for &depth in &depths {
             for angle in MoveAngle::ALL {
-                moves.push(super::face_layer_move(side_length, face, depth, angle));
+                moves.push(face_layer_move(side_length, face, depth, angle));
             }
         }
     }
@@ -2061,7 +2058,7 @@ fn middle_setup_moves(side_length: usize) -> Vec<Move> {
 
     for face in FaceId::ALL {
         for angle in MoveAngle::ALL {
-            moves.push(super::face_outer_move(side_length, face, angle));
+            moves.push(face_outer_move(side_length, face, angle));
         }
     }
 
@@ -2230,14 +2227,6 @@ fn cubie_from_fixed_position(side_length: usize, position: FixedEdgePosition) ->
     let location = FaceletLocation { face, row, col };
     edge_cubie_for_facelet_location(side_length, location)
         .expect("fixed edge position must decode to a valid edge cubie")
-}
-
-fn normalize_face_pair(first: FaceId, second: FaceId) -> (FaceId, FaceId) {
-    if first.index() <= second.index() {
-        (first, second)
-    } else {
-        (second, first)
-    }
 }
 
 fn build_slot_setup_paths(
@@ -2479,7 +2468,7 @@ fn mapped_face_layer_move(
     depth_from_face: usize,
     angle: MoveAngle,
 ) -> Move {
-    super::face_layer_move(side_length, face_map.apply(face), depth_from_face, angle)
+    face_layer_move(side_length, face_map.apply(face), depth_from_face, angle)
 }
 
 fn flip_right_edge_moves_with_map(side_length: usize, face_map: FaceMap) -> [Move; 7] {

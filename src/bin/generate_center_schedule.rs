@@ -1,5 +1,6 @@
 use std::{env, fs, io};
 
+use rubik::conventions::opposite_face;
 use rubik::{
     Byte, CenterCoordExpr, CenterLocationExpr, CenterScheduleStep, Cube, FaceCommutator, FaceId,
     FaceletLocation, MoveAngle,
@@ -132,17 +133,6 @@ fn coord_expr(value: usize) -> CenterCoordExpr {
         value if value == TEMPLATE_N - 1 - TEMPLATE_ROW => CenterCoordExpr::ReverseRow,
         value if value == TEMPLATE_N - 1 - TEMPLATE_COLUMN => CenterCoordExpr::ReverseColumn,
         _ => panic!("coordinate {value} is not represented by row/column template expressions"),
-    }
-}
-
-fn opposite_face(face: FaceId) -> FaceId {
-    match face {
-        FaceId::U => FaceId::D,
-        FaceId::D => FaceId::U,
-        FaceId::R => FaceId::L,
-        FaceId::L => FaceId::R,
-        FaceId::F => FaceId::B,
-        FaceId::B => FaceId::F,
     }
 }
 

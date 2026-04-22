@@ -6,6 +6,7 @@ mod corners;
 mod edges;
 
 use crate::{
+    conventions::{face_outer_move, home_facelet_for_face, opposite_face},
     cube::{Cube, EdgeThreeCyclePlan, FaceCommutator, FaceCommutatorPlan},
     face::FaceId,
     facelet::Facelet,
@@ -694,7 +695,7 @@ fn center_orientation<S: FaceletArray>(cube: &Cube<S>, mid: usize) -> [Facelet; 
 }
 
 fn solved_center_orientation() -> [Facelet; 6] {
-    FaceId::ALL.map(target_center_color)
+    FaceId::ALL.map(home_facelet_for_face)
 }
 
 fn center_alignment_moves(
@@ -1001,7 +1002,7 @@ fn centers_are_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
 
 fn face_centers_are_solved<S: FaceletArray>(cube: &Cube<S>, face: FaceId) -> bool {
     let side_length = cube.side_len();
-    let target = target_center_color(face);
+    let target = home_facelet_for_face(face);
     let target_raw = target.as_u8();
     let storage = cube.face(face).matrix().storage();
 
@@ -1041,38 +1042,12 @@ fn total_center_count(side_length: usize) -> usize {
     centers_per_face * centers_per_face * FaceId::ALL.len()
 }
 
-fn target_center_color(face: FaceId) -> Facelet {
-    Facelet::from_u8(face.index() as u8)
-}
-
-fn face_outer_move(side_length: usize, face: FaceId, angle: MoveAngle) -> Move {
-    face_layer_move(side_length, face, 0, angle)
-}
-
-fn face_layer_move(
-    side_length: usize,
-    face: FaceId,
-    depth_from_face: usize,
-    angle: MoveAngle,
-) -> Move {
-    let last = side_length - 1;
-
-    match face {
-        FaceId::U => Move::new(Axis::Y, last - depth_from_face, angle),
-        FaceId::D => Move::new(Axis::Y, depth_from_face, angle.inverse()),
-        FaceId::R => Move::new(Axis::X, last - depth_from_face, angle),
-        FaceId::L => Move::new(Axis::X, depth_from_face, angle.inverse()),
-        FaceId::F => Move::new(Axis::Z, last - depth_from_face, angle),
-        FaceId::B => Move::new(Axis::Z, depth_from_face, angle.inverse()),
-    }
-}
-
 #[allow(dead_code)]
 fn center_score<S: FaceletArray>(cube: &Cube<S>) -> usize {
     let mut score = 0;
 
     for face in FaceId::ALL {
-        let target = target_center_color(face);
+        let target = home_facelet_for_face(face);
         for row in 1..cube.side_len().saturating_sub(1) {
             for column in 1..cube.side_len().saturating_sub(1) {
                 score += usize::from(cube.face(face).get(row, column) == target);
@@ -1085,7 +1060,7 @@ fn center_score<S: FaceletArray>(cube: &Cube<S>) -> usize {
 
 #[allow(dead_code)]
 fn face_center_score<S: FaceletArray>(cube: &Cube<S>, face: FaceId) -> usize {
-    let target = target_center_color(face);
+    let target = home_facelet_for_face(face);
     let mut score = 0;
 
     for row in 1..cube.side_len().saturating_sub(1) {
@@ -1136,17 +1111,6 @@ impl<S: FaceletArray> SolverStage<S> for ThreeByThreeStage {
 
     fn run(&mut self, _cube: &mut Cube<S>, _context: &mut SolveContext) -> SolveResult<()> {
         Ok(())
-    }
-}
-
-fn opposite_face(face: FaceId) -> FaceId {
-    match face {
-        FaceId::U => FaceId::D,
-        FaceId::D => FaceId::U,
-        FaceId::R => FaceId::L,
-        FaceId::L => FaceId::R,
-        FaceId::F => FaceId::B,
-        FaceId::B => FaceId::F,
     }
 }
 

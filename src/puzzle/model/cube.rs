@@ -2,6 +2,7 @@ use core::fmt;
 use core::fmt::Write;
 
 use crate::{
+    conventions::{face_layer_move, opposite_face},
     face::{Face, FaceId},
     facelet::Facelet,
     geometry,
@@ -2261,18 +2262,6 @@ fn strip_position(spec: StripSpec, offset: usize, n: usize) -> FacePosition {
     }
 }
 
-fn face_layer_move(n: usize, face: FaceId, depth_from_face: usize, angle: MoveAngle) -> Move {
-    let last = n - 1;
-    match face {
-        FaceId::U => Move::new(Axis::Y, last - depth_from_face, angle),
-        FaceId::D => Move::new(Axis::Y, depth_from_face, angle.inverse()),
-        FaceId::R => Move::new(Axis::X, last - depth_from_face, angle),
-        FaceId::L => Move::new(Axis::X, depth_from_face, angle.inverse()),
-        FaceId::F => Move::new(Axis::Z, last - depth_from_face, angle),
-        FaceId::B => Move::new(Axis::Z, depth_from_face, angle.inverse()),
-    }
-}
-
 fn validate_edge_three_cycle(n: usize, cycle: EdgeThreeCycle) {
     try_validate_edge_three_cycle(n, cycle).unwrap_or_else(|error| panic!("{error}"));
 }
@@ -2732,17 +2721,6 @@ fn random_move_angle<R: RandomSource>(rng: &mut R) -> MoveAngle {
         0 => MoveAngle::Positive,
         1 => MoveAngle::Double,
         _ => MoveAngle::Negative,
-    }
-}
-
-fn opposite_face(face: FaceId) -> FaceId {
-    match face {
-        FaceId::U => FaceId::D,
-        FaceId::D => FaceId::U,
-        FaceId::R => FaceId::L,
-        FaceId::L => FaceId::R,
-        FaceId::F => FaceId::B,
-        FaceId::B => FaceId::F,
     }
 }
 
