@@ -435,64 +435,97 @@ fn cube_backends_agree_after_random_moves() {
     assert_cubes_match(&three_bit, &byte);
 }
 
-#[test]
-fn optimized_face_commutators_match_expanded_moves_exhaustively() {
+fn optimized_face_commutators_match_expanded_moves_for(destination: FaceId, helper: FaceId) {
+    assert_ne!(helper, destination);
+    assert_ne!(helper, super::opposite_face(destination));
+
     for side_length in 3..=6 {
-        for destination in FaceId::ALL {
-            for helper in FaceId::ALL {
-                if helper == destination || helper == super::opposite_face(destination) {
-                    continue;
-                }
+        for slice_angle in MoveAngle::ALL {
+            for (rows, columns) in disjoint_inner_layer_set_pairs(side_length) {
+                for seed in 0..2 {
+                    let expanded_plan = Cube::<Byte>::new_solved_with_threads(side_length, 1)
+                        .face_commutator_plan(
+                            FaceCommutator::new(destination, helper, slice_angle),
+                            &rows,
+                            &columns,
+                        );
+                    let mut expected = patterned_cube::<Byte>(side_length, seed);
+                    expected.apply_face_commutator_plan_literal_untracked(expanded_plan);
 
-                for slice_angle in MoveAngle::ALL {
-                    for (rows, columns) in disjoint_inner_layer_set_pairs(side_length) {
-                        for seed in 0..2 {
-                            let expanded_plan =
-                                Cube::<Byte>::new_solved_with_threads(side_length, 1)
-                                    .face_commutator_plan(
-                                        FaceCommutator::new(destination, helper, slice_angle),
-                                        &rows,
-                                        &columns,
-                                    );
-                            let mut expected = patterned_cube::<Byte>(side_length, seed);
-                            expected.apply_face_commutator_plan_literal_untracked(expanded_plan);
+                    let mut reference = patterned_cube::<Byte>(side_length, seed);
+                    reference.apply_face_commutator_untracked_reference(
+                        destination,
+                        helper,
+                        &rows,
+                        &columns,
+                        slice_angle,
+                    );
+                    assert_cubes_match(&reference, &expected);
 
-                            let mut reference = patterned_cube::<Byte>(side_length, seed);
-                            reference.apply_face_commutator_untracked_reference(
-                                destination,
-                                helper,
-                                &rows,
-                                &columns,
-                                slice_angle,
-                            );
-                            assert_cubes_match(&reference, &expected);
+                    let mut actual = patterned_cube::<Byte>(side_length, seed);
+                    actual.apply_face_commutator_plan_untracked(expanded_plan);
 
-                            let mut actual = patterned_cube::<Byte>(side_length, seed);
-                            actual.apply_face_commutator_plan_untracked(expanded_plan);
+                    assert_cubes_match(&actual, &expected);
 
-                            assert_cubes_match(&actual, &expected);
+                    let normalized_plan = Cube::<Byte>::new_solved_with_threads(side_length, 1)
+                        .normalized_face_commutator_plan(
+                            FaceCommutator::new(destination, helper, slice_angle),
+                            &rows,
+                            &columns,
+                        );
+                    let mut normalized_expected = patterned_cube::<Byte>(side_length, seed);
+                    normalized_expected
+                        .apply_face_commutator_plan_literal_untracked(normalized_plan);
 
-                            let normalized_plan =
-                                Cube::<Byte>::new_solved_with_threads(side_length, 1)
-                                    .normalized_face_commutator_plan(
-                                        FaceCommutator::new(destination, helper, slice_angle),
-                                        &rows,
-                                        &columns,
-                                    );
-                            let mut normalized_expected = patterned_cube::<Byte>(side_length, seed);
-                            normalized_expected
-                                .apply_face_commutator_plan_literal_untracked(normalized_plan);
+                    let mut normalized_actual = patterned_cube::<Byte>(side_length, seed);
+                    normalized_actual.apply_face_commutator_plan_untracked(normalized_plan);
 
-                            let mut normalized_actual = patterned_cube::<Byte>(side_length, seed);
-                            normalized_actual.apply_face_commutator_plan_untracked(normalized_plan);
-
-                            assert_cubes_match(&normalized_actual, &normalized_expected);
-                        }
-                    }
+                    assert_cubes_match(&normalized_actual, &normalized_expected);
                 }
             }
         }
     }
+}
+
+macro_rules! optimized_face_commutator_pair_tests {
+    ($($name:ident: $destination:ident => $helper:ident,)+) => {
+        $(
+            #[test]
+            fn $name() {
+                optimized_face_commutators_match_expanded_moves_for(
+                    FaceId::$destination,
+                    FaceId::$helper,
+                );
+            }
+        )+
+    };
+}
+
+optimized_face_commutator_pair_tests! {
+    optimized_face_commutators_match_expanded_moves_u_r: U => R,
+    optimized_face_commutators_match_expanded_moves_u_l: U => L,
+    optimized_face_commutators_match_expanded_moves_u_f: U => F,
+    optimized_face_commutators_match_expanded_moves_u_b: U => B,
+    optimized_face_commutators_match_expanded_moves_d_r: D => R,
+    optimized_face_commutators_match_expanded_moves_d_l: D => L,
+    optimized_face_commutators_match_expanded_moves_d_f: D => F,
+    optimized_face_commutators_match_expanded_moves_d_b: D => B,
+    optimized_face_commutators_match_expanded_moves_r_u: R => U,
+    optimized_face_commutators_match_expanded_moves_r_d: R => D,
+    optimized_face_commutators_match_expanded_moves_r_f: R => F,
+    optimized_face_commutators_match_expanded_moves_r_b: R => B,
+    optimized_face_commutators_match_expanded_moves_l_u: L => U,
+    optimized_face_commutators_match_expanded_moves_l_d: L => D,
+    optimized_face_commutators_match_expanded_moves_l_f: L => F,
+    optimized_face_commutators_match_expanded_moves_l_b: L => B,
+    optimized_face_commutators_match_expanded_moves_f_u: F => U,
+    optimized_face_commutators_match_expanded_moves_f_d: F => D,
+    optimized_face_commutators_match_expanded_moves_f_r: F => R,
+    optimized_face_commutators_match_expanded_moves_f_l: F => L,
+    optimized_face_commutators_match_expanded_moves_b_u: B => U,
+    optimized_face_commutators_match_expanded_moves_b_d: B => D,
+    optimized_face_commutators_match_expanded_moves_b_r: B => R,
+    optimized_face_commutators_match_expanded_moves_b_l: B => L,
 }
 
 #[test]
