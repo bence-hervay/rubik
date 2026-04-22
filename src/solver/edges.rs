@@ -19,7 +19,10 @@ use crate::{
     storage::{Byte, FaceletArray},
 };
 
-use super::{SolveContext, SolveError, SolvePhase, SolveResult, SolverStage, SubStageSpec};
+use super::{
+    SolveContext, SolveError, SolvePhase, SolveResult, SolverStage, StageExecutionSupport,
+    SubStageSpec,
+};
 
 const EDGE_WING_POSITION_COUNT: usize = 24;
 #[cfg(test)]
@@ -181,6 +184,10 @@ impl<S: FaceletArray> SolverStage<S> for EdgePairingStage {
 
     fn name(&self) -> &'static str {
         "edge pairing"
+    }
+
+    fn execution_mode_support(&self) -> StageExecutionSupport {
+        StageExecutionSupport::StandardAndOptimized
     }
 
     fn sub_stages(&self) -> &[SubStageSpec] {

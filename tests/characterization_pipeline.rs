@@ -1,6 +1,7 @@
 use rubik::{
-    Axis, Byte, CenterReductionStage, CornerReductionStage, Cube, EdgePairingStage, FaceId,
-    FaceletArray, Move, MoveAngle, ReductionSolver, SolveOptions, SolvePhase, Solver, XorShift64,
+    Axis, Byte, CenterReductionStage, CornerReductionStage, Cube, EdgePairingStage, ExecutionMode,
+    FaceId, FaceletArray, Move, MoveAngle, ReductionSolver, SolveOptions, SolvePhase, Solver,
+    XorShift64,
 };
 
 fn scrambled_cube(side_length: usize, seed: u64, move_count: usize) -> Cube<Byte> {
@@ -37,14 +38,11 @@ fn assert_cubes_match<A: FaceletArray, B: FaceletArray>(actual: &Cube<A>, expect
     }
 }
 
-fn default_solver(record_moves: bool) -> ReductionSolver<Byte> {
-    ReductionSolver::<Byte>::new(SolveOptions {
-        thread_count: 1,
-        record_moves,
-    })
-    .with_stage(CenterReductionStage::western_default())
-    .with_stage(CornerReductionStage::default())
-    .with_stage(EdgePairingStage::default())
+fn default_solver(execution_mode: ExecutionMode) -> ReductionSolver<Byte> {
+    ReductionSolver::<Byte>::new(SolveOptions::new(1, execution_mode))
+        .with_stage(CenterReductionStage::western_default())
+        .with_stage(CornerReductionStage::default())
+        .with_stage(EdgePairingStage::default())
 }
 
 #[test]
@@ -52,7 +50,7 @@ fn recorded_default_pipeline_replays_to_the_same_final_cube_state() {
     for side_length in [4usize, 5] {
         let mut cube = scrambled_cube(side_length, 0xC7A6_1000, 80);
         let initial = cube.clone();
-        let mut solver = default_solver(true);
+        let mut solver = default_solver(ExecutionMode::Standard);
 
         let outcome = solver.solve(&mut cube).unwrap_or_else(|error| {
             panic!(
@@ -111,7 +109,7 @@ fn unrecorded_default_pipeline_keeps_reported_move_counts_without_storing_moves(
     let side_length = 5;
     let mut cube = scrambled_cube(side_length, 0xC7A6_2000, 80);
     let history_before = cube.history().len();
-    let mut solver = default_solver(false);
+    let mut solver = default_solver(ExecutionMode::Optimized);
 
     let outcome = solver.solve(&mut cube).unwrap_or_else(|error| {
         panic!(

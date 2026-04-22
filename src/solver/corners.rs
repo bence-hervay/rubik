@@ -16,7 +16,7 @@ use crate::cube::{
 
 use super::{
     MoveSequenceAlgorithm, SolveContext, SolveError, SolvePhase, SolveResult, SolverStage,
-    SubStageSpec,
+    StageExecutionSupport, SubStageSpec,
 };
 
 const CORNER_ORIENTATION_STATE_COUNT: usize = 2_187;
@@ -261,6 +261,10 @@ impl<S: FaceletArray> SolverStage<S> for CornerReductionStage {
 
     fn name(&self) -> &'static str {
         "corner reduction"
+    }
+
+    fn execution_mode_support(&self) -> StageExecutionSupport {
+        StageExecutionSupport::StandardAndOptimized
     }
 
     fn sub_stages(&self) -> &[SubStageSpec] {

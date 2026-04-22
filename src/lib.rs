@@ -29,8 +29,9 @@ pub use runtime::{RandomSource, XorShift64};
 pub use solver::{
     CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr,
     CenterReductionStage, CenterScheduleStep, CenterTransferSpec, CornerReductionStage, CornerSlot,
-    EdgePairingStage, EdgeSlot, MoveSequence, MoveStats, ReductionSolver, SolveContext, SolveError,
-    SolveOptions, SolveOutcome, SolvePhase, SolveResult, Solver, SolverStage, StageReport,
-    SubStageSpec, ThreeByThreeStage, GENERATED_CENTER_SCHEDULE,
+    EdgePairingStage, EdgeSlot, ExecutionMode, MoveSequence, MoveStats, ReductionSolver,
+    SolveContext, SolveError, SolveOptions, SolveOutcome, SolvePhase, SolveResult, Solver,
+    SolverStage, StageExecutionSupport, StageReport, SubStageSpec, ThreeByThreeStage,
+    GENERATED_CENTER_SCHEDULE,
 };
 pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};

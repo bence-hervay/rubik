@@ -67,6 +67,50 @@ impl fmt::Display for SolvePhase {
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum ExecutionMode {
+    Standard,
+    Optimized,
+}
+
+impl ExecutionMode {
+    pub const fn records_moves(self) -> bool {
+        match self {
+            Self::Standard => true,
+            Self::Optimized => false,
+        }
+    }
+}
+
+impl fmt::Display for ExecutionMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Standard => f.write_str("standard"),
+            Self::Optimized => f.write_str("optimized"),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum StageExecutionSupport {
+    StandardOnly,
+    StandardAndOptimized,
+}
+
+impl StageExecutionSupport {
+    pub const fn supports(self, mode: ExecutionMode) -> bool {
+        match (self, mode) {
+            (Self::StandardOnly, ExecutionMode::Standard) => true,
+            (Self::StandardOnly, ExecutionMode::Optimized) => false,
+            (Self::StandardAndOptimized, _) => true,
+        }
+    }
+
+    pub const fn supports_optimized(self) -> bool {
+        self.supports(ExecutionMode::Optimized)
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct SolveOptions {
     pub thread_count: usize,
@@ -75,10 +119,37 @@ pub struct SolveOptions {
 
 impl Default for SolveOptions {
     fn default() -> Self {
+        Self::standard(default_thread_count())
+    }
+}
+
+impl SolveOptions {
+    pub const fn new(thread_count: usize, execution_mode: ExecutionMode) -> Self {
         Self {
-            thread_count: default_thread_count(),
-            record_moves: true,
+            thread_count,
+            record_moves: execution_mode.records_moves(),
         }
+    }
+
+    pub const fn standard(thread_count: usize) -> Self {
+        Self::new(thread_count, ExecutionMode::Standard)
+    }
+
+    pub const fn optimized(thread_count: usize) -> Self {
+        Self::new(thread_count, ExecutionMode::Optimized)
+    }
+
+    pub const fn execution_mode(self) -> ExecutionMode {
+        if self.record_moves {
+            ExecutionMode::Standard
+        } else {
+            ExecutionMode::Optimized
+        }
+    }
+
+    pub const fn with_execution_mode(mut self, execution_mode: ExecutionMode) -> Self {
+        self.record_moves = execution_mode.records_moves();
+        self
     }
 }
 
@@ -189,6 +260,10 @@ impl SolveContext {
         self.options
     }
 
+    pub fn execution_mode(&self) -> ExecutionMode {
+        self.options.execution_mode()
+    }
+
     pub fn center_commutators(&self) -> &CenterCommutatorTable {
         &self.center_commutators
     }
@@ -219,7 +294,7 @@ impl SolveContext {
 
         algorithm.for_each_literal_move(&mut |mv| {
             self.move_stats.record(mv, cube.side_len());
-            if self.options.record_moves {
+            if self.execution_mode().records_moves() {
                 self.moves.push(mv);
             }
         });
@@ -237,7 +312,7 @@ impl SolveContext {
 
     pub fn apply_move<S: FaceletArray>(&mut self, cube: &mut Cube<S>, mv: Move) {
         self.move_stats.record(mv, cube.side_len());
-        if self.options.record_moves {
+        if self.execution_mode().records_moves() {
             cube.apply_move_with_threads(mv, self.options.thread_count);
             self.moves.push(mv);
         } else {
@@ -303,6 +378,7 @@ pub trait Solver<S: FaceletArray> {
 pub trait SolverStage<S: FaceletArray> {
     fn phase(&self) -> SolvePhase;
     fn name(&self) -> &'static str;
+    fn execution_mode_support(&self) -> StageExecutionSupport;
     fn sub_stages(&self) -> &[SubStageSpec];
     fn run(&mut self, cube: &mut Cube<S>, context: &mut SolveContext) -> SolveResult<()>;
 }
@@ -550,6 +626,10 @@ impl<S: FaceletArray> SolverStage<S> for CenterReductionStage {
 
     fn name(&self) -> &'static str {
         "center reduction"
+    }
+
+    fn execution_mode_support(&self) -> StageExecutionSupport {
+        StageExecutionSupport::StandardAndOptimized
     }
 
     fn sub_stages(&self) -> &[SubStageSpec] {
@@ -1053,6 +1133,10 @@ impl<S: FaceletArray> SolverStage<S> for ThreeByThreeStage {
         "3x3 finish"
     }
 
+    fn execution_mode_support(&self) -> StageExecutionSupport {
+        StageExecutionSupport::StandardAndOptimized
+    }
+
     fn sub_stages(&self) -> &[SubStageSpec] {
         &self.sub_stages
     }
@@ -1223,6 +1307,52 @@ mod tests {
         assert_eq!(
             names,
             ["center reduction", "corner reduction", "edge pairing"]
+        );
+    }
+
+    #[test]
+    fn solve_options_named_modes_round_trip_through_recording_flag() {
+        let standard = SolveOptions::standard(3);
+        assert_eq!(standard.thread_count, 3);
+        assert!(standard.record_moves);
+        assert_eq!(standard.execution_mode(), ExecutionMode::Standard);
+
+        let optimized = SolveOptions::optimized(5);
+        assert_eq!(optimized.thread_count, 5);
+        assert!(!optimized.record_moves);
+        assert_eq!(optimized.execution_mode(), ExecutionMode::Optimized);
+
+        let switched = SolveOptions::standard(7).with_execution_mode(ExecutionMode::Optimized);
+        assert_eq!(switched.thread_count, 7);
+        assert!(!switched.record_moves);
+        assert_eq!(switched.execution_mode(), ExecutionMode::Optimized);
+    }
+
+    #[test]
+    fn default_stages_explicitly_declare_execution_mode_support() {
+        assert_eq!(
+            <CenterReductionStage as SolverStage<Byte>>::execution_mode_support(
+                &CenterReductionStage::western_default()
+            ),
+            StageExecutionSupport::StandardAndOptimized
+        );
+        assert_eq!(
+            <CornerReductionStage as SolverStage<Byte>>::execution_mode_support(
+                &CornerReductionStage::default()
+            ),
+            StageExecutionSupport::StandardAndOptimized
+        );
+        assert_eq!(
+            <EdgePairingStage as SolverStage<Byte>>::execution_mode_support(
+                &EdgePairingStage::default()
+            ),
+            StageExecutionSupport::StandardAndOptimized
+        );
+        assert_eq!(
+            <ThreeByThreeStage as SolverStage<Byte>>::execution_mode_support(
+                &ThreeByThreeStage::default()
+            ),
+            StageExecutionSupport::StandardAndOptimized
         );
     }
 

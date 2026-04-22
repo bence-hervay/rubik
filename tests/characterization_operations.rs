@@ -1,7 +1,7 @@
 use rubik::solver::MoveSequenceOperation;
 use rubik::{
-    Byte, Cube, EdgeThreeCycle, FaceCommutator, FaceCommutatorMode, FaceId, Facelet, FaceletArray,
-    Move, MoveAngle, MoveStats, SolveContext, SolveOptions,
+    Byte, Cube, EdgeThreeCycle, ExecutionMode, FaceCommutator, FaceCommutatorMode, FaceId, Facelet,
+    FaceletArray, Move, MoveAngle, MoveStats, SolveContext, SolveOptions,
 };
 
 fn patterned_cube<S: FaceletArray>(side_length: usize, seed: usize) -> Cube<S> {
@@ -63,17 +63,11 @@ fn recorded_and_unrecorded_move_sequence_operations_have_the_same_cube_effect() 
     expected.apply_moves_untracked_with_threads(moves, 1);
 
     let mut recorded_cube = initial.clone();
-    let mut recorded_context = SolveContext::new(SolveOptions {
-        thread_count: 1,
-        record_moves: true,
-    });
+    let mut recorded_context = SolveContext::new(SolveOptions::new(1, ExecutionMode::Standard));
     recorded_context.apply_operation(&mut recorded_cube, &operation);
 
     let mut unrecorded_cube = initial;
-    let mut unrecorded_context = SolveContext::new(SolveOptions {
-        thread_count: 1,
-        record_moves: false,
-    });
+    let mut unrecorded_context = SolveContext::new(SolveOptions::new(1, ExecutionMode::Optimized));
     unrecorded_context.apply_operation(&mut unrecorded_cube, &operation);
 
     let expected_stats = move_stats_for(side_length, &moves);
@@ -110,17 +104,12 @@ fn recorded_and_unrecorded_face_commutator_plans_have_the_same_cube_effect() {
         expected.apply_face_commutator_plan_literal_untracked(plan);
 
         let mut recorded_cube = initial.clone();
-        let mut recorded_context = SolveContext::new(SolveOptions {
-            thread_count: 1,
-            record_moves: true,
-        });
+        let mut recorded_context = SolveContext::new(SolveOptions::new(1, ExecutionMode::Standard));
         recorded_context.apply_operation(&mut recorded_cube, &plan);
 
         let mut unrecorded_cube = initial;
-        let mut unrecorded_context = SolveContext::new(SolveOptions {
-            thread_count: 1,
-            record_moves: false,
-        });
+        let mut unrecorded_context =
+            SolveContext::new(SolveOptions::new(1, ExecutionMode::Optimized));
         unrecorded_context.apply_operation(&mut unrecorded_cube, &plan);
 
         let expected_stats = move_stats_for(side_length, &literal_moves);
@@ -156,17 +145,12 @@ fn recorded_and_unrecorded_edge_three_cycle_plans_have_the_same_cube_effect() {
         expected.apply_edge_three_cycle_plan_literal_untracked(&plan);
 
         let mut recorded_cube = initial.clone();
-        let mut recorded_context = SolveContext::new(SolveOptions {
-            thread_count: 1,
-            record_moves: true,
-        });
+        let mut recorded_context = SolveContext::new(SolveOptions::new(1, ExecutionMode::Standard));
         recorded_context.apply_edge_three_cycle_plan(&mut recorded_cube, &plan);
 
         let mut unrecorded_cube = initial;
-        let mut unrecorded_context = SolveContext::new(SolveOptions {
-            thread_count: 1,
-            record_moves: false,
-        });
+        let mut unrecorded_context =
+            SolveContext::new(SolveOptions::new(1, ExecutionMode::Optimized));
         unrecorded_context.apply_edge_three_cycle_plan(&mut unrecorded_cube, &plan);
 
         let expected_stats = move_stats_for(side_length, &literal_moves);
