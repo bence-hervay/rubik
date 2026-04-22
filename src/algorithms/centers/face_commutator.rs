@@ -1,9 +1,9 @@
 use core::fmt;
 
 use crate::{
-    cube::EdgeThreeCycleValidationError,
     conventions::{face_layer_move, opposite_face},
     cube::Cube,
+    cube::EdgeThreeCycleValidationError,
     face::FaceId,
     moves::{Move, MoveAngle},
     simulation::derived::{facelet_location, trace_position, FacePosition, FaceletUpdate},

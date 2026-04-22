@@ -1,6 +1,4 @@
-use super::{
-    *,
-};
+use super::*;
 use crate::algorithms::centers::face_commutator::{
     face_commutator_moves, normalized_face_commutator_moves, positions_are_unique,
     sorted_layer_sets_are_disjoint, try_expanded_face_commutator_difference_cycle,
@@ -10,9 +8,7 @@ use crate::algorithms::edges::three_cycle::{
     flip_right_edge_moves, move_sequence_updates, unflip_right_edge_moves,
 };
 use crate::conventions::{face_layer_move, opposite_face};
-use crate::simulation::derived::{
-    edge_cubie_location, trace_position, FacePosition,
-};
+use crate::simulation::derived::{edge_cubie_location, trace_position, FacePosition};
 use crate::{
     Axis, Byte, Byte3, FaceAngle, FaceId, Facelet, FaceletArray, Move, MoveAngle, Nibble,
     RandomSource, ThreeBit, XorShift64,

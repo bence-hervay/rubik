@@ -10,8 +10,7 @@ pub use crate::algorithms::{
     AlgorithmContract, AlgorithmExecutionSupport, AlgorithmSideLengthSupport, AlgorithmStepSpec,
     CenterReductionAlgorithm, CenterReductionStage, CenterTransferSpec, CornerReductionAlgorithm,
     CornerReductionStage, CornerSlot, EdgePairingAlgorithm, EdgePairingStage, EdgeSlot,
-    SolveAlgorithm, ThreeByThreeAlgorithm, ThreeByThreeStage,
-    MoveSequenceOperation,
+    MoveSequenceOperation, SolveAlgorithm, ThreeByThreeAlgorithm, ThreeByThreeStage,
 };
 
 pub use context::SolveContext;
@@ -23,10 +22,8 @@ pub use pipeline::{ReductionSolver, Solver};
 pub use report::{AlgorithmReport, MoveSequence, MoveStats, SolveOutcome};
 
 pub use crate::algorithms::{
-    AlgorithmContract as StageContract,
-    AlgorithmExecutionSupport as StageExecutionSupport,
-    AlgorithmSideLengthSupport as StageSideLengthSupport,
-    AlgorithmStepSpec as SubStageSpec,
+    AlgorithmContract as StageContract, AlgorithmExecutionSupport as StageExecutionSupport,
+    AlgorithmSideLengthSupport as StageSideLengthSupport, AlgorithmStepSpec as SubStageSpec,
     SolveAlgorithm as SolverStage,
 };
 pub use report::AlgorithmReport as StageReport;
@@ -135,8 +132,9 @@ mod tests {
         assert!(!corners.standard_preconditions.is_empty());
         assert!(!corners.standard_postconditions.is_empty());
 
-        let edges =
-            <EdgePairingAlgorithm as SolveAlgorithm<Byte>>::contract(&EdgePairingAlgorithm::default());
+        let edges = <EdgePairingAlgorithm as SolveAlgorithm<Byte>>::contract(
+            &EdgePairingAlgorithm::default(),
+        );
         assert!(edges.side_lengths.supports(3));
         assert!(!edges.requires_previous_stages_solved);
         assert!(!edges.standard_preconditions.is_empty());

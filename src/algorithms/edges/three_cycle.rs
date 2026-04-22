@@ -5,8 +5,8 @@ use crate::{
     moves::{Move, MoveAngle},
     simulation::derived::{
         edge_cubie_index, edge_cubie_location, edge_cubie_sets_match, facelet_location,
-        facelet_locations_are_unique, trace_position, unique_edge_cubies, FacePosition,
-        trace_facelet_location_through_moves, EdgeCubieLocation, FaceletUpdate,
+        facelet_locations_are_unique, trace_facelet_location_through_moves, trace_position,
+        unique_edge_cubies, EdgeCubieLocation, FacePosition, FaceletUpdate,
     },
     storage::FaceletArray,
 };

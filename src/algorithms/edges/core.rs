@@ -18,13 +18,13 @@ use crate::{
     storage::{Byte, FaceletArray},
 };
 
-use crate::solver::{SolveContext, SolveError, SolveResult};
 use super::{prepared::PreparedEdgeTables, EdgeSlot};
+use crate::solver::{SolveContext, SolveError, SolveResult};
 
 #[cfg(test)]
-use crate::solver::{SolveOptions, SolverStage};
-#[cfg(test)]
 use super::EdgePairingStage;
+#[cfg(test)]
+use crate::solver::{SolveOptions, SolverStage};
 
 const EDGE_WING_POSITION_COUNT: usize = 24;
 #[cfg(test)]

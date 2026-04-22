@@ -7,7 +7,7 @@ pub use face_commutator::{
     FaceCommutatorValidationError, LayerSetKind, LayerSetValidationError,
 };
 pub use precompute::{
-    CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr,
-    CenterScheduleStep, GENERATED_CENTER_SCHEDULE,
+    CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterScheduleStep,
+    GENERATED_CENTER_SCHEDULE,
 };
 pub use reduction::{CenterReductionAlgorithm, CenterReductionStage, CenterTransferSpec};

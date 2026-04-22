@@ -20,7 +20,10 @@ use super::precompute::{CenterLocationExpr, CenterScheduleStep, GENERATED_CENTER
 use crate::solver::{MoveSequenceOperation, SolveOptions, SolverStage};
 
 #[cfg(test)]
-use crate::{algorithms::centers::{CenterCommutatorTable, CenterCoordExpr}, conventions::face_outer_move};
+use crate::{
+    algorithms::centers::{CenterCommutatorTable, CenterCoordExpr},
+    conventions::face_outer_move,
+};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct CenterTransferSpec {

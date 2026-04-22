@@ -17,9 +17,9 @@ use crate::cube::{
 use super::CornerSlot;
 
 #[cfg(test)]
-use crate::solver::{SolveContext, SolverStage};
-#[cfg(test)]
 use super::CornerReductionStage;
+#[cfg(test)]
+use crate::solver::{SolveContext, SolverStage};
 
 const CORNER_ORIENTATION_STATE_COUNT: usize = 2_187;
 const CORNER_PERMUTATION_STATE_COUNT: usize = 40_320;
