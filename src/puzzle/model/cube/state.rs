@@ -20,6 +20,13 @@ impl<S: FaceletArray> Cube<S> {
         Self::new_with_scheme_with_threads(n, ColorScheme::default(), thread_count)
     }
 
+    pub fn from_facelet_fn<F>(n: usize, reachability: CubeReachability, facelet_at: F) -> Self
+    where
+        F: FnMut(FaceId, usize, usize) -> Facelet,
+    {
+        Self::from_facelet_fn_with_threads(n, reachability, default_thread_count(), facelet_at)
+    }
+
     pub fn new_with_scheme(n: usize, scheme: ColorScheme) -> Self {
         Self::new_with_scheme_with_threads(n, scheme, default_thread_count())
     }
@@ -29,19 +36,40 @@ impl<S: FaceletArray> Cube<S> {
         scheme: ColorScheme,
         thread_count: usize,
     ) -> Self {
+        Self::from_facelet_fn_with_threads(
+            n,
+            CubeReachability::Reachable,
+            thread_count,
+            |face, _, _| scheme.color_of(face),
+        )
+    }
+
+    pub fn from_facelet_fn_with_threads<F>(
+        n: usize,
+        reachability: CubeReachability,
+        thread_count: usize,
+        mut facelet_at: F,
+    ) -> Self
+    where
+        F: FnMut(FaceId, usize, usize) -> Facelet,
+    {
         assert!(n > 0, "cube side length must be > 0");
         assert!(thread_count > 0, "thread count must be greater than zero");
 
+        let faces = FaceId::ALL.map(|face_id| {
+            let mut face = Face::new_with_threads(face_id, n, Facelet::White, thread_count);
+            for row in 0..n {
+                for col in 0..n {
+                    face.set(row, col, facelet_at(face_id, row, col));
+                }
+            }
+            face
+        });
+
         Self {
             n,
-            faces: [
-                Face::new_with_threads(FaceId::U, n, scheme.u, thread_count),
-                Face::new_with_threads(FaceId::D, n, scheme.d, thread_count),
-                Face::new_with_threads(FaceId::R, n, scheme.r, thread_count),
-                Face::new_with_threads(FaceId::L, n, scheme.l, thread_count),
-                Face::new_with_threads(FaceId::F, n, scheme.f, thread_count),
-                Face::new_with_threads(FaceId::B, n, scheme.b, thread_count),
-            ],
+            faces,
+            reachability,
             history: MoveHistory::new(),
         }
     }
@@ -55,11 +83,24 @@ impl<S: FaceletArray> Cube<S> {
     }
 
     pub fn face_mut(&mut self, id: FaceId) -> &mut Face<S> {
+        self.reachability = CubeReachability::Unverified;
         &mut self.faces[id.index()]
     }
 
     pub fn faces(&self) -> &[Face<S>; 6] {
         &self.faces
+    }
+
+    pub fn reachability(&self) -> CubeReachability {
+        self.reachability
+    }
+
+    pub fn is_reachable(&self) -> bool {
+        self.reachability.is_reachable()
+    }
+
+    pub fn set_reachability(&mut self, reachability: CubeReachability) {
+        self.reachability = reachability;
     }
 
     pub fn history(&self) -> &MoveHistory {
@@ -233,8 +274,7 @@ impl<S: FaceletArray> Cube<S> {
     }
 
     pub(super) fn set_position(&mut self, position: FacePosition, value: Facelet) {
-        self.face_mut(position.face)
-            .set(position.row, position.col, value);
+        self.faces[position.face.index()].set(position.row, position.col, value);
     }
 
     #[inline]

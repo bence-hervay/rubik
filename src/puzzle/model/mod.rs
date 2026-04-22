@@ -3,7 +3,7 @@ pub mod face;
 pub mod facelet;
 
 pub use cube::{
-    ColorScheme, CornerCubieLocation, Cube, EdgeCubieLocation, EdgeThreeCycle,
+    ColorScheme, CornerCubieLocation, Cube, CubeReachability, EdgeCubieLocation, EdgeThreeCycle,
     EdgeThreeCycleDirection, EdgeThreeCycleKind, EdgeThreeCyclePlan, EdgeThreeCycleValidationError,
     FaceCommutator, FaceCommutatorLayers, FaceCommutatorMode, FaceCommutatorPlan,
     FaceCommutatorValidationError, FaceletLocation, FaceletUpdate, LayerSetKind,

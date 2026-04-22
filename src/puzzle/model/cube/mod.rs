@@ -180,5 +180,18 @@ pub struct EdgeThreeCyclePlan {
 pub struct Cube<S: FaceletArray> {
     n: usize,
     faces: [Face<S>; 6],
+    reachability: CubeReachability,
     history: MoveHistory,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum CubeReachability {
+    Reachable,
+    Unverified,
+}
+
+impl CubeReachability {
+    pub const fn is_reachable(self) -> bool {
+        matches!(self, Self::Reachable)
+    }
 }

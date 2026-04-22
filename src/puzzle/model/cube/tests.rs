@@ -1008,6 +1008,61 @@ fn tracked_moves_enter_history() {
 }
 
 #[test]
+fn solved_cubes_start_reachable() {
+    let cube = Cube::<Byte>::new_solved(4);
+
+    assert_eq!(cube.reachability(), CubeReachability::Reachable);
+    assert!(cube.is_reachable());
+}
+
+#[test]
+fn arbitrary_facelet_constructor_preserves_explicit_reachability() {
+    let cube = Cube::<Byte>::from_facelet_fn_with_threads(
+        3,
+        CubeReachability::Unverified,
+        1,
+        |face, row, col| Facelet::ALL[(face.index() + row + col) % Facelet::ALL.len()],
+    );
+
+    assert_eq!(cube.reachability(), CubeReachability::Unverified);
+    assert!(!cube.is_reachable());
+    assert_eq!(cube.face(FaceId::U).get(0, 0), Facelet::White);
+    assert_eq!(cube.face(FaceId::U).get(0, 1), Facelet::Yellow);
+    assert_eq!(cube.face(FaceId::F).get(2, 1), Facelet::Yellow);
+    assert!(cube.history().is_empty());
+}
+
+#[test]
+fn direct_face_edits_mark_reachability_unverified() {
+    let mut cube = Cube::<Byte>::new_solved(3);
+
+    cube.face_mut(FaceId::U).set(0, 0, Facelet::Red);
+
+    assert_eq!(cube.reachability(), CubeReachability::Unverified);
+    assert!(!cube.is_reachable());
+
+    cube.set_reachability(CubeReachability::Reachable);
+    assert_eq!(cube.reachability(), CubeReachability::Reachable);
+}
+
+#[test]
+fn move_and_optimized_update_paths_preserve_reachability() {
+    let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+
+    cube.apply_move_untracked(Move::new(Axis::X, 3, MoveAngle::Positive));
+    assert_eq!(cube.reachability(), CubeReachability::Reachable);
+
+    let commutator = FaceCommutator::new(FaceId::U, FaceId::R, MoveAngle::Positive);
+    let plan = cube.normalized_face_commutator_plan(commutator, &[1], &[2]);
+    cube.apply_face_commutator_plan_untracked(plan);
+    assert_eq!(cube.reachability(), CubeReachability::Reachable);
+
+    let edge_plan = EdgeThreeCyclePlan::from_cycle(4, EdgeThreeCycle::front_right_wing(1));
+    cube.apply_edge_three_cycle_plan_untracked(&edge_plan);
+    assert_eq!(cube.reachability(), CubeReachability::Reachable);
+}
+
+#[test]
 fn random_move_stays_within_cube_bounds() {
     let side_length = 11;
     let cube = Cube::<Byte>::new_solved(side_length);

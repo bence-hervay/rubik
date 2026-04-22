@@ -14,7 +14,7 @@ pub use model::cube;
 pub use model::face;
 pub use model::facelet;
 pub use model::{
-    ColorScheme, CornerCubieLocation, Cube, EdgeCubieLocation, EdgeThreeCycle,
+    ColorScheme, CornerCubieLocation, Cube, CubeReachability, EdgeCubieLocation, EdgeThreeCycle,
     EdgeThreeCycleDirection, EdgeThreeCycleKind, EdgeThreeCyclePlan, EdgeThreeCycleValidationError,
     Face, FaceAngle, FaceCommutator, FaceCommutatorLayers, FaceCommutatorMode, FaceCommutatorPlan,
     FaceCommutatorValidationError, FaceId, Facelet, FaceletLocation, FaceletUpdate, LayerSetKind,
