@@ -14,10 +14,18 @@ use crate::{
     threading::default_thread_count,
 };
 
-pub use crate::support::centers::{
-    CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterScheduleStep,
-    GENERATED_CENTER_SCHEDULE,
-};
+#[deprecated(note = "use crate::support::centers::CenterCommutatorTable")]
+pub use crate::support::centers::CenterCommutatorTable;
+#[deprecated(note = "use crate::support::centers::CenterCoordExpr")]
+pub use crate::support::centers::CenterCoordExpr;
+#[deprecated(note = "use crate::support::centers::CenterLocation")]
+pub use crate::support::centers::CenterLocation;
+#[deprecated(note = "use crate::support::centers::CenterLocationExpr")]
+pub use crate::support::centers::CenterLocationExpr;
+#[deprecated(note = "use crate::support::centers::CenterScheduleStep")]
+pub use crate::support::centers::CenterScheduleStep;
+#[deprecated(note = "use crate::support::centers::GENERATED_CENTER_SCHEDULE")]
+pub use crate::support::centers::GENERATED_CENTER_SCHEDULE;
 pub use centers::{CenterReductionStage, CenterTransferSpec};
 pub use corners::{CornerReductionStage, CornerSlot};
 pub use edges::{EdgePairingStage, EdgeSlot};
