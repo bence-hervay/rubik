@@ -114,6 +114,6 @@ impl Algorithm for MoveSequenceAlgorithm<'_> {
 
 impl OptimizedAlgorithm for MoveSequenceAlgorithm<'_> {
     fn apply_optimized<S: FaceletArray>(&self, cube: &mut Cube<S>) {
-        cube.apply_moves_untracked_with_threads(self.moves.iter().copied(), 1);
+        cube.apply_moves_untracked(self.moves.iter().copied());
     }
 }

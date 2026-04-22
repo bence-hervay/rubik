@@ -227,7 +227,7 @@ impl<S: FaceletArray> Cube<S> {
             plan.side_length, self.n,
             "edge three-cycle plan side length must match the cube"
         );
-        self.apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+        self.apply_moves_untracked(plan.moves().iter().copied());
     }
 
     /// Applies a precomputed edge three-cycle plan with delayed reads, so the

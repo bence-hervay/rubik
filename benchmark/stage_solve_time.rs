@@ -6,9 +6,9 @@ use std::{
 };
 
 use rubik::{
-    default_thread_count, Axis, Byte, Byte3, CenterCommutatorTable, CenterReductionStage,
-    CornerReductionStage, Cube, EdgePairingStage, FaceId, Facelet, FaceletArray, Move, MoveAngle,
-    MoveStats, Nibble, RandomSource, SolveContext, SolveOptions, SolverStage, ThreeBit, XorShift64,
+    Axis, Byte, Byte3, CenterCommutatorTable, CenterReductionStage, CornerReductionStage, Cube,
+    EdgePairingStage, FaceId, Facelet, FaceletArray, Move, MoveAngle, MoveStats, Nibble,
+    RandomSource, SolveContext, SolveOptions, SolverStage, ThreeBit, XorShift64,
     DEFAULT_SCRAMBLE_ROUNDS, GENERATED_CENTER_SCHEDULE,
 };
 
@@ -115,8 +115,6 @@ struct BenchmarkResult {
     storage: StorageKind,
     side_length: usize,
     scramble_kind: ScrambleKind,
-    allocation_threads: usize,
-    move_threads: usize,
     storage_bytes: usize,
     sections: [SectionBenchmarkResult; 5],
 }
@@ -143,21 +141,6 @@ fn main() {
                 .parse::<usize>()
                 .expect("RUBIK_STAGE_BENCHMARK_CENTER_COMMUTATORS must be a usize")
         });
-    let allocation_threads = environment_usize(
-        "RUBIK_STAGE_BENCHMARK_ALLOCATION_THREADS",
-        default_thread_count(),
-    );
-    let move_threads = environment_usize("RUBIK_STAGE_BENCHMARK_MOVE_THREADS", 1);
-
-    assert!(
-        allocation_threads > 0,
-        "RUBIK_STAGE_BENCHMARK_ALLOCATION_THREADS must be greater than zero"
-    );
-    assert!(
-        move_threads > 0,
-        "RUBIK_STAGE_BENCHMARK_MOVE_THREADS must be greater than zero"
-    );
-
     println!("stage solve benchmarks");
     println!("  sections=[scramble, center, corner, edge, full]");
     println!("  side_powers={side_powers:?}");
@@ -166,8 +149,6 @@ fn main() {
     println!("  random_seed={random_seed}");
     println!("  scramble_rounds={scramble_rounds}");
     println!("  explicit_center_commutators={explicit_commutator_scrambles:?}");
-    println!("  allocation_threads={allocation_threads}");
-    println!("  move_threads={move_threads}");
     println!();
 
     let mut results = Vec::new();
@@ -195,8 +176,6 @@ fn main() {
                 scramble_kind,
                 side_length,
                 &scramble_plan,
-                allocation_threads,
-                move_threads,
             ));
         }
     }
@@ -209,42 +188,20 @@ fn run_benchmark(
     scramble_kind: ScrambleKind,
     side_length: usize,
     scramble_plan: &ScramblePlan,
-    allocation_threads: usize,
-    move_threads: usize,
 ) -> BenchmarkResult {
     match storage {
-        StorageKind::Byte => run_benchmark_for::<Byte>(
-            storage,
-            scramble_kind,
-            side_length,
-            scramble_plan,
-            allocation_threads,
-            move_threads,
-        ),
-        StorageKind::Nibble => run_benchmark_for::<Nibble>(
-            storage,
-            scramble_kind,
-            side_length,
-            scramble_plan,
-            allocation_threads,
-            move_threads,
-        ),
-        StorageKind::ThreeBit => run_benchmark_for::<ThreeBit>(
-            storage,
-            scramble_kind,
-            side_length,
-            scramble_plan,
-            allocation_threads,
-            move_threads,
-        ),
-        StorageKind::Byte3 => run_benchmark_for::<Byte3>(
-            storage,
-            scramble_kind,
-            side_length,
-            scramble_plan,
-            allocation_threads,
-            move_threads,
-        ),
+        StorageKind::Byte => {
+            run_benchmark_for::<Byte>(storage, scramble_kind, side_length, scramble_plan)
+        }
+        StorageKind::Nibble => {
+            run_benchmark_for::<Nibble>(storage, scramble_kind, side_length, scramble_plan)
+        }
+        StorageKind::ThreeBit => {
+            run_benchmark_for::<ThreeBit>(storage, scramble_kind, side_length, scramble_plan)
+        }
+        StorageKind::Byte3 => {
+            run_benchmark_for::<Byte3>(storage, scramble_kind, side_length, scramble_plan)
+        }
     }
 }
 
@@ -253,14 +210,12 @@ fn run_benchmark_for<S: FaceletArray + 'static>(
     scramble_kind: ScrambleKind,
     side_length: usize,
     scramble_plan: &ScramblePlan,
-    allocation_threads: usize,
-    move_threads: usize,
 ) -> BenchmarkResult {
-    let mut cube = Cube::<S>::new_solved_with_threads(side_length, allocation_threads);
+    let mut cube = Cube::<S>::new_solved(side_length);
     let storage_bytes = cube.estimated_storage_bytes();
 
     let scramble_start = Instant::now();
-    let scramble_stats = apply_scramble_plan(&mut cube, scramble_plan, move_threads);
+    let scramble_stats = apply_scramble_plan(&mut cube, scramble_plan);
     let scramble_elapsed = scramble_start.elapsed();
 
     let total_before_solve = solved_facelet_count(&cube);
@@ -269,7 +224,6 @@ fn run_benchmark_for<S: FaceletArray + 'static>(
     let center_start = Instant::now();
     let mut center_stage = CenterReductionStage::western_default();
     let mut center_context = SolveContext::new(SolveOptions {
-        thread_count: move_threads,
         record_moves: false,
     });
     <CenterReductionStage as SolverStage<S>>::run(
@@ -289,7 +243,6 @@ fn run_benchmark_for<S: FaceletArray + 'static>(
     let corner_start = Instant::now();
     let mut corner_stage = CornerReductionStage::default();
     let mut corner_context = SolveContext::new(SolveOptions {
-        thread_count: move_threads,
         record_moves: false,
     });
     <CornerReductionStage as SolverStage<S>>::run(
@@ -310,7 +263,6 @@ fn run_benchmark_for<S: FaceletArray + 'static>(
     let edge_start = Instant::now();
     let mut edge_stage = EdgePairingStage::default();
     let mut edge_context = SolveContext::new(SolveOptions {
-        thread_count: move_threads,
         record_moves: false,
     });
     <EdgePairingStage as SolverStage<S>>::run(&mut edge_stage, &mut cube, &mut edge_context)
@@ -336,8 +288,6 @@ fn run_benchmark_for<S: FaceletArray + 'static>(
         storage,
         side_length,
         scramble_kind,
-        allocation_threads,
-        move_threads,
         storage_bytes,
         sections: [
             SectionBenchmarkResult {
@@ -374,9 +324,9 @@ fn run_benchmark_for<S: FaceletArray + 'static>(
     }
 }
 
-const TABLE_HEADERS: [&str; 13] = [
-    "storage", "n", "section", "scramble", "athr", "mthr", "memory", "ms", "moves", "fixes",
-    "mv/fix", "mv/s", "fix/s",
+const TABLE_HEADERS: [&str; 11] = [
+    "storage", "n", "section", "scramble", "memory", "ms", "moves", "fixes", "mv/fix", "mv/s",
+    "fix/s",
 ];
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -385,13 +335,11 @@ enum ColumnAlignment {
     Right,
 }
 
-const TABLE_ALIGNMENTS: [ColumnAlignment; 13] = [
+const TABLE_ALIGNMENTS: [ColumnAlignment; 11] = [
     ColumnAlignment::Left,
     ColumnAlignment::Right,
     ColumnAlignment::Left,
     ColumnAlignment::Left,
-    ColumnAlignment::Right,
-    ColumnAlignment::Right,
     ColumnAlignment::Right,
     ColumnAlignment::Right,
     ColumnAlignment::Right,
@@ -427,8 +375,6 @@ fn result_rows(results: &[BenchmarkResult]) -> Vec<[String; TABLE_HEADERS.len()]
                 result.side_length.to_string(),
                 section.name.to_owned(),
                 result.scramble_kind.to_string(),
-                result.allocation_threads.to_string(),
-                result.move_threads.to_string(),
                 format_bytes(result.storage_bytes),
                 format!("{:.1}", milliseconds(section.elapsed)),
                 section.moves.to_string(),
@@ -566,18 +512,14 @@ fn generate_center_commutator_scrambles(
     operations
 }
 
-fn apply_scramble_plan<S: FaceletArray>(
-    cube: &mut Cube<S>,
-    plan: &ScramblePlan,
-    move_threads: usize,
-) -> MoveStats {
+fn apply_scramble_plan<S: FaceletArray>(cube: &mut Cube<S>, plan: &ScramblePlan) -> MoveStats {
     match plan {
         ScramblePlan::RandomMoves(moves) => {
-            cube.apply_moves_untracked_with_threads(moves.iter().copied(), move_threads);
+            cube.apply_moves_untracked(moves.iter().copied());
             move_stats_for(moves, cube.side_len())
         }
         ScramblePlan::CenterCommutators(operations) => {
-            apply_center_commutator_scrambles(cube, operations, move_threads)
+            apply_center_commutator_scrambles(cube, operations)
         }
     }
 }
@@ -585,7 +527,6 @@ fn apply_scramble_plan<S: FaceletArray>(
 fn apply_center_commutator_scrambles<S: FaceletArray>(
     cube: &mut Cube<S>,
     operations: &[CenterCommutatorScramble],
-    _move_threads: usize,
 ) -> MoveStats {
     let table = CenterCommutatorTable::new();
     let mut stats = MoveStats::default();

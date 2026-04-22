@@ -1,6 +1,4 @@
-use crate::{
-    facelet::Facelet, line::LineBuffer, storage::FaceletArray, threading::default_thread_count,
-};
+use crate::{facelet::Facelet, line::LineBuffer, storage::FaceletArray};
 
 #[derive(Clone, Debug)]
 pub struct Matrix<S: FaceletArray> {
@@ -10,12 +8,7 @@ pub struct Matrix<S: FaceletArray> {
 
 impl<S: FaceletArray> Matrix<S> {
     pub fn new_filled(n: usize, fill: Facelet) -> Self {
-        Self::new_filled_with_threads(n, fill, default_thread_count())
-    }
-
-    pub fn new_filled_with_threads(n: usize, fill: Facelet, thread_count: usize) -> Self {
         assert!(n > 0, "matrix side length must be > 0");
-        assert!(thread_count > 0, "thread count must be greater than zero");
 
         let len = n
             .checked_mul(n)
@@ -23,7 +16,7 @@ impl<S: FaceletArray> Matrix<S> {
 
         Self {
             n,
-            data: S::with_len_with_threads(len, fill, thread_count),
+            data: S::with_len(len, fill),
         }
     }
 
@@ -175,7 +168,7 @@ mod tests {
     use crate::{line::LineKind, Byte, Byte3, Nibble, ThreeBit};
 
     fn assert_line_io_round_trip<S: FaceletArray>() {
-        let mut matrix = Matrix::<S>::new_filled_with_threads(3, Facelet::White, 1);
+        let mut matrix = Matrix::<S>::new_filled(3, Facelet::White);
         matrix.set(0, 0, Facelet::White);
         matrix.set(0, 1, Facelet::Yellow);
         matrix.set(0, 2, Facelet::Red);
@@ -225,7 +218,7 @@ mod tests {
 
     #[test]
     fn matrix_from_storage_fill_and_preview_follow_row_major_layout() {
-        let mut storage = Byte::with_len_with_threads(4, Facelet::White, 1);
+        let mut storage = Byte::with_len(4, Facelet::White);
         storage.set(0, Facelet::White);
         storage.set(1, Facelet::Yellow);
         storage.set(2, Facelet::Red);

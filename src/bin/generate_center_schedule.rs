@@ -22,7 +22,7 @@ fn main() -> io::Result<()> {
 }
 
 fn generate() -> String {
-    let cube = Cube::<Byte>::new_solved_with_threads(TEMPLATE_N, 1);
+    let cube = Cube::<Byte>::new_solved(TEMPLATE_N);
     let mut candidates = Vec::new();
 
     for destination in FaceId::ALL {

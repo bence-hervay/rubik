@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::{face::Face, storage::FaceletArray};
+use crate::storage::FaceletArray;
 
 use super::{
     pieces::{facelet_location, trace_position, FacePosition},
@@ -362,7 +362,7 @@ impl<S: FaceletArray> Cube<S> {
 
     pub fn apply_face_commutator_plan_literal_untracked(&mut self, plan: FaceCommutatorPlan<'_>) {
         self.validate_face_commutator(plan);
-        self.apply_moves_untracked_with_threads(plan.literal_moves(), 1);
+        self.apply_moves_untracked(plan.literal_moves());
     }
 
     pub fn apply_face_commutator_plan_untracked(&mut self, plan: FaceCommutatorPlan<'_>) {
@@ -452,7 +452,7 @@ impl<S: FaceletArray> Cube<S> {
         self.validate_face_commutator(plan);
 
         let baseline = face_layer_move(self.n, destination, 0, MoveAngle::Positive);
-        self.apply_move_untracked_linear(baseline);
+        self.apply_move_untracked(baseline);
 
         let mut writes = Vec::with_capacity(rows.len() * columns.len() * 3);
         for row in rows.iter().copied() {
@@ -483,7 +483,7 @@ impl<S: FaceletArray> Cube<S> {
         columns: &[usize],
     ) {
         let baseline = face_layer_move(self.n, commutator.destination, 0, MoveAngle::Positive);
-        self.apply_move_untracked_linear(baseline);
+        self.apply_move_untracked(baseline);
 
         if rows.is_empty() || columns.is_empty() {
             return;
@@ -506,13 +506,22 @@ impl<S: FaceletArray> Cube<S> {
             return;
         }
 
-        let storages = raw_face_storages(&mut self.faces);
+        let mut writes = Vec::with_capacity(rows.len() * columns.len() * 3);
 
         for row in rows.iter().copied() {
-            let bound = template.bind(&self.faces, self.n, row);
-            unsafe {
-                bound.apply_columns::<S>(&storages, columns);
+            for column in columns.iter().copied() {
+                for update in template.updates {
+                    let from = update.from.eval(self.n, row, column);
+                    let to = update.to.eval(self.n, row, column);
+                    writes.push((to, self.position(from)));
+                }
             }
+        }
+
+        assert_unique_positions(writes.iter().map(|(position, _)| *position));
+
+        for (position, value) in writes {
+            self.set_position(position, value);
         }
     }
 
@@ -610,179 +619,6 @@ impl CenterCommutatorTemplate {
 
         Self { updates }
     }
-
-    fn bind<S: FaceletArray>(
-        self,
-        faces: &[Face<S>; 6],
-        n: usize,
-        row: usize,
-    ) -> BoundCenterCommutator {
-        BoundCenterCommutator {
-            updates: self
-                .updates
-                .map(|update| BoundPositionUpdate::bind(faces, n, row, update)),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct RawCellStream {
-    face: FaceId,
-    start: usize,
-    step: isize,
-}
-
-impl RawCellStream {
-    fn bind<S: FaceletArray>(
-        faces: &[Face<S>; 6],
-        n: usize,
-        row: usize,
-        expr: FacePositionExpr,
-    ) -> Self {
-        let start = raw_index_for_expr(faces, n, row, 0, expr);
-        let next = raw_index_for_expr(faces, n, row, 1, expr);
-        let start = isize::try_from(start).expect("raw index overflowed isize");
-        let next = isize::try_from(next).expect("raw index overflowed isize");
-
-        Self {
-            face: expr.face,
-            start: start as usize,
-            step: next - start,
-        }
-    }
-
-    #[inline(always)]
-    unsafe fn index_unchecked(self, column: usize) -> usize {
-        let column = column as isize;
-        (self.start as isize + self.step * column) as usize
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct BoundPositionUpdate {
-    from: RawCellStream,
-    to: RawCellStream,
-}
-
-impl BoundPositionUpdate {
-    fn bind<S: FaceletArray>(
-        faces: &[Face<S>; 6],
-        n: usize,
-        row: usize,
-        update: PositionUpdateExpr,
-    ) -> Self {
-        Self {
-            from: RawCellStream::bind(faces, n, row, update.from),
-            to: RawCellStream::bind(faces, n, row, update.to),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct BoundCenterCommutator {
-    updates: [BoundPositionUpdate; 3],
-}
-
-impl BoundCenterCommutator {
-    unsafe fn apply_columns<S: FaceletArray>(
-        self,
-        storages: &[S::RawStorage; 6],
-        columns: &[usize],
-    ) {
-        debug_assert!(columns.windows(2).all(|window| window[0] < window[1]));
-
-        let mut index = 0;
-        while index < columns.len() {
-            let start_column = columns[index];
-            let mut run_len = 1;
-
-            while index + run_len < columns.len()
-                && columns[index + run_len] == columns[index + run_len - 1] + 1
-            {
-                run_len += 1;
-            }
-
-            if run_len == 1 {
-                self.apply_one::<S>(storages, start_column);
-            } else {
-                self.apply_run::<S>(storages, start_column, run_len);
-            }
-
-            index += run_len;
-        }
-    }
-
-    #[inline(always)]
-    unsafe fn apply_one<S: FaceletArray>(self, storages: &[S::RawStorage; 6], column: usize) {
-        let from0 = self.updates[0].from.index_unchecked(column);
-        let from1 = self.updates[1].from.index_unchecked(column);
-        let from2 = self.updates[2].from.index_unchecked(column);
-        let to0 = self.updates[0].to.index_unchecked(column);
-        let to1 = self.updates[1].to.index_unchecked(column);
-        let to2 = self.updates[2].to.index_unchecked(column);
-
-        let v0 = S::get_unchecked_raw_from(storages[self.updates[0].from.face.index()], from0);
-        let v1 = S::get_unchecked_raw_from(storages[self.updates[1].from.face.index()], from1);
-        let v2 = S::get_unchecked_raw_from(storages[self.updates[2].from.face.index()], from2);
-
-        S::set_unchecked_raw_in(storages[self.updates[0].to.face.index()], to0, v0);
-        S::set_unchecked_raw_in(storages[self.updates[1].to.face.index()], to1, v1);
-        S::set_unchecked_raw_in(storages[self.updates[2].to.face.index()], to2, v2);
-    }
-
-    #[inline(always)]
-    unsafe fn apply_run<S: FaceletArray>(
-        self,
-        storages: &[S::RawStorage; 6],
-        start_column: usize,
-        len: usize,
-    ) {
-        let mut from0 = self.updates[0].from.index_unchecked(start_column);
-        let mut from1 = self.updates[1].from.index_unchecked(start_column);
-        let mut from2 = self.updates[2].from.index_unchecked(start_column);
-        let mut to0 = self.updates[0].to.index_unchecked(start_column);
-        let mut to1 = self.updates[1].to.index_unchecked(start_column);
-        let mut to2 = self.updates[2].to.index_unchecked(start_column);
-
-        for _ in 0..len {
-            let v0 = S::get_unchecked_raw_from(storages[self.updates[0].from.face.index()], from0);
-            let v1 = S::get_unchecked_raw_from(storages[self.updates[1].from.face.index()], from1);
-            let v2 = S::get_unchecked_raw_from(storages[self.updates[2].from.face.index()], from2);
-
-            S::set_unchecked_raw_in(storages[self.updates[0].to.face.index()], to0, v0);
-            S::set_unchecked_raw_in(storages[self.updates[1].to.face.index()], to1, v1);
-            S::set_unchecked_raw_in(storages[self.updates[2].to.face.index()], to2, v2);
-
-            from0 = add_raw_step(from0, self.updates[0].from.step);
-            from1 = add_raw_step(from1, self.updates[1].from.step);
-            from2 = add_raw_step(from2, self.updates[2].from.step);
-            to0 = add_raw_step(to0, self.updates[0].to.step);
-            to1 = add_raw_step(to1, self.updates[1].to.step);
-            to2 = add_raw_step(to2, self.updates[2].to.step);
-        }
-    }
-}
-
-#[inline(always)]
-fn add_raw_step(index: usize, step: isize) -> usize {
-    (index as isize + step) as usize
-}
-
-fn raw_index_for_expr<S: FaceletArray>(
-    faces: &[Face<S>; 6],
-    n: usize,
-    row: usize,
-    column: usize,
-    expr: FacePositionExpr,
-) -> usize {
-    let position = expr.eval(n, row, column);
-    let (physical_row, physical_col) =
-        faces[position.face.index()].physical_coords(position.row, position.col);
-
-    physical_row
-        .checked_mul(n)
-        .and_then(|row_start| row_start.checked_add(physical_col))
-        .expect("raw face index overflowed usize")
 }
 
 fn classify_template_position(position: FacePosition) -> FacePositionExpr {
@@ -804,38 +640,6 @@ fn classify_template_coordinate(value: usize) -> CoordinateExpr {
             CoordinateExpr::ReverseColumn
         }
         _ => panic!("commutator template coordinate does not depend on row or column: {value}"),
-    }
-}
-
-fn raw_face_storages<S: FaceletArray>(faces: &mut [Face<S>; 6]) -> [S::RawStorage; 6] {
-    let ptr = faces.as_mut_ptr();
-    unsafe {
-        [
-            (*ptr.add(FaceId::U.index()))
-                .matrix_mut()
-                .storage_mut()
-                .raw_storage(),
-            (*ptr.add(FaceId::D.index()))
-                .matrix_mut()
-                .storage_mut()
-                .raw_storage(),
-            (*ptr.add(FaceId::R.index()))
-                .matrix_mut()
-                .storage_mut()
-                .raw_storage(),
-            (*ptr.add(FaceId::L.index()))
-                .matrix_mut()
-                .storage_mut()
-                .raw_storage(),
-            (*ptr.add(FaceId::F.index()))
-                .matrix_mut()
-                .storage_mut()
-                .raw_storage(),
-            (*ptr.add(FaceId::B.index()))
-                .matrix_mut()
-                .storage_mut()
-                .raw_storage(),
-        ]
     }
 }
 

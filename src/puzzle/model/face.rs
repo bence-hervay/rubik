@@ -6,7 +6,6 @@ use crate::{
     matrix::Matrix,
     moves::MoveAngle,
     storage::FaceletArray,
-    threading::default_thread_count,
 };
 
 #[repr(u8)]
@@ -79,13 +78,9 @@ pub struct Face<S: FaceletArray> {
 
 impl<S: FaceletArray> Face<S> {
     pub fn new(id: FaceId, n: usize, fill: Facelet) -> Self {
-        Self::new_with_threads(id, n, fill, default_thread_count())
-    }
-
-    pub fn new_with_threads(id: FaceId, n: usize, fill: Facelet, thread_count: usize) -> Self {
         Self {
             id,
-            matrix: Matrix::new_filled_with_threads(n, fill, thread_count),
+            matrix: Matrix::new_filled(n, fill),
             rotation: FaceAngle::default(),
         }
     }

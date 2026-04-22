@@ -5,7 +5,7 @@ use rubik::{
 };
 
 fn patterned_cube<S: FaceletArray>(side_length: usize, seed: usize) -> Cube<S> {
-    let mut cube = Cube::<S>::new_solved_with_threads(side_length, 1);
+    let mut cube = Cube::<S>::new_solved(side_length);
 
     for face in FaceId::ALL {
         for row in 0..side_length {
@@ -60,14 +60,14 @@ fn recorded_and_unrecorded_move_sequence_operations_have_the_same_cube_effect() 
     let initial = patterned_cube::<Byte>(side_length, 13);
 
     let mut expected = initial.clone();
-    expected.apply_moves_untracked_with_threads(moves, 1);
+    expected.apply_moves_untracked(moves);
 
     let mut recorded_cube = initial.clone();
-    let mut recorded_context = SolveContext::new(SolveOptions::new(1, ExecutionMode::Standard));
+    let mut recorded_context = SolveContext::new(SolveOptions::new(ExecutionMode::Standard));
     recorded_context.apply_operation(&mut recorded_cube, &operation);
 
     let mut unrecorded_cube = initial;
-    let mut unrecorded_context = SolveContext::new(SolveOptions::new(1, ExecutionMode::Optimized));
+    let mut unrecorded_context = SolveContext::new(SolveOptions::new(ExecutionMode::Optimized));
     unrecorded_context.apply_operation(&mut unrecorded_cube, &operation);
 
     let expected_stats = move_stats_for(side_length, &moves);
@@ -88,7 +88,7 @@ fn recorded_and_unrecorded_face_commutator_plans_have_the_same_cube_effect() {
     let rows = [1usize, 4];
     let columns = [2usize, 5];
     let commutator = FaceCommutator::new(FaceId::R, FaceId::F, MoveAngle::Negative);
-    let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+    let probe = Cube::<Byte>::new_solved(side_length);
 
     for mode in [FaceCommutatorMode::Expanded, FaceCommutatorMode::Normalized] {
         let plan = match mode {
@@ -104,12 +104,11 @@ fn recorded_and_unrecorded_face_commutator_plans_have_the_same_cube_effect() {
         expected.apply_face_commutator_plan_literal_untracked(plan);
 
         let mut recorded_cube = initial.clone();
-        let mut recorded_context = SolveContext::new(SolveOptions::new(1, ExecutionMode::Standard));
+        let mut recorded_context = SolveContext::new(SolveOptions::new(ExecutionMode::Standard));
         recorded_context.apply_operation(&mut recorded_cube, &plan);
 
         let mut unrecorded_cube = initial;
-        let mut unrecorded_context =
-            SolveContext::new(SolveOptions::new(1, ExecutionMode::Optimized));
+        let mut unrecorded_context = SolveContext::new(SolveOptions::new(ExecutionMode::Optimized));
         unrecorded_context.apply_operation(&mut unrecorded_cube, &plan);
 
         let expected_stats = move_stats_for(side_length, &literal_moves);
@@ -136,8 +135,7 @@ fn recorded_and_unrecorded_edge_three_cycle_plans_have_the_same_cube_effect() {
     ];
 
     for (index, (side_length, cycle)) in cases.into_iter().enumerate() {
-        let plan =
-            Cube::<Byte>::new_solved_with_threads(side_length, 1).edge_three_cycle_plan(cycle);
+        let plan = Cube::<Byte>::new_solved(side_length).edge_three_cycle_plan(cycle);
         let literal_moves = plan.moves().to_vec();
         let initial = patterned_cube::<Byte>(side_length, 41 + index);
 
@@ -145,12 +143,11 @@ fn recorded_and_unrecorded_edge_three_cycle_plans_have_the_same_cube_effect() {
         expected.apply_edge_three_cycle_plan_literal_untracked(&plan);
 
         let mut recorded_cube = initial.clone();
-        let mut recorded_context = SolveContext::new(SolveOptions::new(1, ExecutionMode::Standard));
+        let mut recorded_context = SolveContext::new(SolveOptions::new(ExecutionMode::Standard));
         recorded_context.apply_edge_three_cycle_plan(&mut recorded_cube, &plan);
 
         let mut unrecorded_cube = initial;
-        let mut unrecorded_context =
-            SolveContext::new(SolveOptions::new(1, ExecutionMode::Optimized));
+        let mut unrecorded_context = SolveContext::new(SolveOptions::new(ExecutionMode::Optimized));
         unrecorded_context.apply_edge_three_cycle_plan(&mut unrecorded_cube, &plan);
 
         let expected_stats = move_stats_for(side_length, &literal_moves);

@@ -5,7 +5,7 @@ use rubik::{
 };
 
 fn scrambled_cube(side_length: usize, seed: u64, move_count: usize) -> Cube<Byte> {
-    let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+    let mut cube = Cube::<Byte>::new_solved(side_length);
     let mut rng = XorShift64::new(seed ^ side_length as u64);
     cube.scramble_random_moves(&mut rng, move_count);
 
@@ -39,7 +39,7 @@ fn assert_cubes_match<A: FaceletArray, B: FaceletArray>(actual: &Cube<A>, expect
 }
 
 fn default_solver(execution_mode: ExecutionMode) -> ReductionSolver<Byte> {
-    ReductionSolver::<Byte>::new(SolveOptions::new(1, execution_mode))
+    ReductionSolver::<Byte>::new(SolveOptions::new(execution_mode))
         .with_stage(CenterReductionStage::western_default())
         .with_stage(CornerReductionStage::default())
         .with_stage(EdgePairingStage::default())
@@ -62,7 +62,7 @@ fn recorded_default_pipeline_replays_to_the_same_final_cube_state() {
         });
 
         let mut replay = initial;
-        replay.apply_moves_untracked_with_threads(outcome.moves.iter().copied(), 1);
+        replay.apply_moves_untracked(outcome.moves.iter().copied());
 
         assert!(cube.is_solved(), "pipeline did not solve n={side_length}");
         assert_cubes_match(&cube, &replay);

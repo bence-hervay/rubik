@@ -1,7 +1,4 @@
-use super::{
-    facelet_array::{FaceletArray, StoragePtr},
-    init,
-};
+use super::{facelet_array::FaceletArray, init};
 
 mod byte;
 mod byte3;

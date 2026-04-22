@@ -59,7 +59,7 @@ fn random_moves(side_length: usize, count: usize, seed: u64) -> Vec<Move> {
 }
 
 fn patterned_cube<S: FaceletArray>(side_length: usize, seed: usize) -> Cube<S> {
-    let mut cube = Cube::<S>::new_solved_with_threads(side_length, 1);
+    let mut cube = Cube::<S>::new_solved(side_length);
 
     for face in FaceId::ALL {
         for row in 0..side_length {
@@ -301,7 +301,7 @@ fn slice_outer_edge_three_cycle_candidate_moves(
 }
 
 fn move_defined_edge_three_cycle_plans(side_length: usize) -> Vec<EdgeThreeCyclePlan> {
-    let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+    let probe = Cube::<Byte>::new_solved(side_length);
     let mut plans = Vec::new();
 
     if side_length == 3 {
@@ -356,18 +356,20 @@ fn assert_cubes_match<A: FaceletArray, B: FaceletArray>(actual: &Cube<A>, expect
     }
 }
 
-fn threaded_moves_match_linear<S: FaceletArray>() {
-    let side_length = 65;
-    let moves = random_moves(side_length, 12, 0x7A11_DA7A);
-    let mut expected = Cube::<S>::new_solved(side_length);
-
-    expected.apply_moves_untracked(moves.iter().copied());
-
-    for thread_count in [1usize, 2, 4, 16] {
-        let mut actual = Cube::<S>::new_solved(side_length);
-        actual.apply_moves_untracked_with_threads(moves.iter().copied(), thread_count);
-
-        assert_cubes_match(&actual, &expected);
+fn move_sequence_round_trips<S: FaceletArray>() {
+    for (case_index, side_length) in [1usize, 2, 3, 5, 8, 65].into_iter().enumerate() {
+        let moves = random_moves(
+            side_length,
+            12 + case_index,
+            0x7A11_DA7A ^ side_length as u64,
+        );
+        let mut cube = Cube::<S>::new_solved(side_length);
+        cube.apply_moves_untracked(moves.iter().copied());
+        cube.apply_moves_untracked(moves.iter().rev().copied().map(Move::inverse));
+        assert!(
+            cube.is_solved(),
+            "sequence round trip failed for n={side_length}"
+        );
     }
 }
 
@@ -443,12 +445,11 @@ fn optimized_face_commutators_match_expanded_moves_for(destination: FaceId, help
         for slice_angle in MoveAngle::ALL {
             for (rows, columns) in disjoint_inner_layer_set_pairs(side_length) {
                 for seed in 0..2 {
-                    let expanded_plan = Cube::<Byte>::new_solved_with_threads(side_length, 1)
-                        .face_commutator_plan(
-                            FaceCommutator::new(destination, helper, slice_angle),
-                            &rows,
-                            &columns,
-                        );
+                    let expanded_plan = Cube::<Byte>::new_solved(side_length).face_commutator_plan(
+                        FaceCommutator::new(destination, helper, slice_angle),
+                        &rows,
+                        &columns,
+                    );
                     let mut expected = patterned_cube::<Byte>(side_length, seed);
                     expected.apply_face_commutator_plan_literal_untracked(expanded_plan);
 
@@ -467,7 +468,7 @@ fn optimized_face_commutators_match_expanded_moves_for(destination: FaceId, help
 
                     assert_cubes_match(&actual, &expected);
 
-                    let normalized_plan = Cube::<Byte>::new_solved_with_threads(side_length, 1)
+                    let normalized_plan = Cube::<Byte>::new_solved(side_length)
                         .normalized_face_commutator_plan(
                             FaceCommutator::new(destination, helper, slice_angle),
                             &rows,
@@ -554,7 +555,7 @@ fn edge_three_cycles_match_expanded_moves_exhaustively() {
 #[test]
 fn front_right_middle_edge_three_cycles_match_expanded_moves_for_larger_odd_sizes() {
     for side_length in [7usize, 9] {
-        let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let probe = Cube::<Byte>::new_solved(side_length);
 
         for direction in EdgeThreeCycleDirection::ALL {
             let cycle = EdgeThreeCycle::front_right_middle(direction);
@@ -620,7 +621,7 @@ fn edge_three_cycle_direct_updates_only_declared_edge_cubies() {
 #[test]
 fn edge_three_cycles_work_for_all_storage_backends() {
     for side_length in [5usize, 6] {
-        let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let probe = Cube::<Byte>::new_solved(side_length);
 
         for cycle in edge_three_cycle_specs(side_length) {
             let plan = probe.edge_three_cycle_plan(cycle);
@@ -644,7 +645,7 @@ fn edge_three_cycles_work_for_all_storage_backends() {
 #[test]
 #[should_panic(expected = "edge three-cycle row must be an inner layer")]
 fn edge_three_cycle_rejects_outer_row() {
-    let cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+    let cube = Cube::<Byte>::new_solved(4);
     let cycle = EdgeThreeCycle::front_right_wing(0);
     cube.edge_three_cycle_plan(cycle);
 }
@@ -654,7 +655,7 @@ fn edge_three_cycle_rejects_outer_row() {
     expected = "front-right wing edge three-cycle row cannot be the middle layer on odd cubes"
 )]
 fn edge_three_cycle_rejects_odd_middle_row() {
-    let cube = Cube::<Byte>::new_solved_with_threads(5, 1);
+    let cube = Cube::<Byte>::new_solved(5);
     let cycle = EdgeThreeCycle::front_right_wing(2);
     cube.edge_three_cycle_plan(cycle);
 }
@@ -662,7 +663,7 @@ fn edge_three_cycle_rejects_odd_middle_row() {
 #[test]
 #[should_panic(expected = "front-right middle edge three-cycles require odd side length")]
 fn edge_three_cycle_rejects_even_middle_cycle() {
-    let cube = Cube::<Byte>::new_solved_with_threads(6, 1);
+    let cube = Cube::<Byte>::new_solved(6);
     let cycle = EdgeThreeCycle::front_right_middle(EdgeThreeCycleDirection::Positive);
     cube.edge_three_cycle_plan(cycle);
 }
@@ -735,7 +736,7 @@ fn direct_face_commutators_work_for_all_storage_backends() {
 
             for slice_angle in MoveAngle::ALL {
                 let commutator = FaceCommutator::new(destination, helper, slice_angle);
-                let probe = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let probe = Cube::<Byte>::new_solved(side_length);
                 let expanded_plan = probe.face_commutator_plan(commutator, &rows, &columns);
                 let mut byte = patterned_cube::<Byte>(side_length, 3);
                 let mut byte3 = patterned_cube::<Byte3>(side_length, 3);
@@ -881,14 +882,14 @@ fn overlapping_row_and_column_sets_cannot_extend_sparse_commutator_family() {
 #[test]
 #[should_panic(expected = "destination and helper faces must be perpendicular")]
 fn face_commutator_rejects_parallel_helper_face() {
-    let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+    let mut cube = Cube::<Byte>::new_solved(4);
     cube.apply_face_commutator_untracked(FaceId::U, FaceId::D, &[1], &[2], MoveAngle::Positive);
 }
 
 #[test]
 #[should_panic(expected = "destination and helper faces must be perpendicular")]
 fn normalized_face_commutator_rejects_parallel_helper_face() {
-    let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+    let mut cube = Cube::<Byte>::new_solved(4);
     cube.apply_normalized_face_commutator_untracked(
         FaceId::U,
         FaceId::D,
@@ -901,14 +902,14 @@ fn normalized_face_commutator_rejects_parallel_helper_face() {
 #[test]
 #[should_panic(expected = "commutator row and column layer sets must be disjoint")]
 fn face_commutator_rejects_same_row_and_column_layer() {
-    let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+    let mut cube = Cube::<Byte>::new_solved(4);
     cube.apply_face_commutator_untracked(FaceId::U, FaceId::R, &[1], &[1], MoveAngle::Positive);
 }
 
 #[test]
 #[should_panic(expected = "commutator row and column layer sets must be disjoint")]
 fn normalized_face_commutator_rejects_same_row_and_column_layer() {
-    let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+    let mut cube = Cube::<Byte>::new_solved(4);
     cube.apply_normalized_face_commutator_untracked(
         FaceId::U,
         FaceId::R,
@@ -976,23 +977,13 @@ fn edge_three_cycle_checker_rejects_invalid_cycles() {
 }
 
 #[test]
-fn threaded_byte_moves_match_linear() {
-    threaded_moves_match_linear::<Byte>();
-}
-
-#[test]
-fn threaded_nibble_moves_match_linear() {
-    threaded_moves_match_linear::<Nibble>();
-}
-
-#[test]
-fn threaded_three_bit_moves_match_linear() {
-    threaded_moves_match_linear::<ThreeBit>();
-}
-
-#[test]
-fn threaded_byte3_moves_match_linear() {
-    threaded_moves_match_linear::<Byte3>();
+fn move_sequence_regressions_cover_all_storage_backends() {
+    std::thread::scope(|scope| {
+        scope.spawn(move_sequence_round_trips::<Byte>);
+        scope.spawn(move_sequence_round_trips::<Nibble>);
+        scope.spawn(move_sequence_round_trips::<ThreeBit>);
+        scope.spawn(move_sequence_round_trips::<Byte3>);
+    });
 }
 
 #[test]
@@ -1050,12 +1041,9 @@ fn solved_cubes_start_reachable() {
 
 #[test]
 fn arbitrary_facelet_constructor_preserves_explicit_reachability() {
-    let cube = Cube::<Byte>::from_facelet_fn_with_threads(
-        3,
-        CubeReachability::Unverified,
-        1,
-        |face, row, col| Facelet::ALL[(face.index() + row + col) % Facelet::ALL.len()],
-    );
+    let cube = Cube::<Byte>::from_facelet_fn(3, CubeReachability::Unverified, |face, row, col| {
+        Facelet::ALL[(face.index() + row + col) % Facelet::ALL.len()]
+    });
 
     assert_eq!(cube.reachability(), CubeReachability::Unverified);
     assert!(!cube.is_reachable());
@@ -1080,7 +1068,7 @@ fn direct_face_edits_mark_reachability_unverified() {
 
 #[test]
 fn move_and_optimized_update_paths_preserve_reachability() {
-    let mut cube = Cube::<Byte>::new_solved_with_threads(4, 1);
+    let mut cube = Cube::<Byte>::new_solved(4);
 
     cube.apply_move_untracked(Move::new(Axis::X, 3, MoveAngle::Positive));
     assert_eq!(cube.reachability(), CubeReachability::Reachable);

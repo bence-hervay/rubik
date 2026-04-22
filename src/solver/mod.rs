@@ -11,7 +11,6 @@ use crate::{
     face::FaceId,
     moves::{Axis, Move, MoveAngle},
     storage::FaceletArray,
-    threading::default_thread_count,
 };
 
 #[deprecated(note = "use crate::support::centers::CenterCommutatorTable")]
@@ -197,30 +196,28 @@ impl StageContract {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct SolveOptions {
-    pub thread_count: usize,
     pub record_moves: bool,
 }
 
 impl Default for SolveOptions {
     fn default() -> Self {
-        Self::standard(default_thread_count())
+        Self::standard()
     }
 }
 
 impl SolveOptions {
-    pub const fn new(thread_count: usize, execution_mode: ExecutionMode) -> Self {
+    pub const fn new(execution_mode: ExecutionMode) -> Self {
         Self {
-            thread_count,
             record_moves: execution_mode.records_moves(),
         }
     }
 
-    pub const fn standard(thread_count: usize) -> Self {
-        Self::new(thread_count, ExecutionMode::Standard)
+    pub const fn standard() -> Self {
+        Self::new(ExecutionMode::Standard)
     }
 
-    pub const fn optimized(thread_count: usize) -> Self {
-        Self::new(thread_count, ExecutionMode::Optimized)
+    pub const fn optimized() -> Self {
+        Self::new(ExecutionMode::Optimized)
     }
 
     pub const fn execution_mode(self) -> ExecutionMode {
@@ -328,11 +325,6 @@ pub struct SolveContext {
 
 impl SolveContext {
     pub fn new(options: SolveOptions) -> Self {
-        assert!(
-            options.thread_count > 0,
-            "thread count must be greater than zero"
-        );
-
         Self {
             options,
             center_commutators: CenterCommutatorTable::new(),
@@ -405,7 +397,7 @@ impl SolveContext {
 
     pub fn apply_move<S: FaceletArray>(&mut self, cube: &mut Cube<S>, mv: Move) {
         self.move_stats.record(mv, cube.side_len());
-        cube.apply_move_untracked_with_threads(mv, self.options.thread_count);
+        cube.apply_move_untracked(mv);
         if self.execution_mode().records_moves() {
             self.moves.push(mv);
         }
@@ -653,18 +645,15 @@ mod tests {
 
     #[test]
     fn solve_options_named_modes_round_trip_through_recording_flag() {
-        let standard = SolveOptions::standard(3);
-        assert_eq!(standard.thread_count, 3);
+        let standard = SolveOptions::standard();
         assert!(standard.record_moves);
         assert_eq!(standard.execution_mode(), ExecutionMode::Standard);
 
-        let optimized = SolveOptions::optimized(5);
-        assert_eq!(optimized.thread_count, 5);
+        let optimized = SolveOptions::optimized();
         assert!(!optimized.record_moves);
         assert_eq!(optimized.execution_mode(), ExecutionMode::Optimized);
 
-        let switched = SolveOptions::standard(7).with_execution_mode(ExecutionMode::Optimized);
-        assert_eq!(switched.thread_count, 7);
+        let switched = SolveOptions::standard().with_execution_mode(ExecutionMode::Optimized);
         assert!(!switched.record_moves);
         assert_eq!(switched.execution_mode(), ExecutionMode::Optimized);
     }
@@ -775,7 +764,7 @@ mod tests {
         }
 
         let mut solver =
-            ReductionSolver::<Byte>::new(SolveOptions::optimized(1)).with_stage(StandardOnlyStage);
+            ReductionSolver::<Byte>::new(SolveOptions::optimized()).with_stage(StandardOnlyStage);
         let mut cube = Cube::<Byte>::new_solved(3);
 
         assert_eq!(

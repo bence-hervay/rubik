@@ -352,17 +352,18 @@ impl WingOrbitTable {
     ) -> WingOrientationCache {
         for face_map in all_face_maps() {
             for slot in EdgeSlot::ALL {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(self.side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(self.side_length);
                 let setup = &slot_setups.to_destination[slot.index()];
                 if !setup.is_empty() {
-                    cube.apply_moves_untracked_with_threads(setup.iter().copied(), 1);
+                    cube.apply_moves_untracked(setup.iter().copied());
                 }
-                cube.apply_moves_untracked_with_threads(
-                    wing_row_parity_fix_moves_with_map(self.side_length, self.row, face_map),
-                    1,
-                );
+                cube.apply_moves_untracked(wing_row_parity_fix_moves_with_map(
+                    self.side_length,
+                    self.row,
+                    face_map,
+                ));
                 if !setup.is_empty() {
-                    cube.apply_moves_untracked_with_threads(inverted_moves(setup), 1);
+                    cube.apply_moves_untracked(inverted_moves(setup));
                 }
                 let mask = wing_flip_mask(self, &EdgeScanView::from_cube(&cube))
                     .expect("wing orientation generator must preserve slot placement");
@@ -600,17 +601,17 @@ impl MiddleOrbitTable {
         let side_length = self.side_length;
         for face_map in all_face_maps() {
             for slot in EdgeSlot::ALL {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 let setup = &slot_setups.to_destination[slot.index()];
                 if !setup.is_empty() {
-                    cube.apply_moves_untracked_with_threads(setup.iter().copied(), 1);
+                    cube.apply_moves_untracked(setup.iter().copied());
                 }
-                cube.apply_moves_untracked_with_threads(
-                    middle_edge_precheck_moves_with_map(side_length, face_map),
-                    1,
-                );
+                cube.apply_moves_untracked(middle_edge_precheck_moves_with_map(
+                    side_length,
+                    face_map,
+                ));
                 if !setup.is_empty() {
-                    cube.apply_moves_untracked_with_threads(inverted_moves(setup), 1);
+                    cube.apply_moves_untracked(inverted_moves(setup));
                 }
                 let mask = middle_flip_mask(self, &EdgeScanView::from_cube(&cube))
                     .expect("middle orientation generator must preserve slot placement");
@@ -2331,7 +2332,7 @@ mod tests {
     fn edge_stage_replays_to_the_same_full_cube_state() {
         for side_length in 4..=8 {
             for seed in [0xED63_AAA1u64, 0xE442_9A7Eu64] {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble_random_moves(&mut rng, 120);
                 let initial = cube.clone();
@@ -2339,10 +2340,7 @@ mod tests {
                 let history_before_moves = initial.history().as_slice().to_vec();
 
                 let mut stage = EdgePairingStage::default();
-                let mut context = SolveContext::new(SolveOptions {
-                    thread_count: 1,
-                    record_moves: true,
-                });
+                let mut context = SolveContext::new(SolveOptions { record_moves: true });
 
                 <EdgePairingStage as SolverStage<Byte>>::run(&mut stage, &mut cube, &mut context)
                     .unwrap_or_else(|error| {
@@ -2353,7 +2351,7 @@ mod tests {
                     });
 
                 let mut replay = initial;
-                replay.apply_moves_untracked_with_threads(context.moves().iter().copied(), 1);
+                replay.apply_moves_untracked(context.moves().iter().copied());
 
                 assert_cubes_match(&cube, &replay);
                 assert!(stage_wings_match_solved_slots(&cube));
@@ -2453,7 +2451,7 @@ mod tests {
         for axis in [crate::Axis::X, crate::Axis::Y, crate::Axis::Z] {
             for depth in 0..side_length {
                 for angle in MoveAngle::ALL {
-                    let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                    let mut cube = Cube::<Byte>::new_solved(side_length);
                     cube.apply_move_untracked(crate::Move::new(axis, depth, angle));
                     let view = EdgeScanView::from_cube(&cube);
                     let current = orbit
@@ -2481,13 +2479,12 @@ mod tests {
     #[test]
     fn wing_slot_orientation_states_after_unordered_solve_are_never_invalid() {
         for side_length in [4usize, 6] {
-            let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+            let mut cube = Cube::<Byte>::new_solved(side_length);
             let mut rng = XorShift64::new(0xA15E_0000 ^ side_length as u64);
             cube.scramble_random_moves(&mut rng, 120);
 
             let mut cache = PreparedEdgeStage::new(side_length);
             let mut context = SolveContext::new(SolveOptions {
-                thread_count: 1,
                 record_moves: false,
             });
             let slot_keys = solved_edge_slot_keys();
@@ -2511,8 +2508,8 @@ mod tests {
     fn wing_parity_fix_flips_only_front_right_slot() {
         let side_length = 6;
         let row = 1;
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
-        cube.apply_moves_untracked_with_threads(wing_row_parity_fix_moves(side_length, row), 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
+        cube.apply_moves_untracked(wing_row_parity_fix_moves(side_length, row));
         let orbit =
             WingOrbitTable::new(side_length, row, &WingOrbitSetupTemplate::new(side_length));
         let view = EdgeScanView::from_cube(&cube);
@@ -2529,8 +2526,8 @@ mod tests {
     #[test]
     fn middle_precheck_flip_toggles_front_right_and_front_left_slots() {
         let side_length = 5;
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
-        cube.apply_moves_untracked_with_threads(middle_edge_precheck_moves(side_length), 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
+        cube.apply_moves_untracked(middle_edge_precheck_moves(side_length));
         let slot_setups = EdgeSlotSetupTable::new(side_length);
         let orbit = MiddleOrbitTable::new(side_length, &slot_setups);
         let view = EdgeScanView::from_cube(&cube);
@@ -2609,14 +2606,13 @@ mod tests {
     #[test]
     fn edge_stage_solves_middle_edges_after_a_direct_middle_cycle() {
         let side_length = 5;
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
         cube.apply_edge_three_cycle_untracked(EdgeThreeCycle::front_right_middle(
             crate::cube::EdgeThreeCycleDirection::Positive,
         ));
 
         let mut stage = EdgePairingStage::default();
         let mut context = SolveContext::new(SolveOptions {
-            thread_count: 1,
             record_moves: false,
         });
 
@@ -2653,10 +2649,7 @@ mod tests {
 
                             let mut expected =
                                 patterned_cube::<Byte>(side_length, 41 + row * 7 + side_length);
-                            expected.apply_moves_untracked_with_threads(
-                                plan.moves().iter().copied(),
-                                1,
-                            );
+                            expected.apply_moves_untracked(plan.moves().iter().copied());
 
                             let mut actual =
                                 patterned_cube::<Byte>(side_length, 41 + row * 7 + side_length);
@@ -2695,8 +2688,7 @@ mod tests {
                             .clone();
 
                         let mut expected = patterned_cube::<Byte>(side_length, 53 + side_length);
-                        expected
-                            .apply_moves_untracked_with_threads(plan.moves().iter().copied(), 1);
+                        expected.apply_moves_untracked(plan.moves().iter().copied());
 
                         let mut actual = patterned_cube::<Byte>(side_length, 53 + side_length);
                         actual.apply_edge_three_cycle_plan_untracked(&plan);
@@ -2717,7 +2709,7 @@ mod tests {
         for axis in [crate::Axis::X, crate::Axis::Y, crate::Axis::Z] {
             for depth in 0..side_length {
                 for angle in MoveAngle::ALL {
-                    let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                    let mut cube = Cube::<Byte>::new_solved(side_length);
                     cube.apply_move_untracked(crate::Move::new(axis, depth, angle));
                     let current = orbit.current_keys(&EdgeScanView::from_cube(&cube));
                     assert_eq!(
@@ -2748,7 +2740,7 @@ mod tests {
 
         for first in moves.iter().copied() {
             for second in moves.iter().copied() {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 cube.apply_move_untracked(first);
                 cube.apply_move_untracked(second);
                 let current = orbit.current_keys(&EdgeScanView::from_cube(&cube));
@@ -2770,7 +2762,7 @@ mod tests {
         ];
         let inverse = inverted_moves(&moves);
         let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
         cube.apply_move_untracked(moves[0]);
         cube.apply_move_untracked(moves[1]);
         let view = EdgeScanView::from_cube(&cube);
@@ -2797,7 +2789,7 @@ mod tests {
         let side_length = 4;
         let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit.target_keys(&EdgeSlot::ALL.map(EdgeSlot::solved_key));
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
         cube.apply_move_untracked(crate::Move::new(crate::Axis::X, 0, MoveAngle::Positive));
         cube.apply_move_untracked(crate::Move::new(crate::Axis::Y, 1, MoveAngle::Positive));
         materialize_face_rotations(&mut cube);
@@ -2811,7 +2803,7 @@ mod tests {
         let side_length = 4;
         let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit.target_keys(&EdgeSlot::ALL.map(EdgeSlot::solved_key));
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
         cube.apply_move_untracked(crate::Move::new(crate::Axis::X, 0, MoveAngle::Positive));
         cube.apply_move_untracked(crate::Move::new(crate::Axis::Y, 0, MoveAngle::Positive));
         materialize_face_rotations(&mut cube);
@@ -2825,7 +2817,7 @@ mod tests {
         let side_length = 4;
         let orbit = WingOrbitTable::new(side_length, 1, &WingOrbitSetupTemplate::new(side_length));
         let target = orbit.target_keys(&EdgeSlot::ALL.map(EdgeSlot::solved_key));
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
         cube.apply_move_untracked(crate::Move::new(crate::Axis::X, 0, MoveAngle::Positive));
         cube.apply_move_untracked(crate::Move::new(crate::Axis::Y, 0, MoveAngle::Positive));
 
@@ -2847,13 +2839,12 @@ mod tests {
     }
 
     fn run_edge_stage_for_storage<S: FaceletArray + 'static>(side_length: usize, seed: u64) {
-        let mut cube = Cube::<S>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<S>::new_solved(side_length);
         let mut rng = XorShift64::new(seed ^ side_length as u64);
         cube.scramble_random_moves(&mut rng, 120);
 
         let mut stage = EdgePairingStage::default();
         let mut context = SolveContext::new(SolveOptions {
-            thread_count: 1,
             record_moves: false,
         });
 
@@ -2903,7 +2894,7 @@ mod tests {
     }
 
     fn patterned_cube<S: FaceletArray>(side_length: usize, seed: usize) -> Cube<S> {
-        let mut cube = Cube::<S>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<S>::new_solved(side_length);
 
         for face in FaceId::ALL {
             for row in 0..side_length {

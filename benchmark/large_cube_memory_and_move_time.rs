@@ -7,8 +7,8 @@ use std::{
 };
 
 use rubik::{
-    default_thread_count, line::cycle_four_line_arrays_many_with_threads, Axis, Byte, Byte3,
-    ColorScheme, Cube, Facelet, FaceletArray, Move, MoveAngle, Nibble, ThreeBit, XorShift64,
+    line::cycle_four_line_arrays_many, Axis, Byte, Byte3, ColorScheme, Cube, Facelet, FaceletArray,
+    Move, MoveAngle, Nibble, RandomSource, ThreeBit, XorShift64,
 };
 
 const DEFAULT_MEMORY_SIDE_LENGTH: usize = 1 << 14;
@@ -20,8 +20,6 @@ const DEFAULT_RANDOM_SEED: u64 = 0xC0BEE_CAFE_F00D;
 const METRIC_COLUMN_WIDTH: usize = 28;
 const STORAGE_COLUMN_WIDTH: usize = 8;
 const STORAGE_KIND_COUNT: usize = 4;
-const PARALLEL_THREAD_COUNT_COUNT: usize = 5;
-const PARALLEL_THREAD_COUNTS: [usize; PARALLEL_THREAD_COUNT_COUNT] = [2, 4, 8, 16, 32];
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum StorageKind {
@@ -67,7 +65,6 @@ impl FromStr for StorageKind {
 #[derive(Copy, Clone, Debug)]
 struct MemoryResult {
     side_length: usize,
-    allocation_thread_count: usize,
     face_storage_bytes: usize,
     resident_memory_before_bytes: usize,
     resident_memory_after_bytes: usize,
@@ -79,32 +76,16 @@ struct MemoryResult {
 struct MoveResult {
     side_length: usize,
     move_count: usize,
-    allocation_thread_count: usize,
-    move_thread_count: usize,
     face_storage_bytes: usize,
     elapsed: Duration,
-}
-
-#[derive(Copy, Clone, Debug)]
-struct MoveSpeedupResult {
-    baseline: MoveResult,
-    ratios: [f64; PARALLEL_THREAD_COUNT_COUNT],
 }
 
 #[derive(Copy, Clone, Debug)]
 struct SliceMoveResult {
     side_length: usize,
     move_count: usize,
-    allocation_thread_count: usize,
-    move_thread_count: usize,
     slice_storage_bytes: usize,
     elapsed: Duration,
-}
-
-#[derive(Copy, Clone, Debug)]
-struct SliceMoveSpeedupResult {
-    baseline: SliceMoveResult,
-    ratios: [f64; PARALLEL_THREAD_COUNT_COUNT],
 }
 
 fn main() {
@@ -134,11 +115,9 @@ fn main() {
     let random_seed = environment_u64("RUBIK_BENCHMARK_RANDOM_SEED", DEFAULT_RANDOM_SEED);
     let skip_memory = environment_bool("RUBIK_BENCHMARK_SKIP_MEMORY", false);
     let skip_full_moves = environment_bool("RUBIK_BENCHMARK_SKIP_FULL_MOVES", false);
-    let default_threads = default_thread_count();
 
     println!("large side length cube benchmarks");
-    println!("  default_thread_count={default_threads}");
-    println!("  benchmark_move_thread_counts=1,2,4,8,16,32");
+    println!("  execution=single-threaded");
     println!("  RUBIK_BENCHMARK_MEMORY_SIDE_LENGTH={memory_side_length}");
     println!("  RUBIK_BENCHMARK_RANDOM_MOVE_SIDE_LENGTH={random_move_side_length}");
     println!("  RUBIK_BENCHMARK_RANDOM_MOVE_COUNT={random_move_count}");
@@ -160,10 +139,6 @@ fn main() {
         print_table_row(
             "side_length",
             memory_results.map(|result| result.side_length.to_string()),
-        );
-        print_table_row(
-            "allocation_threads",
-            memory_results.map(|result| result.allocation_thread_count.to_string()),
         );
         print_table_row(
             "face_storage",
@@ -195,10 +170,10 @@ fn main() {
 
         let moves = generate_moves(random_move_side_length, random_move_count, random_seed);
         let move_results = StorageKind::ALL
-            .map(|storage| run_move_speedup_benchmark(storage, random_move_side_length, &moves));
+            .map(|storage| run_move_benchmark(storage, random_move_side_length, &moves));
 
         print_table_header();
-        print_move_speedup_results(move_results);
+        print_move_results(move_results);
     }
 
     println!();
@@ -206,10 +181,10 @@ fn main() {
 
     let angles = generate_angles(slice_move_count, random_seed);
     let slice_move_results = StorageKind::ALL
-        .map(|storage| run_slice_move_speedup_benchmark(storage, slice_move_side_length, &angles));
+        .map(|storage| run_slice_move_benchmark(storage, slice_move_side_length, &angles));
 
     print_table_header();
-    print_slice_move_speedup_results(slice_move_results);
+    print_slice_move_results(slice_move_results);
 }
 
 fn print_table_header() {
@@ -236,104 +211,68 @@ fn print_table_row(metric: &str, values: [String; STORAGE_KIND_COUNT]) {
     println!();
 }
 
-fn print_move_speedup_results(results: [MoveSpeedupResult; STORAGE_KIND_COUNT]) {
-    let baseline_results = results.map(|result| result.baseline);
-
+fn print_move_results(results: [MoveResult; STORAGE_KIND_COUNT]) {
     print_table_row(
         "side_length",
-        baseline_results.map(|result| result.side_length.to_string()),
+        results.map(|result| result.side_length.to_string()),
     );
     print_table_row(
         "move_count",
-        baseline_results.map(|result| result.move_count.to_string()),
-    );
-    print_table_row(
-        "allocation_threads",
-        baseline_results.map(|result| result.allocation_thread_count.to_string()),
-    );
-    print_table_row(
-        "baseline_move_threads",
-        baseline_results.map(|result| result.move_thread_count.to_string()),
+        results.map(|result| result.move_count.to_string()),
     );
     print_table_row(
         "face_storage",
-        baseline_results.map(|result| format_bytes(result.face_storage_bytes)),
+        results.map(|result| format_bytes(result.face_storage_bytes)),
     );
     print_table_row(
         "elapsed_milliseconds",
-        baseline_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
+        results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
     );
     print_table_row(
         "moves_per_second",
-        baseline_results
-            .map(|result| format!("{:.1}", moves_per_second(result.move_count, result.elapsed))),
+        results.map(|result| format!("{:.1}", moves_per_second(result.move_count, result.elapsed))),
     );
     print_table_row(
         "ns_per_line_cell",
-        baseline_results.map(|result| {
+        results.map(|result| {
             format!(
                 "{:.3}",
                 nanoseconds_per_line_cell(result.side_length, result.move_count, result.elapsed)
             )
         }),
     );
-
-    print_speedup_rows(results.map(|result| result.ratios));
 }
 
-fn print_slice_move_speedup_results(results: [SliceMoveSpeedupResult; STORAGE_KIND_COUNT]) {
-    let baseline_results = results.map(|result| result.baseline);
-
+fn print_slice_move_results(results: [SliceMoveResult; STORAGE_KIND_COUNT]) {
     print_table_row(
         "side_length",
-        baseline_results.map(|result| result.side_length.to_string()),
+        results.map(|result| result.side_length.to_string()),
     );
     print_table_row(
         "move_count",
-        baseline_results.map(|result| result.move_count.to_string()),
-    );
-    print_table_row(
-        "allocation_threads",
-        baseline_results.map(|result| result.allocation_thread_count.to_string()),
-    );
-    print_table_row(
-        "baseline_move_threads",
-        baseline_results.map(|result| result.move_thread_count.to_string()),
+        results.map(|result| result.move_count.to_string()),
     );
     print_table_row(
         "linear_storage",
-        baseline_results.map(|result| format_bytes(result.slice_storage_bytes)),
+        results.map(|result| format_bytes(result.slice_storage_bytes)),
     );
     print_table_row(
         "elapsed_milliseconds",
-        baseline_results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
+        results.map(|result| format!("{:.3}", milliseconds(result.elapsed))),
     );
     print_table_row(
         "moves_per_second",
-        baseline_results
-            .map(|result| format!("{:.1}", moves_per_second(result.move_count, result.elapsed))),
+        results.map(|result| format!("{:.1}", moves_per_second(result.move_count, result.elapsed))),
     );
     print_table_row(
         "ns_per_line_cell",
-        baseline_results.map(|result| {
+        results.map(|result| {
             format!(
                 "{:.3}",
                 nanoseconds_per_line_cell(result.side_length, result.move_count, result.elapsed)
             )
         }),
     );
-
-    print_speedup_rows(results.map(|result| result.ratios));
-}
-
-fn print_speedup_rows(ratios: [[f64; PARALLEL_THREAD_COUNT_COUNT]; STORAGE_KIND_COUNT]) {
-    for (ratio_index, thread_count) in PARALLEL_THREAD_COUNTS.iter().copied().enumerate() {
-        let label = format!("{thread_count}_threads_speedup");
-        print_table_row(
-            &label,
-            ratios.map(|storage_ratios| format!("{:.3}", storage_ratios[ratio_index])),
-        );
-    }
 }
 
 fn run_memory_child() {
@@ -347,25 +286,21 @@ fn run_memory_child() {
     );
 
     let resident_memory_before = current_resident_set_size_bytes().unwrap_or(0);
-    let allocation_thread_count = default_thread_count();
     let start = Instant::now();
     let (resident_memory_after, peak_resident_memory, checksum) = match storage {
-        StorageKind::Byte => allocate_and_measure::<Byte>(side_length, allocation_thread_count),
-        StorageKind::Nibble => allocate_and_measure::<Nibble>(side_length, allocation_thread_count),
-        StorageKind::ThreeBit => {
-            allocate_and_measure::<ThreeBit>(side_length, allocation_thread_count)
-        }
-        StorageKind::Byte3 => allocate_and_measure::<Byte3>(side_length, allocation_thread_count),
+        StorageKind::Byte => allocate_and_measure::<Byte>(side_length),
+        StorageKind::Nibble => allocate_and_measure::<Nibble>(side_length),
+        StorageKind::ThreeBit => allocate_and_measure::<ThreeBit>(side_length),
+        StorageKind::Byte3 => allocate_and_measure::<Byte3>(side_length),
     };
     let allocation_time = start.elapsed();
 
     black_box(checksum);
 
     println!(
-        "{} {} {} {} {} {} {} {}",
+        "{} {} {} {} {} {} {}",
         storage,
         side_length,
-        allocation_thread_count,
         face_storage_bytes(storage, side_length),
         resident_memory_before,
         resident_memory_after,
@@ -374,10 +309,7 @@ fn run_memory_child() {
     );
 }
 
-fn allocate_and_measure<S: rubik::FaceletArray>(
-    side_length: usize,
-    allocation_thread_count: usize,
-) -> (usize, usize, u8) {
+fn allocate_and_measure<S: FaceletArray>(side_length: usize) -> (usize, usize, u8) {
     let scheme = ColorScheme {
         u: Facelet::Blue,
         d: Facelet::Blue,
@@ -386,8 +318,7 @@ fn allocate_and_measure<S: rubik::FaceletArray>(
         f: Facelet::Blue,
         b: Facelet::Blue,
     };
-    let cube =
-        Cube::<S>::new_with_scheme_with_threads(side_length, scheme, allocation_thread_count);
+    let cube = Cube::<S>::new_with_scheme(side_length, scheme);
     let checksum = cube.face(rubik::FaceId::U).get(0, 0).as_u8()
         ^ cube
             .face(rubik::FaceId::D)
@@ -426,83 +357,48 @@ fn run_memory_parent(storage: StorageKind, side_length: usize) -> MemoryResult {
 
 fn parse_memory_result(line: &str) -> MemoryResult {
     let fields = line.split_whitespace().collect::<Vec<_>>();
-    assert_eq!(fields.len(), 8, "unexpected memory child output: {line}");
+    assert_eq!(fields.len(), 7, "unexpected memory child output: {line}");
     let _storage: StorageKind = fields[0].parse().expect("invalid storage field");
 
     MemoryResult {
         side_length: fields[1].parse().expect("invalid side length field"),
-        allocation_thread_count: fields[2]
-            .parse()
-            .expect("invalid allocation thread count field"),
-        face_storage_bytes: fields[3].parse().expect("invalid face storage field"),
-        resident_memory_before_bytes: fields[4]
+        face_storage_bytes: fields[2].parse().expect("invalid face storage field"),
+        resident_memory_before_bytes: fields[3]
             .parse()
             .expect("invalid resident memory before field"),
-        resident_memory_after_bytes: fields[5]
+        resident_memory_after_bytes: fields[4]
             .parse()
             .expect("invalid resident memory after field"),
-        peak_resident_memory_bytes: fields[6]
+        peak_resident_memory_bytes: fields[5]
             .parse()
             .expect("invalid peak resident memory field"),
         allocation_time: Duration::from_nanos(
-            fields[7]
+            fields[6]
                 .parse()
                 .expect("invalid allocation nanoseconds field"),
         ),
     }
 }
 
-fn run_move_speedup_benchmark(
-    storage: StorageKind,
-    side_length: usize,
-    moves: &[Move],
-) -> MoveSpeedupResult {
-    let baseline = run_move_benchmark(storage, side_length, moves, 1);
-    let ratios = PARALLEL_THREAD_COUNTS.map(|thread_count| {
-        let result = run_move_benchmark(storage, side_length, moves, thread_count);
-        speedup_ratio(baseline.elapsed, result.elapsed)
-    });
-
-    MoveSpeedupResult { baseline, ratios }
-}
-
-fn run_move_benchmark(
-    storage: StorageKind,
-    side_length: usize,
-    moves: &[Move],
-    thread_count: usize,
-) -> MoveResult {
+fn run_move_benchmark(storage: StorageKind, side_length: usize, moves: &[Move]) -> MoveResult {
     match storage {
-        StorageKind::Byte => {
-            run_move_benchmark_for::<Byte>(storage, side_length, moves, thread_count)
-        }
-        StorageKind::Nibble => {
-            run_move_benchmark_for::<Nibble>(storage, side_length, moves, thread_count)
-        }
-        StorageKind::ThreeBit => {
-            run_move_benchmark_for::<ThreeBit>(storage, side_length, moves, thread_count)
-        }
-        StorageKind::Byte3 => {
-            run_move_benchmark_for::<Byte3>(storage, side_length, moves, thread_count)
-        }
+        StorageKind::Byte => run_move_benchmark_for::<Byte>(storage, side_length, moves),
+        StorageKind::Nibble => run_move_benchmark_for::<Nibble>(storage, side_length, moves),
+        StorageKind::ThreeBit => run_move_benchmark_for::<ThreeBit>(storage, side_length, moves),
+        StorageKind::Byte3 => run_move_benchmark_for::<Byte3>(storage, side_length, moves),
     }
 }
 
-fn run_move_benchmark_for<S: rubik::FaceletArray>(
+fn run_move_benchmark_for<S: FaceletArray>(
     storage: StorageKind,
     side_length: usize,
     moves: &[Move],
-    thread_count: usize,
 ) -> MoveResult {
-    let allocation_thread_count = default_thread_count();
-    let mut cube = Cube::<S>::new_solved_with_threads(side_length, allocation_thread_count);
+    let mut cube = Cube::<S>::new_solved(side_length);
     let face_storage_bytes = face_storage_bytes(storage, side_length);
 
     let start = Instant::now();
-    cube.apply_moves_untracked_with_threads(
-        moves.iter().copied().map(|mv| black_box(mv)),
-        thread_count,
-    );
+    cube.apply_moves_untracked(moves.iter().copied().map(|mv| black_box(mv)));
     let elapsed = start.elapsed();
 
     black_box(&cube);
@@ -510,70 +406,44 @@ fn run_move_benchmark_for<S: rubik::FaceletArray>(
     MoveResult {
         side_length,
         move_count: moves.len(),
-        allocation_thread_count,
-        move_thread_count: thread_count,
         face_storage_bytes,
         elapsed,
     }
-}
-
-fn run_slice_move_speedup_benchmark(
-    storage: StorageKind,
-    side_length: usize,
-    angles: &[MoveAngle],
-) -> SliceMoveSpeedupResult {
-    let baseline = run_slice_move_benchmark(storage, side_length, angles, 1);
-    let ratios = PARALLEL_THREAD_COUNTS.map(|thread_count| {
-        let result = run_slice_move_benchmark(storage, side_length, angles, thread_count);
-        speedup_ratio(baseline.elapsed, result.elapsed)
-    });
-
-    SliceMoveSpeedupResult { baseline, ratios }
 }
 
 fn run_slice_move_benchmark(
     storage: StorageKind,
     side_length: usize,
     angles: &[MoveAngle],
-    thread_count: usize,
 ) -> SliceMoveResult {
     match storage {
-        StorageKind::Byte => {
-            run_slice_move_benchmark_for::<Byte>(storage, side_length, angles, thread_count)
-        }
-        StorageKind::Nibble => {
-            run_slice_move_benchmark_for::<Nibble>(storage, side_length, angles, thread_count)
-        }
+        StorageKind::Byte => run_slice_move_benchmark_for::<Byte>(storage, side_length, angles),
+        StorageKind::Nibble => run_slice_move_benchmark_for::<Nibble>(storage, side_length, angles),
         StorageKind::ThreeBit => {
-            run_slice_move_benchmark_for::<ThreeBit>(storage, side_length, angles, thread_count)
+            run_slice_move_benchmark_for::<ThreeBit>(storage, side_length, angles)
         }
-        StorageKind::Byte3 => {
-            run_slice_move_benchmark_for::<Byte3>(storage, side_length, angles, thread_count)
-        }
+        StorageKind::Byte3 => run_slice_move_benchmark_for::<Byte3>(storage, side_length, angles),
     }
 }
 
-fn run_slice_move_benchmark_for<S: rubik::FaceletArray>(
+fn run_slice_move_benchmark_for<S: FaceletArray>(
     storage: StorageKind,
     side_length: usize,
     angles: &[MoveAngle],
-    thread_count: usize,
 ) -> SliceMoveResult {
-    let allocation_thread_count = default_thread_count();
-    let mut line0 = patterned_line::<S>(side_length, 0, allocation_thread_count);
-    let mut line1 = patterned_line::<S>(side_length, 1, allocation_thread_count);
-    let mut line2 = patterned_line::<S>(side_length, 2, allocation_thread_count);
-    let mut line3 = patterned_line::<S>(side_length, 3, allocation_thread_count);
+    let mut line0 = patterned_line::<S>(side_length, 0);
+    let mut line1 = patterned_line::<S>(side_length, 1);
+    let mut line2 = patterned_line::<S>(side_length, 2);
+    let mut line3 = patterned_line::<S>(side_length, 3);
     let slice_storage_bytes = line_storage_bytes(storage, side_length);
 
     let start = Instant::now();
-    cycle_four_line_arrays_many_with_threads(
+    cycle_four_line_arrays_many(
         &mut line0,
         &mut line1,
         &mut line2,
         &mut line3,
         angles.iter().copied().map(|angle| black_box(angle)),
-        thread_count,
     );
     let elapsed = start.elapsed();
 
@@ -588,19 +458,13 @@ fn run_slice_move_benchmark_for<S: rubik::FaceletArray>(
     SliceMoveResult {
         side_length,
         move_count: angles.len(),
-        allocation_thread_count,
-        move_thread_count: thread_count,
         slice_storage_bytes,
         elapsed,
     }
 }
 
-fn patterned_line<S: rubik::FaceletArray>(
-    side_length: usize,
-    offset: u8,
-    allocation_thread_count: usize,
-) -> S {
-    let mut line = S::with_len_with_threads(side_length, Facelet::White, allocation_thread_count);
+fn patterned_line<S: FaceletArray>(side_length: usize, offset: u8) -> S {
+    let mut line = S::with_len(side_length, Facelet::White);
 
     for index in 0..side_length {
         let raw = ((index.wrapping_mul(5) + offset as usize) % Facelet::ALL.len()) as u8;
@@ -615,13 +479,13 @@ fn generate_moves(side_length: usize, count: usize, seed: u64) -> Vec<Move> {
     let mut moves = Vec::with_capacity(count);
 
     for _ in 0..count {
-        let axis = match next_u64(&mut rng) % 3 {
+        let axis = match rng.next_u64() % 3 {
             0 => Axis::X,
             1 => Axis::Y,
             _ => Axis::Z,
         };
-        let depth = (next_u64(&mut rng) as usize) % side_length;
-        let angle = match next_u64(&mut rng) % 3 {
+        let depth = (rng.next_u64() as usize) % side_length;
+        let angle = match rng.next_u64() % 3 {
             0 => MoveAngle::Positive,
             1 => MoveAngle::Double,
             _ => MoveAngle::Negative,
@@ -637,7 +501,7 @@ fn generate_angles(count: usize, seed: u64) -> Vec<MoveAngle> {
     let mut angles = Vec::with_capacity(count);
 
     for _ in 0..count {
-        let angle = match next_u64(&mut rng) % 3 {
+        let angle = match rng.next_u64() % 3 {
             0 => MoveAngle::Positive,
             1 => MoveAngle::Double,
             _ => MoveAngle::Negative,
@@ -646,11 +510,6 @@ fn generate_angles(count: usize, seed: u64) -> Vec<MoveAngle> {
     }
 
     angles
-}
-
-fn next_u64(rng: &mut XorShift64) -> u64 {
-    use rubik::RandomSource;
-    rng.next_u64()
 }
 
 fn environment_usize(name: &str, default: usize) -> usize {
@@ -736,10 +595,6 @@ fn milliseconds(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000.0
 }
 
-fn speedup_ratio(baseline: Duration, elapsed: Duration) -> f64 {
-    baseline.as_secs_f64() / elapsed.as_secs_f64()
-}
-
 fn moves_per_second(moves: usize, duration: Duration) -> f64 {
     moves as f64 / duration.as_secs_f64()
 }
@@ -758,32 +613,38 @@ fn face_storage_bytes(storage: StorageKind, side_length: usize) -> usize {
             .checked_mul(6)
             .expect("byte storage size overflowed usize"),
         StorageKind::Nibble => cells_per_face
-            .div_ceil(2)
-            .checked_mul(6)
+            .checked_mul(3)
             .expect("nibble storage size overflowed usize"),
         StorageKind::ThreeBit => cells_per_face
-            .checked_mul(3)
-            .expect("3bit storage bit count overflowed usize")
-            .div_ceil(64)
-            .checked_mul(8)
-            .and_then(|bytes_per_face| bytes_per_face.checked_mul(6))
-            .expect("3bit storage size overflowed usize"),
+            .checked_mul(18)
+            .and_then(|bits| bits.checked_add(63))
+            .map(|bits| bits / 64 * 8)
+            .expect("three-bit storage size overflowed usize"),
         StorageKind::Byte3 => cells_per_face
-            .div_ceil(3)
-            .checked_mul(6)
+            .checked_mul(2)
+            .and_then(|trios| trios.checked_add(2))
+            .map(|scaled| scaled / 3 * 6)
             .expect("byte3 storage size overflowed usize"),
     }
 }
 
 fn line_storage_bytes(storage: StorageKind, side_length: usize) -> usize {
-    let bytes_per_line = match storage {
-        StorageKind::Byte => Byte::storage_bytes_for_len(side_length),
-        StorageKind::Nibble => Nibble::storage_bytes_for_len(side_length),
-        StorageKind::ThreeBit => ThreeBit::storage_bytes_for_len(side_length),
-        StorageKind::Byte3 => Byte3::storage_bytes_for_len(side_length),
-    };
-
-    bytes_per_line
-        .checked_mul(4)
-        .expect("line-only storage size overflowed usize")
+    match storage {
+        StorageKind::Byte => side_length
+            .checked_mul(4)
+            .expect("byte line storage size overflowed usize"),
+        StorageKind::Nibble => side_length
+            .checked_mul(2)
+            .expect("nibble line storage size overflowed usize"),
+        StorageKind::ThreeBit => side_length
+            .checked_mul(12)
+            .and_then(|bits| bits.checked_add(63))
+            .map(|bits| bits / 64 * 8)
+            .expect("three-bit line storage size overflowed usize"),
+        StorageKind::Byte3 => side_length
+            .checked_mul(4)
+            .and_then(|scaled| scaled.checked_add(2))
+            .map(|scaled| scaled / 3 * 3)
+            .expect("byte3 line storage size overflowed usize"),
+    }
 }

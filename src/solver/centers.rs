@@ -635,9 +635,8 @@ mod tests {
         let commutator = FaceCommutator::new(FaceId::R, FaceId::F, MoveAngle::Negative);
         let expected_total = 2 * rows.len() + 2 * columns.len() + 4;
 
-        let mut unrecorded_cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut unrecorded_cube = Cube::<Byte>::new_solved(side_length);
         let mut unrecorded_context = SolveContext::new(SolveOptions {
-            thread_count: 1,
             record_moves: false,
         });
         unrecorded_context.apply_normalized_center_commutator(
@@ -652,11 +651,8 @@ mod tests {
         assert_eq!(stats.outer_layer, 4);
         assert_eq!(stats.inner_layer, expected_total - 4);
 
-        let mut recorded_cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
-        let mut recorded_context = SolveContext::new(SolveOptions {
-            thread_count: 1,
-            record_moves: true,
-        });
+        let mut recorded_cube = Cube::<Byte>::new_solved(side_length);
+        let mut recorded_context = SolveContext::new(SolveOptions { record_moves: true });
         recorded_context.apply_normalized_center_commutator(
             &mut recorded_cube,
             commutator,
@@ -679,10 +675,7 @@ mod tests {
                 let mut physical = patterned_cube(side_length);
                 let mut optimized = physical.clone();
                 let mv = face_outer_move(side_length, face, angle);
-                let mut context = SolveContext::new(SolveOptions {
-                    thread_count: 1,
-                    record_moves: true,
-                });
+                let mut context = SolveContext::new(SolveOptions { record_moves: true });
 
                 physical.apply_move_untracked(mv);
                 context.apply_center_face_rotation(&mut optimized, face, angle);
@@ -704,13 +697,10 @@ mod tests {
             Move::new(Axis::Z, 1, MoveAngle::Double),
         ];
         let mut expected = patterned_cube(side_length);
-        expected.apply_moves_untracked_with_threads(moves, 1);
+        expected.apply_moves_untracked(moves);
 
         let mut actual = patterned_cube(side_length);
-        let mut context = SolveContext::new(SolveOptions {
-            thread_count: 1,
-            record_moves: true,
-        });
+        let mut context = SolveContext::new(SolveOptions { record_moves: true });
         let operation = MoveSequenceOperation::new(side_length, &moves);
         context.apply_operation(&mut actual, &operation);
 
@@ -724,7 +714,7 @@ mod tests {
     fn center_stage_recorded_moves_replay_to_same_full_cube_state() {
         for side_length in 4..=8 {
             for seed in [0xC011_EC7u64, 0xA11_CE57u64] {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble_random_moves(&mut rng, 120);
                 let initial = cube.clone();
@@ -732,10 +722,7 @@ mod tests {
                 let history_before_moves = initial.history().as_slice().to_vec();
 
                 let mut stage = CenterReductionStage::western_default();
-                let mut context = SolveContext::new(SolveOptions {
-                    thread_count: 1,
-                    record_moves: true,
-                });
+                let mut context = SolveContext::new(SolveOptions { record_moves: true });
 
                 <CenterReductionStage as SolverStage<Byte>>::run(
                     &mut stage,
@@ -752,7 +739,7 @@ mod tests {
                 });
 
                 let mut replay = initial;
-                replay.apply_moves_untracked_with_threads(context.moves().iter().copied(), 1);
+                replay.apply_moves_untracked(context.moves().iter().copied());
 
                 assert_cubes_match(&cube, &replay);
                 assert!(centers_are_solved(&cube));
@@ -766,15 +753,12 @@ mod tests {
     fn center_stage_solves_scrambled_centers_for_various_sizes() {
         for side_length in 4..=8 {
             for seed in [0xC011_EC7u64, 0xCE17_E25u64] {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 scramble_centers_with_normalized_commutators(&mut cube, &mut rng, 1);
 
                 let mut stage = CenterReductionStage::western_default();
-                let mut context = SolveContext::new(SolveOptions {
-                    thread_count: 1,
-                    record_moves: true,
-                });
+                let mut context = SolveContext::new(SolveOptions { record_moves: true });
 
                 <CenterReductionStage as SolverStage<Byte>>::run(
                     &mut stage,
@@ -804,16 +788,15 @@ mod tests {
     fn center_stage_solves_random_move_scrambled_centers() {
         for side_length in 4..=8 {
             for seed in [0xA11_CE57u64, 0xBADC_0DEu64] {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 let moves = (0..120)
                     .map(|_| cube.random_move(&mut rng))
                     .collect::<Vec<_>>();
-                cube.apply_moves_untracked_with_threads(moves, 1);
+                cube.apply_moves_untracked(moves);
 
                 let mut stage = CenterReductionStage::western_default();
                 let mut context = SolveContext::new(SolveOptions {
-                    thread_count: 1,
                     record_moves: false,
                 });
 
@@ -844,12 +827,11 @@ mod tests {
     #[test]
     fn center_stage_solves_dense_batched_commutator_scramble() {
         let side_length = 8;
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
         scramble_dense_center_route(&mut cube);
 
         let mut stage = CenterReductionStage::western_default();
         let mut context = SolveContext::new(SolveOptions {
-            thread_count: 1,
             record_moves: false,
         });
 
@@ -875,8 +857,8 @@ mod tests {
         for axis in [Axis::X, Axis::Y, Axis::Z] {
             for angle in MoveAngle::ALL {
                 let mv = Move::new(axis, middle, angle);
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
-                cube.apply_move_untracked_with_threads(mv, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
+                cube.apply_move_untracked(mv);
 
                 assert_eq!(
                     center_orientation_after_move(start, mv),
@@ -921,7 +903,7 @@ mod tests {
 
     #[test]
     fn generated_center_schedule_matches_normalized_sparse_updates() {
-        let cube = Cube::<Byte>::new_solved_with_threads(9, 1);
+        let cube = Cube::<Byte>::new_solved(9);
         let table = CenterCommutatorTable::new();
         let row = 2usize;
         let column = 5usize;
@@ -1003,7 +985,7 @@ mod tests {
     }
 
     fn patterned_cube(side_length: usize) -> Cube<Byte> {
-        let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+        let mut cube = Cube::<Byte>::new_solved(side_length);
 
         for face in FaceId::ALL {
             for row in 0..side_length {

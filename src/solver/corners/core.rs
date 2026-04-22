@@ -434,7 +434,7 @@ mod tests {
 
         for side_length in 2..=8 {
             for (move_index, spec) in CORNER_MOVE_SPECS.iter().copied().enumerate() {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 let mv = spec.move_for_side_length(side_length);
                 cube.apply_move_untracked(mv);
 
@@ -466,7 +466,7 @@ mod tests {
 
             for spec in CORNER_MOVE_SPECS {
                 let mv = spec.move_for_side_length(side_length);
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 cube.apply_move_untracked(mv);
                 let after = read_corner_cubies(side_length);
 
@@ -485,7 +485,7 @@ mod tests {
     fn corner_stage_recorded_moves_replay_to_same_full_cube_state() {
         for side_length in 2..=8 {
             for seed in [0xC0A2_EE11u64, 0xC0A2_EE22u64] {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble(&mut rng);
                 let initial = cube.clone();
@@ -493,10 +493,7 @@ mod tests {
                 let history_before_moves = initial.history().as_slice().to_vec();
 
                 let mut stage = CornerReductionStage::default();
-                let mut context = SolveContext::new(SolveOptions {
-                    thread_count: 1,
-                    record_moves: true,
-                });
+                let mut context = SolveContext::new(SolveOptions { record_moves: true });
                 <CornerReductionStage as SolverStage<Byte>>::run(
                     &mut stage,
                     &mut cube,
@@ -510,7 +507,7 @@ mod tests {
                 });
 
                 let mut replay = initial;
-                replay.apply_moves_untracked_with_threads(context.moves().iter().copied(), 1);
+                replay.apply_moves_untracked(context.moves().iter().copied());
 
                 assert_cubes_match(&cube, &replay);
                 assert!(all_corner_facelets_solved(&cube));
@@ -524,13 +521,12 @@ mod tests {
     fn corner_stage_solves_scrambled_corners_for_sizes_two_to_eight() {
         for side_length in 2..=8 {
             for seed in [0xC0A2_51DEu64, 0xC0A2_5EEDu64] {
-                let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+                let mut cube = Cube::<Byte>::new_solved(side_length);
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble(&mut rng);
 
                 let mut stage = CornerReductionStage::default();
                 let mut context = SolveContext::new(SolveOptions {
-                    thread_count: 1,
                     record_moves: false,
                 });
                 <CornerReductionStage as SolverStage<Byte>>::run(
@@ -553,12 +549,11 @@ mod tests {
     #[test]
     fn full_default_pipeline_solves_scrambled_cubes_from_one_to_eight() {
         for side_length in 1..=8 {
-            let mut cube = Cube::<Byte>::new_solved_with_threads(side_length, 1);
+            let mut cube = Cube::<Byte>::new_solved(side_length);
             let mut rng = XorShift64::new(0x5017_C0DE ^ side_length as u64);
             cube.scramble(&mut rng);
 
             let mut solver = ReductionSolver::<Byte>::new(SolveOptions {
-                thread_count: 1,
                 record_moves: false,
             })
             .with_stage(CenterReductionStage::western_default())
