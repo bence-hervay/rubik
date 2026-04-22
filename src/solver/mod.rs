@@ -369,14 +369,18 @@ impl SolveContext {
         );
         debug_assert!(algorithm.is_valid(), "algorithm must be valid");
 
-        algorithm.for_each_literal_move(&mut |mv| {
-            self.move_stats.record(mv, cube.side_len());
-            if self.execution_mode().records_moves() {
-                self.moves.push(mv);
+        match self.execution_mode() {
+            ExecutionMode::Standard => {
+                let moves = algorithm.literal_moves();
+                self.apply_moves(cube, moves);
             }
-        });
-
-        algorithm.apply_optimized(cube);
+            ExecutionMode::Optimized => {
+                algorithm.for_each_literal_move(&mut |mv| {
+                    self.move_stats.record(mv, cube.side_len());
+                });
+                algorithm.apply_optimized(cube);
+            }
+        }
     }
 
     pub fn apply_operation<S, O>(&mut self, cube: &mut Cube<S>, operation: &O)
@@ -1336,6 +1340,9 @@ mod tests {
 
         assert_eq!(recorded_context.moves().len(), expected_total);
         assert_eq!(recorded_context.move_stats(), stats);
+        assert_eq!(recorded_cube.history().len(), expected_total);
+        assert_eq!(recorded_cube.history().as_slice(), recorded_context.moves());
+        assert!(unrecorded_cube.history().is_empty());
     }
 
     #[test]
@@ -1358,6 +1365,7 @@ mod tests {
                 assert_cubes_match(&optimized, &physical);
                 assert_eq!(context.moves(), &[mv]);
                 assert_eq!(context.move_stats().total, 1);
+                assert_eq!(optimized.history().as_slice(), &[mv]);
             }
         }
     }
@@ -1384,6 +1392,7 @@ mod tests {
         assert_cubes_match(&actual, &expected);
         assert_eq!(context.moves(), &moves);
         assert_eq!(context.move_stats().total, moves.len());
+        assert_eq!(actual.history().as_slice(), &moves);
     }
 
     #[test]
@@ -1394,6 +1403,7 @@ mod tests {
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble_random_moves(&mut rng, 120);
                 let initial = cube.clone();
+                let history_before = cube.history().len();
 
                 let mut stage = CenterReductionStage::western_default();
                 let mut context = SolveContext::new(SolveOptions {
@@ -1420,6 +1430,11 @@ mod tests {
 
                 assert_cubes_match(&cube, &replay);
                 assert!(centers_are_solved(&cube));
+                assert_eq!(cube.history().len(), history_before + context.moves().len());
+                assert_eq!(
+                    &cube.history().as_slice()[history_before..],
+                    context.moves()
+                );
             }
         }
     }

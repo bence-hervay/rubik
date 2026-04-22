@@ -78,7 +78,7 @@ fn recorded_and_unrecorded_move_sequence_operations_have_the_same_cube_effect() 
     assert!(unrecorded_context.moves().is_empty());
     assert_eq!(recorded_context.move_stats(), expected_stats);
     assert_eq!(unrecorded_context.move_stats(), expected_stats);
-    assert!(recorded_cube.history().is_empty());
+    assert_eq!(recorded_cube.history().as_slice(), &moves);
     assert!(unrecorded_cube.history().is_empty());
 }
 
@@ -120,7 +120,7 @@ fn recorded_and_unrecorded_face_commutator_plans_have_the_same_cube_effect() {
         assert!(unrecorded_context.moves().is_empty());
         assert_eq!(recorded_context.move_stats(), expected_stats);
         assert_eq!(unrecorded_context.move_stats(), expected_stats);
-        assert!(recorded_cube.history().is_empty());
+        assert_eq!(recorded_cube.history().as_slice(), literal_moves.as_slice());
         assert!(unrecorded_cube.history().is_empty());
     }
 }
@@ -161,7 +161,7 @@ fn recorded_and_unrecorded_edge_three_cycle_plans_have_the_same_cube_effect() {
         assert!(unrecorded_context.moves().is_empty());
         assert_eq!(recorded_context.move_stats(), expected_stats);
         assert_eq!(unrecorded_context.move_stats(), expected_stats);
-        assert!(recorded_cube.history().is_empty());
+        assert_eq!(recorded_cube.history().as_slice(), literal_moves.as_slice());
         assert!(unrecorded_cube.history().is_empty());
     }
 }

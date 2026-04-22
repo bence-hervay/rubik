@@ -50,6 +50,7 @@ fn recorded_default_pipeline_replays_to_the_same_final_cube_state() {
     for side_length in [4usize, 5] {
         let mut cube = scrambled_cube(side_length, 0xC7A6_1000, 80);
         let initial = cube.clone();
+        let history_before = cube.history().len();
         let mut solver = default_solver(ExecutionMode::Standard);
 
         let outcome = solver.solve(&mut cube).unwrap_or_else(|error| {
@@ -100,6 +101,11 @@ fn recorded_default_pipeline_replays_to_the_same_final_cube_state() {
                 .map(|report| report.moves_added())
                 .sum::<usize>(),
             outcome.moves.len(),
+        );
+        assert_eq!(cube.history().len(), history_before + outcome.moves.len());
+        assert_eq!(
+            &cube.history().as_slice()[history_before..],
+            outcome.moves.as_slice(),
         );
     }
 }

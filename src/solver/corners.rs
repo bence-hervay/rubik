@@ -779,6 +779,7 @@ mod tests {
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble(&mut rng);
                 let initial = cube.clone();
+                let history_before = cube.history().len();
 
                 let mut stage = CornerReductionStage::default();
                 let mut context = SolveContext::new(SolveOptions {
@@ -802,6 +803,11 @@ mod tests {
 
                 assert_cubes_match(&cube, &replay);
                 assert!(all_corner_facelets_solved(&cube));
+                assert_eq!(cube.history().len(), history_before + context.moves().len());
+                assert_eq!(
+                    &cube.history().as_slice()[history_before..],
+                    context.moves()
+                );
             }
         }
     }
