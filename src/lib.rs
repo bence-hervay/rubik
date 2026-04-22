@@ -1,8 +1,10 @@
+pub mod algorithm;
 pub mod puzzle;
 pub mod runtime;
 pub mod solver;
 pub mod storage;
 
+pub use algorithm::{Algorithm, MoveSequenceAlgorithm, OptimizedAlgorithm};
 pub(crate) use layout::geometry;
 pub use layout::matrix;
 pub use layout::strip as line;

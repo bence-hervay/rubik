@@ -15,7 +15,7 @@ use crate::cube::{
 };
 
 use super::{
-    MoveSequenceOperation, SolveContext, SolveError, SolvePhase, SolveResult, SolverStage,
+    MoveSequenceAlgorithm, SolveContext, SolveError, SolvePhase, SolveResult, SolverStage,
     SubStageSpec,
 };
 
@@ -286,8 +286,8 @@ impl<S: FaceletArray> SolverStage<S> for CornerReductionStage {
             .into_iter()
             .map(|spec| spec.move_for_side_length(side_length))
             .collect::<Vec<_>>();
-        let operation = MoveSequenceOperation::new(side_length, &moves);
-        context.apply_operation(cube, &operation);
+        let algorithm = MoveSequenceAlgorithm::new(side_length, &moves);
+        context.apply_algorithm(cube, &algorithm);
 
         if all_corner_facelets_solved(cube) {
             Ok(())

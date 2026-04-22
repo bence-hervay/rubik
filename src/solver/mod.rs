@@ -6,8 +6,9 @@ mod corners;
 mod edges;
 
 use crate::{
+    algorithm::OptimizedAlgorithm,
     conventions::{face_outer_move, home_facelet_for_face, opposite_face},
-    cube::{Cube, EdgeThreeCyclePlan, FaceCommutator, FaceCommutatorPlan},
+    cube::{Cube, FaceCommutator},
     face::FaceId,
     facelet::Facelet,
     moves::{Axis, Move, MoveAngle},
@@ -145,80 +146,19 @@ impl MoveStats {
     }
 }
 
-pub trait StageOperation {
-    fn side_length(&self) -> usize;
-    fn is_valid(&self) -> bool;
-    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move));
+pub use crate::algorithm::MoveSequenceAlgorithm;
+pub use crate::algorithm::MoveSequenceAlgorithm as MoveSequenceOperation;
+
+pub trait StageOperation: OptimizedAlgorithm {
     fn apply_direct<S: FaceletArray>(&self, cube: &mut Cube<S>);
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct MoveSequenceOperation<'a> {
-    side_length: usize,
-    moves: &'a [Move],
-}
-
-impl<'a> MoveSequenceOperation<'a> {
-    pub const fn new(side_length: usize, moves: &'a [Move]) -> Self {
-        Self { side_length, moves }
-    }
-}
-
-impl StageOperation for FaceCommutatorPlan<'_> {
-    fn side_length(&self) -> usize {
-        FaceCommutatorPlan::side_length(*self)
-    }
-
-    fn is_valid(&self) -> bool {
-        FaceCommutatorPlan::is_valid(*self)
-    }
-
-    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move)) {
-        FaceCommutatorPlan::for_each_literal_move(*self, f);
-    }
-
+impl<T> StageOperation for T
+where
+    T: OptimizedAlgorithm + ?Sized,
+{
     fn apply_direct<S: FaceletArray>(&self, cube: &mut Cube<S>) {
-        cube.apply_face_commutator_plan_untracked(*self);
-    }
-}
-
-impl StageOperation for EdgeThreeCyclePlan {
-    fn side_length(&self) -> usize {
-        EdgeThreeCyclePlan::side_length(self)
-    }
-
-    fn is_valid(&self) -> bool {
-        EdgeThreeCyclePlan::is_valid(self)
-    }
-
-    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move)) {
-        for mv in self.moves().iter().copied() {
-            f(mv);
-        }
-    }
-
-    fn apply_direct<S: FaceletArray>(&self, cube: &mut Cube<S>) {
-        cube.apply_edge_three_cycle_plan_untracked(self);
-    }
-}
-
-impl StageOperation for MoveSequenceOperation<'_> {
-    fn side_length(&self) -> usize {
-        self.side_length
-    }
-
-    fn is_valid(&self) -> bool {
-        self.moves.iter().all(|mv| mv.depth < self.side_length)
-    }
-
-    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move)) {
-        for mv in self.moves.iter().copied() {
-            f(mv);
-        }
-    }
-
-    fn apply_direct<S: FaceletArray>(&self, cube: &mut Cube<S>) {
-        cube.apply_moves_untracked_with_threads(self.moves.iter().copied(), 1);
+        self.apply_optimized(cube);
     }
 }
 
@@ -265,26 +205,34 @@ impl SolveContext {
         self.moves
     }
 
-    pub fn apply_operation<S, O>(&mut self, cube: &mut Cube<S>, operation: &O)
+    pub fn apply_algorithm<S, A>(&mut self, cube: &mut Cube<S>, algorithm: &A)
     where
         S: FaceletArray,
-        O: StageOperation,
+        A: OptimizedAlgorithm,
     {
         debug_assert_eq!(
             cube.side_len(),
-            operation.side_length(),
-            "stage operation side length must match the cube",
+            algorithm.side_length(),
+            "algorithm side length must match the cube",
         );
-        debug_assert!(operation.is_valid(), "stage operation must be valid");
+        debug_assert!(algorithm.is_valid(), "algorithm must be valid");
 
-        operation.for_each_literal_move(&mut |mv| {
+        algorithm.for_each_literal_move(&mut |mv| {
             self.move_stats.record(mv, cube.side_len());
             if self.options.record_moves {
                 self.moves.push(mv);
             }
         });
 
-        operation.apply_direct(cube);
+        algorithm.apply_optimized(cube);
+    }
+
+    pub fn apply_operation<S, O>(&mut self, cube: &mut Cube<S>, operation: &O)
+    where
+        S: FaceletArray,
+        O: StageOperation,
+    {
+        self.apply_algorithm(cube, operation);
     }
 
     pub fn apply_move<S: FaceletArray>(&mut self, cube: &mut Cube<S>, mv: Move) {
@@ -315,7 +263,7 @@ impl SolveContext {
         columns: &[usize],
     ) {
         let plan = cube.face_commutator_plan(commutator, rows, columns);
-        self.apply_operation(cube, &plan);
+        self.apply_algorithm(cube, &plan);
     }
 
     pub fn apply_normalized_center_commutator<S: FaceletArray>(
@@ -326,7 +274,7 @@ impl SolveContext {
         columns: &[usize],
     ) {
         let plan = cube.normalized_face_commutator_plan(commutator, rows, columns);
-        self.apply_operation(cube, &plan);
+        self.apply_algorithm(cube, &plan);
     }
 
     pub fn apply_edge_three_cycle_plan<S: FaceletArray>(
@@ -334,7 +282,7 @@ impl SolveContext {
         cube: &mut Cube<S>,
         plan: &crate::cube::EdgeThreeCyclePlan,
     ) {
-        self.apply_operation(cube, plan);
+        self.apply_algorithm(cube, plan);
     }
 
     fn apply_center_face_rotation<S: FaceletArray>(
