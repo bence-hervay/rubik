@@ -48,7 +48,7 @@ lines  path
 25 src/solver/execution_mode.rs
 25 src/solver/error.rs
 20 src/solver/phase.rs
-18 Cargo.toml
+19 Cargo.toml
 16 src/algorithms/mod.rs
 13 src/model/mod.rs
 13 src/algorithms/centers/mod.rs
