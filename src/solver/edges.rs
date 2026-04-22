@@ -20,8 +20,8 @@ use crate::{
 };
 
 use super::{
-    SolveContext, SolveError, SolvePhase, SolveResult, SolverStage, StageExecutionSupport,
-    SubStageSpec,
+    SolveContext, SolveError, SolvePhase, SolveResult, SolverStage, StageContract,
+    StageExecutionSupport, StageSideLengthSupport, SubStageSpec,
 };
 
 const EDGE_WING_POSITION_COUNT: usize = 24;
@@ -116,6 +116,18 @@ pub struct EdgePairingStage {
     cache: Option<PreparedEdgeStage>,
 }
 
+const EDGE_STAGE_STANDARD_PRECONDITIONS: &[&str] =
+    &["none; the edge stage may start from any cube state"];
+const EDGE_STAGE_STANDARD_POSTCONDITIONS: &[&str] =
+    &["all edge facelets are solved when the stage returns success"];
+const EDGE_STAGE_CONTRACT: StageContract = StageContract::new(
+    StageSideLengthSupport::all(),
+    false,
+    EDGE_STAGE_STANDARD_PRECONDITIONS,
+    EDGE_STAGE_STANDARD_POSTCONDITIONS,
+    StageExecutionSupport::StandardAndOptimized,
+);
+
 impl Default for EdgePairingStage {
     fn default() -> Self {
         Self {
@@ -186,8 +198,8 @@ impl<S: FaceletArray> SolverStage<S> for EdgePairingStage {
         "edge pairing"
     }
 
-    fn execution_mode_support(&self) -> StageExecutionSupport {
-        StageExecutionSupport::StandardAndOptimized
+    fn contract(&self) -> StageContract {
+        EDGE_STAGE_CONTRACT
     }
 
     fn sub_stages(&self) -> &[SubStageSpec] {

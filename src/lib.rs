@@ -31,7 +31,7 @@ pub use solver::{
     CenterReductionStage, CenterScheduleStep, CenterTransferSpec, CornerReductionStage, CornerSlot,
     EdgePairingStage, EdgeSlot, ExecutionMode, MoveSequence, MoveStats, ReductionSolver,
     SolveContext, SolveError, SolveOptions, SolveOutcome, SolvePhase, SolveResult, Solver,
-    SolverStage, StageExecutionSupport, StageReport, SubStageSpec, ThreeByThreeStage,
-    GENERATED_CENTER_SCHEDULE,
+    SolverStage, StageContract, StageExecutionSupport, StageReport, StageSideLengthSupport,
+    SubStageSpec, ThreeByThreeStage, GENERATED_CENTER_SCHEDULE,
 };
 pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};

@@ -16,7 +16,7 @@ use crate::cube::{
 
 use super::{
     MoveSequenceAlgorithm, SolveContext, SolveError, SolvePhase, SolveResult, SolverStage,
-    StageExecutionSupport, SubStageSpec,
+    StageContract, StageExecutionSupport, StageSideLengthSupport, SubStageSpec,
 };
 
 const CORNER_ORIENTATION_STATE_COUNT: usize = 2_187;
@@ -224,6 +224,18 @@ pub struct CornerReductionStage {
     sub_stages: [SubStageSpec; 4],
 }
 
+const CORNER_STAGE_STANDARD_PRECONDITIONS: &[&str] =
+    &["none; the corner stage may start from any cube state"];
+const CORNER_STAGE_STANDARD_POSTCONDITIONS: &[&str] =
+    &["all corner facelets are solved when the stage returns success"];
+const CORNER_STAGE_CONTRACT: StageContract = StageContract::new(
+    StageSideLengthSupport::all(),
+    false,
+    CORNER_STAGE_STANDARD_PRECONDITIONS,
+    CORNER_STAGE_STANDARD_POSTCONDITIONS,
+    StageExecutionSupport::StandardAndOptimized,
+);
+
 impl Default for CornerReductionStage {
     fn default() -> Self {
         Self {
@@ -263,8 +275,8 @@ impl<S: FaceletArray> SolverStage<S> for CornerReductionStage {
         "corner reduction"
     }
 
-    fn execution_mode_support(&self) -> StageExecutionSupport {
-        StageExecutionSupport::StandardAndOptimized
+    fn contract(&self) -> StageContract {
+        CORNER_STAGE_CONTRACT
     }
 
     fn sub_stages(&self) -> &[SubStageSpec] {

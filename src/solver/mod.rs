@@ -111,6 +111,83 @@ impl StageExecutionSupport {
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct StageSideLengthSupport {
+    pub minimum: usize,
+    pub maximum: Option<usize>,
+    pub supports_odd: bool,
+    pub supports_even: bool,
+}
+
+impl StageSideLengthSupport {
+    pub const fn new(
+        minimum: usize,
+        maximum: Option<usize>,
+        supports_odd: bool,
+        supports_even: bool,
+    ) -> Self {
+        Self {
+            minimum,
+            maximum,
+            supports_odd,
+            supports_even,
+        }
+    }
+
+    pub const fn all() -> Self {
+        Self::new(1, None, true, true)
+    }
+
+    pub const fn supports(self, side_length: usize) -> bool {
+        if side_length < self.minimum {
+            return false;
+        }
+
+        if let Some(maximum) = self.maximum {
+            if side_length > maximum {
+                return false;
+            }
+        }
+
+        if side_length % 2 == 0 {
+            self.supports_even
+        } else {
+            self.supports_odd
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct StageContract {
+    pub side_lengths: StageSideLengthSupport,
+    pub requires_previous_stages_solved: bool,
+    pub standard_preconditions: &'static [&'static str],
+    pub standard_postconditions: &'static [&'static str],
+    pub execution_mode_support: StageExecutionSupport,
+}
+
+impl StageContract {
+    pub const fn new(
+        side_lengths: StageSideLengthSupport,
+        requires_previous_stages_solved: bool,
+        standard_preconditions: &'static [&'static str],
+        standard_postconditions: &'static [&'static str],
+        execution_mode_support: StageExecutionSupport,
+    ) -> Self {
+        Self {
+            side_lengths,
+            requires_previous_stages_solved,
+            standard_preconditions,
+            standard_postconditions,
+            execution_mode_support,
+        }
+    }
+
+    pub const fn supports(self, side_length: usize, mode: ExecutionMode) -> bool {
+        self.side_lengths.supports(side_length) && self.execution_mode_support.supports(mode)
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct SolveOptions {
     pub thread_count: usize,
@@ -378,7 +455,24 @@ pub trait Solver<S: FaceletArray> {
 pub trait SolverStage<S: FaceletArray> {
     fn phase(&self) -> SolvePhase;
     fn name(&self) -> &'static str;
-    fn execution_mode_support(&self) -> StageExecutionSupport;
+    fn contract(&self) -> StageContract;
+
+    fn execution_mode_support(&self) -> StageExecutionSupport {
+        self.contract().execution_mode_support
+    }
+
+    fn side_length_support(&self) -> StageSideLengthSupport {
+        self.contract().side_lengths
+    }
+
+    fn requires_previous_stages_solved(&self) -> bool {
+        self.contract().requires_previous_stages_solved
+    }
+
+    fn is_applicable_to_side_length(&self, side_length: usize) -> bool {
+        self.side_length_support().supports(side_length)
+    }
+
     fn sub_stages(&self) -> &[SubStageSpec];
     fn run(&mut self, cube: &mut Cube<S>, context: &mut SolveContext) -> SolveResult<()>;
 }
@@ -441,8 +535,16 @@ impl<S: FaceletArray + 'static> Solver<S> for ReductionSolver<S> {
     fn solve(&mut self, cube: &mut Cube<S>) -> SolveResult<SolveOutcome> {
         let mut context = SolveContext::new(self.options);
         let mut reports = Vec::with_capacity(self.stages.len());
+        let execution_mode = context.execution_mode();
 
         for stage in &mut self.stages {
+            if !stage.execution_mode_support().supports(execution_mode) {
+                return Err(SolveError::StageFailed {
+                    stage: stage.name(),
+                    reason: "stage does not support the requested execution mode",
+                });
+            }
+
             let moves_before = context.move_stats().total;
             stage.run(cube, &mut context)?;
             let moves_after = context.move_stats().total;
@@ -558,6 +660,18 @@ pub struct CenterReductionStage {
     schedule: &'static [CenterScheduleStep],
 }
 
+const CENTER_STAGE_STANDARD_PRECONDITIONS: &[&str] =
+    &["none; the center stage may start from any cube state"];
+const CENTER_STAGE_STANDARD_POSTCONDITIONS: &[&str] =
+    &["all center facelets are solved when the stage returns success"];
+const CENTER_STAGE_CONTRACT: StageContract = StageContract::new(
+    StageSideLengthSupport::all(),
+    false,
+    CENTER_STAGE_STANDARD_PRECONDITIONS,
+    CENTER_STAGE_STANDARD_POSTCONDITIONS,
+    StageExecutionSupport::StandardAndOptimized,
+);
+
 impl CenterReductionStage {
     pub fn new(transfers: Vec<CenterTransferSpec>) -> Self {
         let sub_stages = vec![
@@ -628,8 +742,8 @@ impl<S: FaceletArray> SolverStage<S> for CenterReductionStage {
         "center reduction"
     }
 
-    fn execution_mode_support(&self) -> StageExecutionSupport {
-        StageExecutionSupport::StandardAndOptimized
+    fn contract(&self) -> StageContract {
+        CENTER_STAGE_CONTRACT
     }
 
     fn sub_stages(&self) -> &[SubStageSpec] {
@@ -1105,6 +1219,18 @@ pub struct ThreeByThreeStage {
     sub_stages: [SubStageSpec; 2],
 }
 
+const THREE_BY_THREE_STAGE_STANDARD_PRECONDITIONS: &[&str] =
+    &["the cube should already be reduced to a 3x3-equivalent state"];
+const THREE_BY_THREE_STAGE_STANDARD_POSTCONDITIONS: &[&str] =
+    &["currently a placeholder adapter stage; no additional guarantees are added yet"];
+const THREE_BY_THREE_STAGE_CONTRACT: StageContract = StageContract::new(
+    StageSideLengthSupport::all(),
+    true,
+    THREE_BY_THREE_STAGE_STANDARD_PRECONDITIONS,
+    THREE_BY_THREE_STAGE_STANDARD_POSTCONDITIONS,
+    StageExecutionSupport::StandardAndOptimized,
+);
+
 impl Default for ThreeByThreeStage {
     fn default() -> Self {
         Self {
@@ -1133,8 +1259,8 @@ impl<S: FaceletArray> SolverStage<S> for ThreeByThreeStage {
         "3x3 finish"
     }
 
-    fn execution_mode_support(&self) -> StageExecutionSupport {
-        StageExecutionSupport::StandardAndOptimized
+    fn contract(&self) -> StageContract {
+        THREE_BY_THREE_STAGE_CONTRACT
     }
 
     fn sub_stages(&self) -> &[SubStageSpec] {
@@ -1353,6 +1479,96 @@ mod tests {
                 &ThreeByThreeStage::default()
             ),
             StageExecutionSupport::StandardAndOptimized
+        );
+    }
+
+    #[test]
+    fn stage_side_length_support_respects_range_and_parity() {
+        let support = StageSideLengthSupport::new(2, Some(6), true, false);
+
+        assert!(!support.supports(1));
+        assert!(!support.supports(2));
+        assert!(support.supports(3));
+        assert!(!support.supports(4));
+        assert!(support.supports(5));
+        assert!(!support.supports(6));
+        assert!(!support.supports(7));
+    }
+
+    #[test]
+    fn default_stage_contracts_are_explicit_and_nonempty() {
+        let center = <CenterReductionStage as SolverStage<Byte>>::contract(
+            &CenterReductionStage::western_default(),
+        );
+        assert!(center.side_lengths.supports(1));
+        assert!(!center.requires_previous_stages_solved);
+        assert!(!center.standard_preconditions.is_empty());
+        assert!(!center.standard_postconditions.is_empty());
+
+        let corners =
+            <CornerReductionStage as SolverStage<Byte>>::contract(&CornerReductionStage::default());
+        assert!(corners.side_lengths.supports(2));
+        assert!(!corners.requires_previous_stages_solved);
+        assert!(!corners.standard_preconditions.is_empty());
+        assert!(!corners.standard_postconditions.is_empty());
+
+        let edges = <EdgePairingStage as SolverStage<Byte>>::contract(&EdgePairingStage::default());
+        assert!(edges.side_lengths.supports(3));
+        assert!(!edges.requires_previous_stages_solved);
+        assert!(!edges.standard_preconditions.is_empty());
+        assert!(!edges.standard_postconditions.is_empty());
+
+        let three_by_three =
+            <ThreeByThreeStage as SolverStage<Byte>>::contract(&ThreeByThreeStage::default());
+        assert!(three_by_three.side_lengths.supports(3));
+        assert!(three_by_three.requires_previous_stages_solved);
+        assert!(!three_by_three.standard_preconditions.is_empty());
+        assert!(!three_by_three.standard_postconditions.is_empty());
+    }
+
+    #[test]
+    fn solver_rejects_stage_when_requested_mode_is_not_supported() {
+        #[derive(Default)]
+        struct StandardOnlyStage;
+
+        impl<S: FaceletArray> SolverStage<S> for StandardOnlyStage {
+            fn phase(&self) -> SolvePhase {
+                SolvePhase::ThreeByThree
+            }
+
+            fn name(&self) -> &'static str {
+                "standard only test stage"
+            }
+
+            fn contract(&self) -> StageContract {
+                StageContract::new(
+                    StageSideLengthSupport::all(),
+                    false,
+                    &["standard execution only"],
+                    &["no-op"],
+                    StageExecutionSupport::StandardOnly,
+                )
+            }
+
+            fn sub_stages(&self) -> &[SubStageSpec] {
+                &[]
+            }
+
+            fn run(&mut self, _cube: &mut Cube<S>, _context: &mut SolveContext) -> SolveResult<()> {
+                Ok(())
+            }
+        }
+
+        let mut solver =
+            ReductionSolver::<Byte>::new(SolveOptions::optimized(1)).with_stage(StandardOnlyStage);
+        let mut cube = Cube::<Byte>::new_solved(3);
+
+        assert_eq!(
+            solver.solve(&mut cube),
+            Err(SolveError::StageFailed {
+                stage: "standard only test stage",
+                reason: "stage does not support the requested execution mode",
+            })
         );
     }
 
