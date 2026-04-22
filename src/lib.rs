@@ -3,6 +3,7 @@ pub mod puzzle;
 pub mod runtime;
 pub mod solver;
 pub mod storage;
+pub mod support;
 
 pub use algorithm::{Algorithm, MoveSequenceAlgorithm, OptimizedAlgorithm};
 pub(crate) use layout::geometry;

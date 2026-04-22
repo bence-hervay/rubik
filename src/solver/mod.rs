@@ -1,13 +1,12 @@
 use core::fmt;
 use std::collections::{HashSet, VecDeque};
 
-mod center_schedule;
 mod corners;
-mod edges;
+pub(crate) mod edges;
 
 use crate::{
     algorithm::OptimizedAlgorithm,
-    conventions::{face_outer_move, home_facelet_for_face, opposite_face},
+    conventions::{face_outer_move, home_facelet_for_face},
     cube::{Cube, FaceCommutator},
     face::FaceId,
     facelet::Facelet,
@@ -16,8 +15,8 @@ use crate::{
     threading::default_thread_count,
 };
 
-pub use center_schedule::{
-    CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterScheduleStep,
+pub use crate::support::centers::{
+    CenterCommutatorTable, CenterCoordExpr, CenterLocation, CenterLocationExpr, CenterScheduleStep,
     GENERATED_CENTER_SCHEDULE,
 };
 pub use corners::{CornerReductionStage, CornerSlot};
@@ -566,77 +565,6 @@ impl<S: FaceletArray + 'static> Solver<S> for ReductionSolver<S> {
         }
 
         Ok(context.into_outcome(reports))
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct AngleCommutators {
-    positive: FaceCommutator,
-    double: FaceCommutator,
-    negative: FaceCommutator,
-}
-
-impl AngleCommutators {
-    fn new(destination: FaceId, helper: FaceId) -> Self {
-        Self {
-            positive: FaceCommutator::new(destination, helper, MoveAngle::Positive),
-            double: FaceCommutator::new(destination, helper, MoveAngle::Double),
-            negative: FaceCommutator::new(destination, helper, MoveAngle::Negative),
-        }
-    }
-
-    fn get(self, angle: MoveAngle) -> FaceCommutator {
-        match angle {
-            MoveAngle::Positive => self.positive,
-            MoveAngle::Double => self.double,
-            MoveAngle::Negative => self.negative,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct CenterCommutatorTable {
-    entries: [[Option<AngleCommutators>; 6]; 6],
-}
-
-impl CenterCommutatorTable {
-    pub fn new() -> Self {
-        let mut entries = [[None; 6]; 6];
-
-        for destination in FaceId::ALL {
-            for helper in FaceId::ALL {
-                if destination == helper || destination == opposite_face(helper) {
-                    continue;
-                }
-
-                entries[destination.index()][helper.index()] =
-                    Some(AngleCommutators::new(destination, helper));
-            }
-        }
-
-        Self { entries }
-    }
-
-    pub fn get(
-        &self,
-        destination: FaceId,
-        helper: FaceId,
-        angle: MoveAngle,
-    ) -> Option<FaceCommutator> {
-        self.entries[destination.index()][helper.index()].map(|entry| entry.get(angle))
-    }
-
-    pub fn helper_count_for_destination(&self, destination: FaceId) -> usize {
-        self.entries[destination.index()]
-            .iter()
-            .filter(|entry| entry.is_some())
-            .count()
-    }
-}
-
-impl Default for CenterCommutatorTable {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -1279,7 +1207,7 @@ impl<S: FaceletArray> SolverStage<S> for ThreeByThreeStage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Byte, RandomSource, XorShift64};
+    use crate::{conventions::opposite_face, Byte, RandomSource, XorShift64};
 
     #[test]
     fn center_commutator_table_contains_only_perpendicular_helpers() {
