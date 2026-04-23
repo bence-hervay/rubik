@@ -9,8 +9,10 @@ mod report;
 pub use crate::algorithms::{
     AlgorithmContract, AlgorithmExecutionSupport, AlgorithmSideLengthSupport, AlgorithmStepSpec,
     CenterReductionAlgorithm, CenterReductionStage, CenterTransferSpec, CornerReductionAlgorithm,
-    CornerReductionStage, CornerSlot, EdgePairingAlgorithm, EdgePairingStage, EdgeSlot,
-    MoveSequenceOperation, SolveAlgorithm, ThreeByThreeAlgorithm, ThreeByThreeStage,
+    CornerReductionStage, CornerSearchReductionAlgorithm, CornerSearchReductionStage,
+    CornerSlot, CornerTwoCycleReductionAlgorithm, CornerTwoCycleReductionStage,
+    EdgePairingAlgorithm, EdgePairingStage, EdgeSlot, MoveSequenceOperation, SolveAlgorithm,
+    ThreeByThreeAlgorithm, ThreeByThreeStage,
 };
 
 pub use context::SolveContext;

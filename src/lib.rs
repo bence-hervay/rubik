@@ -14,6 +14,8 @@ pub use algorithms::centers::{
     GENERATED_CENTER_SCHEDULE,
 };
 pub use algorithms::corners::CornerReductionStage;
+pub use algorithms::corners::CornerSearchReductionStage;
+pub use algorithms::corners::CornerTwoCycleReductionStage;
 pub use algorithms::edges::{
     EdgePairingStage, EdgeThreeCycle, EdgeThreeCycleDirection, EdgeThreeCycleKind,
     EdgeThreeCyclePlan, EdgeThreeCycleValidationError,
@@ -23,7 +25,8 @@ pub use algorithms::operation::{
 };
 pub use algorithms::{
     AlgorithmContract, AlgorithmExecutionSupport, AlgorithmSideLengthSupport, AlgorithmStepSpec,
-    CenterReductionAlgorithm, CenterTransferSpec, CornerReductionAlgorithm, CornerSlot,
+    CenterReductionAlgorithm, CenterTransferSpec, CornerReductionAlgorithm,
+    CornerSearchReductionAlgorithm, CornerSlot, CornerTwoCycleReductionAlgorithm,
     EdgePairingAlgorithm, EdgeSlot, Operation, OptimizedOperation, SolveAlgorithm,
     ThreeByThreeAlgorithm,
 };

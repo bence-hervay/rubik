@@ -259,7 +259,7 @@ impl<S: FaceletArray> SolveAlgorithm<S> for CornerReductionAlgorithm {
     }
 
     fn name(&self) -> &'static str {
-        "corner reduction"
+        "corner reduction (search)"
     }
 
     fn contract(&self) -> AlgorithmContract {
@@ -276,11 +276,11 @@ impl<S: FaceletArray> SolveAlgorithm<S> for CornerReductionAlgorithm {
         }
 
         let state = read_corner_state(cube).ok_or(SolveError::StageFailed {
-            stage: "corner reduction",
+            stage: "corner reduction (search)",
             reason: "could not read a valid reduced corner state",
         })?;
         let solution = self.tables.solve(state).ok_or(SolveError::StageFailed {
-            stage: "corner reduction",
+            stage: "corner reduction (search)",
             reason: "corner search did not find a solution",
         })?;
 
@@ -296,7 +296,7 @@ impl<S: FaceletArray> SolveAlgorithm<S> for CornerReductionAlgorithm {
             Ok(())
         } else {
             Err(SolveError::StageFailed {
-                stage: "corner reduction",
+                stage: "corner reduction (search)",
                 reason: "corner solving left some corner facelets unsolved",
             })
         }

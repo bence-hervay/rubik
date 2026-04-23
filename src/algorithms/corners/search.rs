@@ -17,7 +17,7 @@ use crate::cube::{
 use super::CornerSlot;
 
 #[cfg(test)]
-use super::CornerReductionStage;
+use super::CornerSearchReductionStage;
 #[cfg(test)]
 use crate::solver::{SolveContext, SolverStage};
 
@@ -28,8 +28,8 @@ const FACTORIALS: [usize; 9] = [1, 1, 2, 6, 24, 120, 720, 5_040, 40_320];
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(super) struct CornerState {
-    permutation: [u8; 8],
-    orientation: [u8; 8],
+    pub(super) permutation: [u8; 8],
+    pub(super) orientation: [u8; 8],
 }
 
 impl CornerState {
@@ -41,6 +41,22 @@ impl CornerState {
     fn is_solved(self) -> bool {
         self == Self::SOLVED
     }
+
+    pub(super) fn cubie_at(self, slot: CornerSlot) -> usize {
+        self.permutation[slot.index()] as usize
+    }
+
+    pub(super) fn orientation_at(self, slot: CornerSlot) -> u8 {
+        self.orientation[slot.index()]
+    }
+
+    pub(super) fn slot_for_cubie(self, cubie_index: usize) -> CornerSlot {
+        CornerSlot::ALL[self
+            .permutation
+            .iter()
+            .position(|entry| usize::from(*entry) == cubie_index)
+            .expect("corner cubie index must exist in the permutation")]
+    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -50,8 +66,16 @@ pub(super) struct CornerMoveSpec {
 }
 
 impl CornerMoveSpec {
-    const fn new(face: FaceId, angle: MoveAngle) -> Self {
+    pub(super) const fn new(face: FaceId, angle: MoveAngle) -> Self {
         Self { face, angle }
+    }
+
+    pub(super) const fn face(self) -> FaceId {
+        self.face
+    }
+
+    pub(super) const fn angle(self) -> MoveAngle {
+        self.angle
     }
 
     pub(super) fn move_for_side_length(self, side_length: usize) -> Move {
@@ -59,7 +83,7 @@ impl CornerMoveSpec {
     }
 }
 
-const CORNER_MOVE_SPECS: [CornerMoveSpec; CORNER_MOVE_COUNT] = [
+pub(super) const CORNER_MOVE_SPECS: [CornerMoveSpec; CORNER_MOVE_COUNT] = [
     CornerMoveSpec::new(FaceId::U, MoveAngle::Positive),
     CornerMoveSpec::new(FaceId::U, MoveAngle::Double),
     CornerMoveSpec::new(FaceId::U, MoveAngle::Negative),
@@ -81,9 +105,9 @@ const CORNER_MOVE_SPECS: [CornerMoveSpec; CORNER_MOVE_COUNT] = [
 ];
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct CornerMoveEffect {
-    destination: [u8; 8],
-    orientation: [[u8; 3]; 8],
+pub(super) struct CornerMoveEffect {
+    pub(super) destination: [u8; 8],
+    pub(super) orientation: [[u8; 3]; 8],
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -228,6 +252,14 @@ fn build_corner_move_effect(spec: CornerMoveSpec) -> CornerMoveEffect {
     }
 }
 
+pub(super) fn corner_move_destinations() -> [[u8; 8]; CORNER_MOVE_COUNT] {
+    CORNER_MOVE_SPECS.map(|spec| build_corner_move_effect(spec).destination)
+}
+
+pub(super) fn corner_move_effects() -> [CornerMoveEffect; CORNER_MOVE_COUNT] {
+    CORNER_MOVE_SPECS.map(build_corner_move_effect)
+}
+
 fn apply_permutation_move(permutation: [u8; 8], effect: CornerMoveEffect) -> [u8; 8] {
     let mut next = [0u8; 8];
 
@@ -248,6 +280,13 @@ fn apply_orientation_move(orientation: [u8; 8], effect: CornerMoveEffect) -> [u8
     }
 
     next
+}
+
+pub(super) fn apply_corner_effect(state: CornerState, effect: CornerMoveEffect) -> CornerState {
+    CornerState {
+        permutation: apply_permutation_move(state.permutation, effect),
+        orientation: apply_orientation_move(state.orientation, effect),
+    }
 }
 
 fn build_distance_table(move_table: &[[u16; CORNER_MOVE_COUNT]]) -> Vec<u8> {
@@ -492,9 +531,9 @@ mod tests {
                 let history_before = cube.history().len();
                 let history_before_moves = initial.history().as_slice().to_vec();
 
-                let mut stage = CornerReductionStage::default();
+                let mut stage = CornerSearchReductionStage::default();
                 let mut context = SolveContext::new(SolveOptions { record_moves: true });
-                <CornerReductionStage as SolverStage<Byte>>::run(
+                <CornerSearchReductionStage as SolverStage<Byte>>::run(
                     &mut stage,
                     &mut cube,
                     &mut context,
@@ -525,11 +564,11 @@ mod tests {
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble(&mut rng);
 
-                let mut stage = CornerReductionStage::default();
+                let mut stage = CornerSearchReductionStage::default();
                 let mut context = SolveContext::new(SolveOptions {
                     record_moves: false,
                 });
-                <CornerReductionStage as SolverStage<Byte>>::run(
+                <CornerSearchReductionStage as SolverStage<Byte>>::run(
                     &mut stage,
                     &mut cube,
                     &mut context,
@@ -557,7 +596,7 @@ mod tests {
                 record_moves: false,
             })
             .with_stage(CenterReductionStage::western_default())
-            .with_stage(CornerReductionStage::default())
+            .with_stage(CornerSearchReductionStage::default())
             .with_stage(EdgePairingStage::default());
 
             solver.solve(&mut cube).unwrap_or_else(|error| {
