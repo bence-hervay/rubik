@@ -6,8 +6,8 @@ use std::{
 use rubik::{
     conventions::face_outer_move, Axis, Byte, Byte3, CenterReductionStage, CornerReductionStage,
     Cube, EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, Nibble,
-    RandomSource, SolveAlgorithm, SolveContext, SolveError, SolveOptions, ThreeBit,
-    ThreeByThreeStage, XorShift64,
+    RandomSource, SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase, ThreeBit,
+    XorShift64,
 };
 
 const DEFAULT_SIDE_LENGTH: usize = 5;
@@ -89,7 +89,7 @@ impl fmt::Display for StorageKind {
 
 #[derive(Copy, Clone, Debug)]
 struct StageRun {
-    phase: &'static str,
+    phase: SolvePhase,
     name: &'static str,
     step_count: usize,
     elapsed: Duration,
@@ -307,16 +307,6 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     print_stage_with_render(edge, &cube);
     stages_completed += 1;
 
-    let three_by_three = run_stage(
-        &mut cube,
-        &mut context,
-        ThreeByThreeStage::default,
-        Some("placeholder adapter stage; currently a no-op"),
-    )
-    .map_err(|error| stage_failure_message(&cube, error))?;
-    print_stage_with_render(three_by_three, &cube);
-    stages_completed += 1;
-
     let solve_elapsed = solve_start.elapsed();
     println!();
 
@@ -355,7 +345,7 @@ where
     {
         return Err(SolveError::StageFailed {
             stage: stage.name(),
-            reason: "algorithm does not support the requested execution mode",
+            reason: "stage does not support the requested execution mode",
         });
     }
 
@@ -370,12 +360,7 @@ where
     let moves_after = context.move_stats().total;
 
     Ok(StageRun {
-        phase: match stage.phase() {
-            rubik::SolvePhase::Centers => "centers",
-            rubik::SolvePhase::Corners => "corners",
-            rubik::SolvePhase::Edges => "edges",
-            rubik::SolvePhase::ThreeByThree => "3x3",
-        },
+        phase: stage.phase(),
         name: stage.name(),
         step_count: stage.steps().len(),
         elapsed: stage_start.elapsed(),

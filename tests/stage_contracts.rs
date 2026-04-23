@@ -1,6 +1,6 @@
 use rubik::{
-    Byte, CenterReductionStage, CornerReductionStage, EdgePairingStage, ExecutionMode, SolverStage,
-    ThreeByThreeStage,
+    Byte, CenterReductionStage, CornerReductionStage, CornerSearchStage, CornerTwoCycleStage,
+    EdgePairingStage, ExecutionMode, SolverStage,
 };
 
 fn assert_default_stage_contract_consistency<T>(stage: &T)
@@ -34,18 +34,14 @@ where
 }
 
 #[test]
-fn public_stage_contract_api_is_consistent_for_default_stages() {
+fn public_stage_contract_api_is_consistent_for_top_level_stages() {
     assert_default_stage_contract_consistency(&CenterReductionStage::western_default());
     assert_default_stage_contract_consistency(&CornerReductionStage::default());
     assert_default_stage_contract_consistency(&EdgePairingStage::default());
-    assert_default_stage_contract_consistency(&ThreeByThreeStage::default());
 }
 
 #[test]
-fn three_by_three_stage_contract_explicitly_requires_previous_stages() {
-    let stage = ThreeByThreeStage::default();
-    let contract = <ThreeByThreeStage as SolverStage<Byte>>::contract(&stage);
-
-    assert!(contract.requires_previous_stages_solved);
-    assert!(<ThreeByThreeStage as SolverStage<Byte>>::requires_previous_stages_solved(&stage));
+fn named_corner_strategy_stage_contracts_are_consistent() {
+    assert_default_stage_contract_consistency(&CornerSearchStage::default());
+    assert_default_stage_contract_consistency(&CornerTwoCycleStage::default());
 }

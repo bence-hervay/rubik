@@ -132,11 +132,11 @@ impl CornerTwoCycleSetupTable {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CornerTwoCycleReductionAlgorithm {
+pub struct CornerTwoCycleAlgorithm {
     steps: [AlgorithmStepSpec; 5],
 }
 
-pub type CornerTwoCycleReductionStage = CornerTwoCycleReductionAlgorithm;
+pub type CornerTwoCycleStage = CornerTwoCycleAlgorithm;
 
 const CORNER_TWO_CYCLE_STANDARD_PRECONDITIONS: &[&str] =
     &["none; the two-cycle corner stage may start from any cube state"];
@@ -150,7 +150,7 @@ const CORNER_TWO_CYCLE_ALGORITHM_CONTRACT: AlgorithmContract = AlgorithmContract
     AlgorithmExecutionSupport::StandardAndOptimized,
 );
 
-impl Default for CornerTwoCycleReductionAlgorithm {
+impl Default for CornerTwoCycleAlgorithm {
     fn default() -> Self {
         Self {
             steps: [
@@ -184,7 +184,7 @@ impl Default for CornerTwoCycleReductionAlgorithm {
     }
 }
 
-impl<S: FaceletArray> SolveAlgorithm<S> for CornerTwoCycleReductionAlgorithm {
+impl<S: FaceletArray> SolveAlgorithm<S> for CornerTwoCycleAlgorithm {
     fn phase(&self) -> SolvePhase {
         SolvePhase::Corners
     }
@@ -587,9 +587,9 @@ mod tests {
                 let history_before = cube.history().len();
                 let history_before_moves = initial.history().as_slice().to_vec();
 
-                let mut stage = CornerTwoCycleReductionStage::default();
+                let mut stage = CornerTwoCycleStage::default();
                 let mut context = SolveContext::new(SolveOptions { record_moves: true });
-                <CornerTwoCycleReductionStage as SolverStage<Byte>>::run(
+                <CornerTwoCycleStage as SolverStage<Byte>>::run(
                     &mut stage,
                     &mut cube,
                     &mut context,
@@ -620,11 +620,11 @@ mod tests {
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble(&mut rng);
 
-                let mut stage = CornerTwoCycleReductionStage::default();
+                let mut stage = CornerTwoCycleStage::default();
                 let mut context = SolveContext::new(SolveOptions {
                     record_moves: false,
                 });
-                <CornerTwoCycleReductionStage as SolverStage<Byte>>::run(
+                <CornerTwoCycleStage as SolverStage<Byte>>::run(
                     &mut stage,
                     &mut cube,
                     &mut context,
@@ -652,7 +652,7 @@ mod tests {
                 record_moves: false,
             })
             .with_stage(CenterReductionStage::western_default())
-            .with_stage(CornerTwoCycleReductionStage::default())
+            .with_stage(CornerTwoCycleStage::default())
             .with_stage(EdgePairingStage::default());
 
             solver.solve(&mut cube).unwrap_or_else(|error| {
@@ -662,7 +662,10 @@ mod tests {
                 )
             });
 
-            assert!(cube.is_solved(), "full solver did not solve n={side_length}");
+            assert!(
+                cube.is_solved(),
+                "full solver did not solve n={side_length}"
+            );
         }
     }
 

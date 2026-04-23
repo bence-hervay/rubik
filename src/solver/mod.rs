@@ -9,10 +9,9 @@ mod report;
 pub use crate::algorithms::{
     AlgorithmContract, AlgorithmExecutionSupport, AlgorithmSideLengthSupport, AlgorithmStepSpec,
     CenterReductionAlgorithm, CenterReductionStage, CenterTransferSpec, CornerReductionAlgorithm,
-    CornerReductionStage, CornerSearchReductionAlgorithm, CornerSearchReductionStage,
-    CornerSlot, CornerTwoCycleReductionAlgorithm, CornerTwoCycleReductionStage,
-    EdgePairingAlgorithm, EdgePairingStage, EdgeSlot, MoveSequenceOperation, SolveAlgorithm,
-    ThreeByThreeAlgorithm, ThreeByThreeStage,
+    CornerReductionStage, CornerSearchAlgorithm, CornerSearchStage, CornerSlot,
+    CornerTwoCycleAlgorithm, CornerTwoCycleStage, EdgePairingAlgorithm, EdgePairingStage, EdgeSlot,
+    MoveSequenceOperation, SolveAlgorithm,
 };
 
 pub use context::SolveContext;
@@ -49,11 +48,11 @@ mod tests {
     use crate::{Byte, FaceletArray};
 
     #[test]
-    fn default_reduction_solver_has_center_corner_and_edge_algorithms() {
+    fn default_reduction_solver_has_center_corner_and_edge_stages() {
         let solver = ReductionSolver::<Byte>::large_cube_default();
-        let names = solver.algorithm_names().collect::<Vec<_>>();
+        let names = solver.stage_names().collect::<Vec<_>>();
 
-        assert_eq!(solver.algorithm_count(), 3);
+        assert_eq!(solver.stage_count(), 3);
         assert_eq!(
             names,
             ["center reduction", "corner reduction", "edge pairing"]
@@ -92,12 +91,6 @@ mod tests {
         assert_eq!(
             <EdgePairingAlgorithm as SolveAlgorithm<Byte>>::execution_mode_support(
                 &EdgePairingAlgorithm::default()
-            ),
-            AlgorithmExecutionSupport::StandardAndOptimized
-        );
-        assert_eq!(
-            <ThreeByThreeAlgorithm as SolveAlgorithm<Byte>>::execution_mode_support(
-                &ThreeByThreeAlgorithm::default()
             ),
             AlgorithmExecutionSupport::StandardAndOptimized
         );
@@ -141,14 +134,6 @@ mod tests {
         assert!(!edges.requires_previous_stages_solved);
         assert!(!edges.standard_preconditions.is_empty());
         assert!(!edges.standard_postconditions.is_empty());
-
-        let three_by_three = <ThreeByThreeAlgorithm as SolveAlgorithm<Byte>>::contract(
-            &ThreeByThreeAlgorithm::default(),
-        );
-        assert!(three_by_three.side_lengths.supports(3));
-        assert!(three_by_three.requires_previous_stages_solved);
-        assert!(!three_by_three.standard_preconditions.is_empty());
-        assert!(!three_by_three.standard_postconditions.is_empty());
     }
 
     #[test]
@@ -158,7 +143,7 @@ mod tests {
 
         impl<S: FaceletArray> SolveAlgorithm<S> for StandardOnlyAlgorithm {
             fn phase(&self) -> SolvePhase {
-                SolvePhase::ThreeByThree
+                SolvePhase::Edges
             }
 
             fn name(&self) -> &'static str {
@@ -196,7 +181,7 @@ mod tests {
             solver.solve(&mut cube),
             Err(SolveError::StageFailed {
                 stage: "standard only test stage",
-                reason: "algorithm does not support the requested execution mode",
+                reason: "stage does not support the requested execution mode",
             })
         );
     }

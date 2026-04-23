@@ -206,7 +206,7 @@ impl CornerSlot {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CornerReductionAlgorithm {
+pub struct CornerSearchAlgorithm {
     tables: CornerMoveTables,
     steps: [AlgorithmStepSpec; 4],
 }
@@ -223,7 +223,7 @@ const CORNER_ALGORITHM_CONTRACT: AlgorithmContract = AlgorithmContract::new(
     AlgorithmExecutionSupport::StandardAndOptimized,
 );
 
-impl Default for CornerReductionAlgorithm {
+impl Default for CornerSearchAlgorithm {
     fn default() -> Self {
         Self {
             tables: CornerMoveTables::new(),
@@ -253,13 +253,13 @@ impl Default for CornerReductionAlgorithm {
     }
 }
 
-impl<S: FaceletArray> SolveAlgorithm<S> for CornerReductionAlgorithm {
+impl<S: FaceletArray> SolveAlgorithm<S> for CornerSearchAlgorithm {
     fn phase(&self) -> SolvePhase {
         SolvePhase::Corners
     }
 
     fn name(&self) -> &'static str {
-        "corner reduction (search)"
+        "corner search"
     }
 
     fn contract(&self) -> AlgorithmContract {
@@ -276,11 +276,11 @@ impl<S: FaceletArray> SolveAlgorithm<S> for CornerReductionAlgorithm {
         }
 
         let state = read_corner_state(cube).ok_or(SolveError::StageFailed {
-            stage: "corner reduction (search)",
+            stage: "corner search",
             reason: "could not read a valid reduced corner state",
         })?;
         let solution = self.tables.solve(state).ok_or(SolveError::StageFailed {
-            stage: "corner reduction (search)",
+            stage: "corner search",
             reason: "corner search did not find a solution",
         })?;
 
@@ -296,11 +296,11 @@ impl<S: FaceletArray> SolveAlgorithm<S> for CornerReductionAlgorithm {
             Ok(())
         } else {
             Err(SolveError::StageFailed {
-                stage: "corner reduction (search)",
+                stage: "corner search",
                 reason: "corner solving left some corner facelets unsolved",
             })
         }
     }
 }
 
-pub type CornerReductionStage = CornerReductionAlgorithm;
+pub type CornerSearchStage = CornerSearchAlgorithm;

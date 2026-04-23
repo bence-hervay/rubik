@@ -17,7 +17,7 @@ use crate::cube::{
 use super::CornerSlot;
 
 #[cfg(test)]
-use super::CornerSearchReductionStage;
+use super::CornerSearchStage;
 #[cfg(test)]
 use crate::solver::{SolveContext, SolverStage};
 
@@ -531,19 +531,15 @@ mod tests {
                 let history_before = cube.history().len();
                 let history_before_moves = initial.history().as_slice().to_vec();
 
-                let mut stage = CornerSearchReductionStage::default();
+                let mut stage = CornerSearchStage::default();
                 let mut context = SolveContext::new(SolveOptions { record_moves: true });
-                <CornerSearchReductionStage as SolverStage<Byte>>::run(
-                    &mut stage,
-                    &mut cube,
-                    &mut context,
-                )
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "corner stage failed for n={side_length}, seed={seed:#x}: {error}\n{}",
-                        cube.net_string(),
-                    )
-                });
+                <CornerSearchStage as SolverStage<Byte>>::run(&mut stage, &mut cube, &mut context)
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "corner stage failed for n={side_length}, seed={seed:#x}: {error}\n{}",
+                            cube.net_string(),
+                        )
+                    });
 
                 let mut replay = initial;
                 replay.apply_moves_untracked(context.moves().iter().copied());
@@ -564,21 +560,17 @@ mod tests {
                 let mut rng = XorShift64::new(seed ^ side_length as u64);
                 cube.scramble(&mut rng);
 
-                let mut stage = CornerSearchReductionStage::default();
+                let mut stage = CornerSearchStage::default();
                 let mut context = SolveContext::new(SolveOptions {
                     record_moves: false,
                 });
-                <CornerSearchReductionStage as SolverStage<Byte>>::run(
-                    &mut stage,
-                    &mut cube,
-                    &mut context,
-                )
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "corner stage failed for n={side_length}, seed={seed:#x}: {error}\n{}",
-                        cube.net_string(),
-                    )
-                });
+                <CornerSearchStage as SolverStage<Byte>>::run(&mut stage, &mut cube, &mut context)
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "corner stage failed for n={side_length}, seed={seed:#x}: {error}\n{}",
+                            cube.net_string(),
+                        )
+                    });
 
                 assert!(all_corner_facelets_solved(&cube));
             }
@@ -596,7 +588,7 @@ mod tests {
                 record_moves: false,
             })
             .with_stage(CenterReductionStage::western_default())
-            .with_stage(CornerSearchReductionStage::default())
+            .with_stage(CornerSearchStage::default())
             .with_stage(EdgePairingStage::default());
 
             solver.solve(&mut cube).unwrap_or_else(|error| {

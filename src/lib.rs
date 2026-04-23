@@ -14,8 +14,8 @@ pub use algorithms::centers::{
     GENERATED_CENTER_SCHEDULE,
 };
 pub use algorithms::corners::CornerReductionStage;
-pub use algorithms::corners::CornerSearchReductionStage;
-pub use algorithms::corners::CornerTwoCycleReductionStage;
+pub use algorithms::corners::CornerSearchStage;
+pub use algorithms::corners::CornerTwoCycleStage;
 pub use algorithms::edges::{
     EdgePairingStage, EdgeThreeCycle, EdgeThreeCycleDirection, EdgeThreeCycleKind,
     EdgeThreeCyclePlan, EdgeThreeCycleValidationError,
@@ -25,10 +25,9 @@ pub use algorithms::operation::{
 };
 pub use algorithms::{
     AlgorithmContract, AlgorithmExecutionSupport, AlgorithmSideLengthSupport, AlgorithmStepSpec,
-    CenterReductionAlgorithm, CenterTransferSpec, CornerReductionAlgorithm,
-    CornerSearchReductionAlgorithm, CornerSlot, CornerTwoCycleReductionAlgorithm,
-    EdgePairingAlgorithm, EdgeSlot, Operation, OptimizedOperation, SolveAlgorithm,
-    ThreeByThreeAlgorithm,
+    CenterReductionAlgorithm, CenterTransferSpec, CornerReductionAlgorithm, CornerSearchAlgorithm,
+    CornerSlot, CornerTwoCycleAlgorithm, EdgePairingAlgorithm, EdgeSlot, Operation,
+    OptimizedOperation, SolveAlgorithm,
 };
 pub(crate) use layout::geometry;
 pub use layout::matrix;
@@ -50,7 +49,7 @@ pub use solver::{
     AlgorithmReport, CenterReductionStage, ExecutionMode, MoveSequence, MoveStats, ReductionSolver,
     SolveContext, SolveError, SolveOptions, SolveOutcome, SolvePhase, SolveResult, Solver,
     SolverStage, StageContract, StageExecutionSupport, StageReport, StageSideLengthSupport,
-    SubStageSpec, ThreeByThreeStage,
+    SubStageSpec,
 };
 pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};
 pub use util::random;
