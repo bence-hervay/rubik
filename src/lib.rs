@@ -45,9 +45,7 @@ pub use simulation::conventions;
 pub use simulation::derived::{
     CornerCubieLocation, EdgeCubieLocation, FaceletLocation, FaceletUpdate,
 };
-pub use simulation::render::{
-    NetBackground, NetBorderStyle, NetColorScheme, NetRenderOptions, NetTextWeight,
-};
+pub use simulation::render::NetRenderOptions;
 pub use solver::{
     AlgorithmReport, CenterReductionStage, ExecutionMode, MoveSequence, MoveStats, ReductionSolver,
     SolveContext, SolveError, SolveOptions, SolveOutcome, SolvePhase, SolveResult, Solver,
