@@ -4,21 +4,22 @@ use std::{
 };
 
 use crate::{
+    algorithms::operation::MoveSequenceOperation,
     conventions::{face_layer_move, face_outer_move, home_facelet_for_face, normalize_face_pair},
     cube::{
         edge_cubie_for_facelet_location, edge_cubie_orbit_index,
-        edge_three_cycle_plan_from_updates, trace_edge_cubie_through_move, Cube, EdgeCubieLocation,
-        EdgeThreeCycle, EdgeThreeCycleDirection, EdgeThreeCyclePlan, FaceletLocation,
-        FaceletUpdate,
+        edge_three_cycle_plan_from_updates, Cube, EdgeCubieLocation, EdgeThreeCycle,
+        EdgeThreeCycleDirection, EdgeThreeCyclePlan, FaceletLocation, FaceletUpdate,
     },
     face::FaceId,
     facelet::Facelet,
     geometry,
     moves::{Move, MoveAngle},
-    storage::{Byte, FaceletArray},
+    simulation::derived::trace_edge_cubie_through_move,
+    storage::FaceletArray,
 };
 
-use super::{prepared::PreparedEdgeTables, EdgeSlot};
+use super::{pairing::EdgeStageProgressTracker, prepared::PreparedEdgeTables, EdgeSlot};
 use crate::solver::{SolveContext, SolveError, SolveResult};
 
 #[cfg(test)]
@@ -86,6 +87,7 @@ pub(crate) struct MiddleOrbitTable {
 #[derive(Debug)]
 pub(crate) struct EdgeSlotSetupTable {
     to_destination: [Vec<Move>; 12],
+    preimages_after_setup: [[EdgeSlot; 12]; 12],
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -351,29 +353,16 @@ impl WingOrbitTable {
     ) -> WingOrientationCache {
         for face_map in all_face_maps() {
             for slot in EdgeSlot::ALL {
-                let mut cube = Cube::<Byte>::new_solved(self.side_length);
-                let setup = &slot_setups.to_destination[slot.index()];
-                if !setup.is_empty() {
-                    cube.apply_moves_untracked(setup.iter().copied());
-                }
-                cube.apply_moves_untracked(wing_row_parity_fix_moves_with_map(
-                    self.side_length,
-                    self.row,
-                    face_map,
-                ));
-                if !setup.is_empty() {
-                    cube.apply_moves_untracked(inverted_moves(setup));
-                }
-                let mask = wing_flip_mask(self, &EdgeScanView::from_cube(&cube))
-                    .expect("wing orientation generator must preserve slot placement");
-                if mask == 0 || self.orientation_masks.contains(&mask) {
-                    continue;
-                }
-                self.orientation_generators.push(OrientationGenerator {
+                let generator = OrientationGenerator {
                     setup_slot: slot,
                     face_map,
                     kind: OrientationGeneratorKind::WingParityFix,
-                });
+                };
+                let mask = orientation_generator_mask(slot_setups, generator);
+                if mask == 0 || self.orientation_masks.contains(&mask) {
+                    continue;
+                }
+                self.orientation_generators.push(generator);
                 self.orientation_masks.push(mask);
             }
         }
@@ -597,31 +586,18 @@ impl MiddleOrbitTable {
     }
 
     pub(crate) fn build_orientation_cache(&mut self, slot_setups: &EdgeSlotSetupTable) {
-        let side_length = self.side_length;
         for face_map in all_face_maps() {
             for slot in EdgeSlot::ALL {
-                let mut cube = Cube::<Byte>::new_solved(side_length);
-                let setup = &slot_setups.to_destination[slot.index()];
-                if !setup.is_empty() {
-                    cube.apply_moves_untracked(setup.iter().copied());
-                }
-                cube.apply_moves_untracked(middle_edge_precheck_moves_with_map(
-                    side_length,
-                    face_map,
-                ));
-                if !setup.is_empty() {
-                    cube.apply_moves_untracked(inverted_moves(setup));
-                }
-                let mask = middle_flip_mask(self, &EdgeScanView::from_cube(&cube))
-                    .expect("middle orientation generator must preserve slot placement");
-                if mask == 0 || self.orientation_masks.contains(&mask) {
-                    continue;
-                }
-                self.orientation_generators.push(OrientationGenerator {
+                let generator = OrientationGenerator {
                     setup_slot: slot,
                     face_map,
                     kind: OrientationGeneratorKind::MiddlePrecheck,
-                });
+                };
+                let mask = orientation_generator_mask(slot_setups, generator);
+                if mask == 0 || self.orientation_masks.contains(&mask) {
+                    continue;
+                }
+                self.orientation_generators.push(generator);
                 self.orientation_masks.push(mask);
             }
         }
@@ -656,8 +632,13 @@ impl EdgeSlotSetupTable {
         let positions = enumerate_edge_orbit_positions(side_length, representative_orbit);
         let slot_positions = build_slot_representatives(&positions);
         let to_destination = build_slot_setup_paths(side_length, &slot_positions, EdgeSlot::FR);
+        let preimages_after_setup =
+            build_slot_setup_preimages(side_length, &slot_positions, &to_destination);
 
-        Self { to_destination }
+        Self {
+            to_destination,
+            preimages_after_setup,
+        }
     }
 }
 
@@ -859,6 +840,7 @@ fn slot_position_target_key(side_length: usize, position: FixedEdgePosition) -> 
 }
 
 impl EdgeScanView {
+    #[cfg(test)]
     fn from_cube<S: FaceletArray>(cube: &Cube<S>) -> Self {
         let side_length = cube.side_len();
         let faces = FaceId::ALL.map(|face| {
@@ -983,7 +965,11 @@ pub(super) fn solve_middle_edges<S: FaceletArray>(
                 stage: "edge pairing",
                 reason: "middle-edge orientation mask is unreachable from the solved state",
             }) => {
-                context.apply_moves(cube, middle_edge_parity_fix_moves(cube.side_len()));
+                apply_move_sequence_operation(
+                    cube,
+                    context,
+                    &middle_edge_parity_fix_moves(cube.side_len()),
+                );
             }
             Err(error) => return Err(error),
         }
@@ -1016,7 +1002,11 @@ fn solve_middle_slots<S: FaceletArray>(
         )?;
 
         if !permutation_is_even(&assignment) {
-            context.apply_moves(cube, middle_edge_parity_fix_moves(cube.side_len()));
+            apply_move_sequence_operation(
+                cube,
+                context,
+                &middle_edge_parity_fix_moves(cube.side_len()),
+            );
             continue;
         }
 
@@ -1055,7 +1045,12 @@ pub(super) fn solve_wing_orientations<S: FaceletArray>(
     context: &mut SolveContext,
     orbit: &WingOrbitTable,
     slot_setups: &EdgeSlotSetupTable,
+    progress: Option<&mut EdgeStageProgressTracker>,
 ) -> SolveResult<()> {
+    if let Some(progress) = progress {
+        context.advance_stage_progress(progress.observe_wing_orbit(orbit.row));
+    }
+
     let mask = wing_flip_mask_from_cube(orbit, cube).ok_or(SolveError::StageFailed {
         stage: "edge pairing",
         reason: "wing slot solving left an invalid slot orientation state",
@@ -1072,18 +1067,9 @@ pub(super) fn solve_wing_orientations<S: FaceletArray>(
         })?;
 
     for generator in solution {
-        let setup = &slot_setups.to_destination[generator.setup_slot.index()];
-        if !setup.is_empty() {
-            context.apply_moves(cube, setup.iter().copied());
-        }
-        context.apply_moves(
-            cube,
-            wing_row_parity_fix_moves_with_map(cube.side_len(), orbit.row, generator.face_map),
-        );
-
-        if !setup.is_empty() {
-            context.apply_moves(cube, inverted_moves(setup));
-        }
+        let moves =
+            orientation_generator_moves(cube.side_len(), Some(orbit.row), slot_setups, generator);
+        apply_move_sequence_operation(cube, context, &moves);
     }
 
     if wing_flip_mask_from_cube(orbit, cube) == Some(0) {
@@ -1118,23 +1104,8 @@ fn solve_middle_orientations<S: FaceletArray>(
         })?;
 
     for generator in solution {
-        let setup = &slot_setups.to_destination[generator.setup_slot.index()];
-        if !setup.is_empty() {
-            context.apply_moves(cube, setup.iter().copied());
-        }
-        let moves = match generator.kind {
-            OrientationGeneratorKind::MiddlePrecheck => {
-                middle_edge_precheck_moves_with_map(cube.side_len(), generator.face_map)
-            }
-            OrientationGeneratorKind::WingParityFix => {
-                unreachable!("wing generator used in middle stage")
-            }
-        };
-        context.apply_moves(cube, moves);
-
-        if !setup.is_empty() {
-            context.apply_moves(cube, inverted_moves(setup));
-        }
+        let moves = orientation_generator_moves(cube.side_len(), None, slot_setups, generator);
+        apply_move_sequence_operation(cube, context, &moves);
     }
 
     if middle_flip_mask_from_cube(orbit, cube) == Some(0) {
@@ -1145,6 +1116,65 @@ fn solve_middle_orientations<S: FaceletArray>(
             reason: "middle-edge orientation fixing did not converge",
         })
     }
+}
+
+fn apply_move_sequence_operation<S: FaceletArray>(
+    cube: &mut Cube<S>,
+    context: &mut SolveContext,
+    moves: &[Move],
+) {
+    let operation = MoveSequenceOperation::new(cube.side_len(), moves);
+    context.apply_operation(cube, &operation);
+}
+
+fn orientation_generator_moves(
+    side_length: usize,
+    wing_row: Option<usize>,
+    slot_setups: &EdgeSlotSetupTable,
+    generator: OrientationGenerator,
+) -> Vec<Move> {
+    let setup = &slot_setups.to_destination[generator.setup_slot.index()];
+    let recipe = match generator.kind {
+        OrientationGeneratorKind::WingParityFix => wing_row_parity_fix_moves_with_map(
+            side_length,
+            wing_row.expect("wing generator requires a row"),
+            generator.face_map,
+        ),
+        OrientationGeneratorKind::MiddlePrecheck => {
+            middle_edge_precheck_moves_with_map(side_length, generator.face_map)
+        }
+    };
+
+    let mut moves = Vec::with_capacity(setup.len() * 2 + recipe.len());
+    moves.extend(setup.iter().copied());
+    moves.extend(recipe);
+    moves.extend(inverted_moves(setup));
+    moves
+}
+
+fn orientation_generator_mask(
+    slot_setups: &EdgeSlotSetupTable,
+    generator: OrientationGenerator,
+) -> u16 {
+    let preimages = &slot_setups.preimages_after_setup[generator.setup_slot.index()];
+    let flipped_slots = match generator.kind {
+        OrientationGeneratorKind::WingParityFix => [Some(EdgeSlot::FR), None],
+        OrientationGeneratorKind::MiddlePrecheck => [Some(EdgeSlot::FR), Some(EdgeSlot::FL)],
+    };
+
+    let mut mask = 0u16;
+    for slot in flipped_slots.into_iter().flatten() {
+        let mapped = mapped_slot(generator.face_map, slot);
+        let original = preimages[mapped.index()];
+        mask |= 1u16 << original.index();
+    }
+
+    mask
+}
+
+fn mapped_slot(face_map: FaceMap, slot: EdgeSlot) -> EdgeSlot {
+    let (first, second) = slot.faces();
+    EdgeSlot::from_faces(face_map.apply(first), face_map.apply(second))
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
@@ -1466,6 +1496,7 @@ fn read_edge_key_from_cube<S: FaceletArray>(
     )
 }
 
+#[cfg(test)]
 fn read_oriented_edge_key_from_view(
     view: &EdgeScanView,
     side_length: usize,
@@ -1992,6 +2023,36 @@ fn build_slot_setup_paths(
     })
 }
 
+fn build_slot_setup_preimages(
+    side_length: usize,
+    slot_positions: &[FixedEdgePosition; 12],
+    setup_paths: &[Vec<Move>; 12],
+) -> [[EdgeSlot; 12]; 12] {
+    EdgeSlot::ALL.map(|setup_slot| {
+        let mut preimages = [EdgeSlot::UF; 12];
+        let mut filled = [false; 12];
+
+        for original_slot in EdgeSlot::ALL {
+            let mut cubie =
+                cubie_from_fixed_position(side_length, slot_positions[original_slot.index()]);
+            for mv in setup_paths[setup_slot.index()].iter().copied() {
+                cubie = trace_edge_cubie_through_move(side_length, cubie, mv);
+            }
+
+            let destination = slot_of_position(fixed_edge_position(side_length, cubie));
+            preimages[destination.index()] = original_slot;
+            filled[destination.index()] = true;
+        }
+
+        debug_assert!(
+            filled.iter().all(|filled| *filled),
+            "every setup path must induce a full slot permutation",
+        );
+
+        preimages
+    })
+}
+
 fn slot_orientation_state_for_position(
     actual: OrientedEdgeKey,
     target: OrientedEdgeKey,
@@ -2005,6 +2066,7 @@ fn slot_orientation_state_for_position(
     }
 }
 
+#[cfg(test)]
 fn wing_slot_orientation_state(
     orbit: &WingOrbitTable,
     view: &EdgeScanView,
@@ -2019,6 +2081,7 @@ fn wing_slot_orientation_state(
     )
 }
 
+#[cfg(test)]
 fn wing_slot_pair_for_slot(
     orbit: &WingOrbitTable,
     view: &EdgeScanView,
@@ -2064,6 +2127,7 @@ fn wing_slot_orientation_state_for_target(
     }
 }
 
+#[cfg(test)]
 fn middle_slot_orientation_state(
     orbit: &MiddleOrbitTable,
     view: &EdgeScanView,
@@ -2107,6 +2171,7 @@ fn middle_slot_orientation_state_from_cube<S: FaceletArray>(
     slot_orientation_state_for_position(actual, target)
 }
 
+#[cfg(test)]
 fn middle_flip_mask(orbit: &MiddleOrbitTable, view: &EdgeScanView) -> Option<u16> {
     let mut mask = 0u16;
 
@@ -2138,6 +2203,7 @@ fn middle_flip_mask_from_cube<S: FaceletArray>(
     Some(mask)
 }
 
+#[cfg(test)]
 fn wing_flip_mask(orbit: &WingOrbitTable, view: &EdgeScanView) -> Option<u16> {
     let mut mask = 0u16;
 
@@ -2537,6 +2603,72 @@ mod tests {
                 SlotOrientationState::Solved
             };
             assert_eq!(middle_slot_orientation_state(&orbit, &view, slot), expected);
+        }
+    }
+
+    #[test]
+    fn wing_orientation_masks_match_slot_permutation_model() {
+        for side_length in 4..=6 {
+            let slot_setups = EdgeSlotSetupTable::new(side_length);
+            for row in 1..=(side_length - 2) / 2 {
+                let orbit = WingOrbitTable::new(
+                    side_length,
+                    row,
+                    &WingOrbitSetupTemplate::new(side_length),
+                );
+                for face_map in all_face_maps() {
+                    for slot in EdgeSlot::ALL {
+                        let generator = OrientationGenerator {
+                            setup_slot: slot,
+                            face_map,
+                            kind: OrientationGeneratorKind::WingParityFix,
+                        };
+                        let moves = orientation_generator_moves(
+                            side_length,
+                            Some(row),
+                            &slot_setups,
+                            generator,
+                        );
+                        let mut cube = Cube::<Byte>::new_solved(side_length);
+                        cube.apply_moves_untracked(moves.iter().copied());
+                        let view = EdgeScanView::from_cube(&cube);
+
+                        assert_eq!(
+                            Some(orientation_generator_mask(&slot_setups, generator)),
+                            wing_flip_mask(&orbit, &view),
+                            "slot-model mismatch for n={side_length}, row={row}, slot={slot:?}",
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn middle_orientation_masks_match_slot_permutation_model() {
+        for side_length in [3usize, 5, 7] {
+            let slot_setups = EdgeSlotSetupTable::new(side_length);
+            let orbit = MiddleOrbitTable::new(side_length, &slot_setups);
+            for face_map in all_face_maps() {
+                for slot in EdgeSlot::ALL {
+                    let generator = OrientationGenerator {
+                        setup_slot: slot,
+                        face_map,
+                        kind: OrientationGeneratorKind::MiddlePrecheck,
+                    };
+                    let moves =
+                        orientation_generator_moves(side_length, None, &slot_setups, generator);
+                    let mut cube = Cube::<Byte>::new_solved(side_length);
+                    cube.apply_moves_untracked(moves.iter().copied());
+                    let view = EdgeScanView::from_cube(&cube);
+
+                    assert_eq!(
+                        Some(orientation_generator_mask(&slot_setups, generator)),
+                        middle_flip_mask(&orbit, &view),
+                        "slot-model mismatch for n={side_length}, slot={slot:?}",
+                    );
+                }
+            }
         }
     }
 

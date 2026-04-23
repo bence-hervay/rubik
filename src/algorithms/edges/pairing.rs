@@ -7,7 +7,7 @@ use crate::{
     },
     cube::Cube,
     face::FaceId,
-    solver::{SolveContext, SolveError, SolvePhase, SolveResult},
+    solver::{SolveContext, SolveError, SolvePhase, SolveResult, StageProgressSpec},
     storage::FaceletArray,
 };
 
@@ -175,6 +175,38 @@ impl EdgePairingAlgorithm {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct EdgeStageProgressTracker {
+    processed_orbits: Vec<bool>,
+}
+
+impl EdgeStageProgressTracker {
+    fn new(side_length: usize) -> Self {
+        Self {
+            processed_orbits: vec![false; wing_orbit_count(side_length)],
+        }
+    }
+
+    fn total_work(&self) -> usize {
+        self.processed_orbits.len() * EdgeSlot::ALL.len() * 2
+    }
+
+    pub(super) fn observe_wing_orbit(&mut self, row: usize) -> usize {
+        let index = row
+            .checked_sub(1)
+            .expect("wing orbit rows are one-indexed inner layers");
+        let Some(processed) = self.processed_orbits.get_mut(index) else {
+            return 0;
+        };
+
+        if std::mem::replace(processed, true) {
+            0
+        } else {
+            EdgeSlot::ALL.len() * 2
+        }
+    }
+}
+
 impl<S: FaceletArray> SolveAlgorithm<S> for EdgePairingAlgorithm {
     fn phase(&self) -> SolvePhase {
         SolvePhase::Edges
@@ -197,69 +229,122 @@ impl<S: FaceletArray> SolveAlgorithm<S> for EdgePairingAlgorithm {
             return Ok(());
         }
 
-        let profile = std::env::var_os("RUBIK_EDGE_PROFILE").is_some();
-        let mut wing_slot_total = Duration::ZERO;
-        let mut wing_orientation_total = Duration::ZERO;
-        let mut middle_total = Duration::ZERO;
-        let mut wing_resolve_after_middle_total = Duration::ZERO;
+        let mut progress = context
+            .progress_enabled()
+            .then(|| EdgeStageProgressTracker::new(cube.side_len()));
+        let total_work = progress
+            .as_ref()
+            .map_or(0, EdgeStageProgressTracker::total_work);
 
-        let slot_keys = solved_edge_slot_keys();
-        let cache = self.ensure_cache(cube.side_len());
+        context.with_stage_progress(
+            StageProgressSpec::new(SolvePhase::Edges, "edge pairing", total_work, "wing pieces"),
+            |context| {
+                let profile = std::env::var_os("RUBIK_EDGE_PROFILE").is_some();
+                let mut wing_slot_total = Duration::ZERO;
+                let mut wing_orientation_total = Duration::ZERO;
+                let mut middle_total = Duration::ZERO;
+                let mut wing_resolve_after_middle_total = Duration::ZERO;
 
-        for orbit in &mut cache.wing_orbits {
-            let slot_start = Instant::now();
-            solve_wing_orbit(cube, context, orbit, &slot_keys)?;
-            wing_slot_total += slot_start.elapsed();
-            if let Some(slot_setups) = &cache.slot_setups {
-                let orientation_start = Instant::now();
-                solve_wing_orientations(cube, context, orbit, slot_setups)?;
-                wing_orientation_total += orientation_start.elapsed();
+                let slot_keys = solved_edge_slot_keys();
+                let cache = self.ensure_cache(cube.side_len());
+
+                for orbit in &mut cache.wing_orbits {
+                    let slot_start = Instant::now();
+                    solve_wing_orbit(cube, context, orbit, &slot_keys)?;
+                    wing_slot_total += slot_start.elapsed();
+                    if let Some(slot_setups) = &cache.slot_setups {
+                        let orientation_start = Instant::now();
+                        solve_wing_orientations(
+                            cube,
+                            context,
+                            orbit,
+                            slot_setups,
+                            progress.as_mut(),
+                        )?;
+                        wing_orientation_total += orientation_start.elapsed();
+                    }
+                }
+
+                if !wings_match_solved_slots_from_cube(cache, cube, &slot_keys) {
+                    return Err(SolveError::StageFailed {
+                        stage: "edge pairing",
+                        reason: "wing solving left a home edge-slot orbit unsolved",
+                    });
+                }
+
+                if let (Some(middle_orbit), Some(slot_setups)) =
+                    (&mut cache.middle_orbit, &cache.slot_setups)
+                {
+                    let middle_start = Instant::now();
+                    solve_middle_edges(cube, context, middle_orbit, slot_setups)?;
+                    middle_total += middle_start.elapsed();
+
+                    let refreshed_slot_keys = solved_edge_slot_keys();
+                    for orbit in &mut cache.wing_orbits {
+                        let rewing_start = Instant::now();
+                        solve_wing_orbit(cube, context, orbit, &refreshed_slot_keys)?;
+                        solve_wing_orientations(
+                            cube,
+                            context,
+                            orbit,
+                            slot_setups,
+                            progress.as_mut(),
+                        )?;
+                        wing_resolve_after_middle_total += rewing_start.elapsed();
+                    }
+                }
+
+                if profile {
+                    eprintln!(
+                        "edge profile: n={} wing_slot={:.3?} wing_orientation={:.3?} middle={:.3?} wing_after_middle={:.3?}",
+                        cube.side_len(),
+                        wing_slot_total,
+                        wing_orientation_total,
+                        middle_total,
+                        wing_resolve_after_middle_total,
+                    );
+                }
+
+                if all_edge_facelets_solved(cube) {
+                    Ok(())
+                } else {
+                    Err(SolveError::StageFailed {
+                        stage: "edge pairing",
+                        reason: "edge stage left some edge facelets unsolved",
+                    })
+                }
             }
-        }
-
-        if !wings_match_solved_slots_from_cube(cache, cube, &slot_keys) {
-            return Err(SolveError::StageFailed {
-                stage: "edge pairing",
-                reason: "wing solving left a home edge-slot orbit unsolved",
-            });
-        }
-
-        if let (Some(middle_orbit), Some(slot_setups)) =
-            (&mut cache.middle_orbit, &cache.slot_setups)
-        {
-            let middle_start = Instant::now();
-            solve_middle_edges(cube, context, middle_orbit, slot_setups)?;
-            middle_total += middle_start.elapsed();
-
-            let refreshed_slot_keys = solved_edge_slot_keys();
-            for orbit in &mut cache.wing_orbits {
-                let rewing_start = Instant::now();
-                solve_wing_orbit(cube, context, orbit, &refreshed_slot_keys)?;
-                solve_wing_orientations(cube, context, orbit, slot_setups)?;
-                wing_resolve_after_middle_total += rewing_start.elapsed();
-            }
-        }
-
-        if profile {
-            eprintln!(
-                "edge profile: n={} wing_slot={:.3?} wing_orientation={:.3?} middle={:.3?} wing_after_middle={:.3?}",
-                cube.side_len(),
-                wing_slot_total,
-                wing_orientation_total,
-                middle_total,
-                wing_resolve_after_middle_total,
-            );
-        }
-
-        if all_edge_facelets_solved(cube) {
-            Ok(())
-        } else {
-            Err(SolveError::StageFailed {
-                stage: "edge pairing",
-                reason: "edge stage left some edge facelets unsolved",
-            })
-        }
+        )
     }
 }
 
 pub type EdgePairingStage = EdgePairingAlgorithm;
+
+fn wing_orbit_count(side_length: usize) -> usize {
+    side_length.saturating_sub(2) / 2
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wing_orbit_count_matches_scaling_rows() {
+        assert_eq!(wing_orbit_count(3), 0);
+        assert_eq!(wing_orbit_count(4), 1);
+        assert_eq!(wing_orbit_count(5), 1);
+        assert_eq!(wing_orbit_count(6), 2);
+        assert_eq!(wing_orbit_count(7), 2);
+    }
+
+    #[test]
+    fn edge_progress_tracker_counts_each_wing_orbit_once() {
+        let mut tracker = EdgeStageProgressTracker::new(8);
+
+        assert_eq!(tracker.total_work(), 72);
+        assert_eq!(tracker.observe_wing_orbit(1), 24);
+        assert_eq!(tracker.observe_wing_orbit(1), 0);
+        assert_eq!(tracker.observe_wing_orbit(2), 24);
+        assert_eq!(tracker.observe_wing_orbit(3), 24);
+    }
+}

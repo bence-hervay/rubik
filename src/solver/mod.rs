@@ -4,6 +4,7 @@ mod execution_mode;
 mod options;
 mod phase;
 mod pipeline;
+mod progress;
 mod report;
 
 pub use crate::algorithms::{
@@ -21,6 +22,8 @@ pub use options::SolveOptions;
 pub use phase::SolvePhase;
 pub use pipeline::{ReductionSolver, Solver};
 pub use report::{AlgorithmReport, MoveSequence, MoveStats, SolveOutcome};
+
+pub(crate) use progress::StageProgressSpec;
 
 pub use crate::algorithms::{
     AlgorithmContract as StageContract, AlgorithmExecutionSupport as StageExecutionSupport,

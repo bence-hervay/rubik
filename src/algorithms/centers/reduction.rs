@@ -10,11 +10,13 @@ use crate::{
     face::FaceId,
     facelet::Facelet,
     moves::{Axis, Move, MoveAngle},
-    solver::{SolveContext, SolveError, SolvePhase, SolveResult},
+    solver::{SolveContext, SolveError, SolvePhase, SolveResult, StageProgressSpec},
     storage::FaceletArray,
 };
 
-use super::precompute::{CenterLocationExpr, CenterScheduleStep, GENERATED_CENTER_SCHEDULE};
+use super::precompute::{
+    CenterLocation, CenterLocationExpr, CenterScheduleStep, GENERATED_CENTER_SCHEDULE,
+};
 
 #[cfg(test)]
 use crate::solver::{MoveSequenceOperation, SolveOptions, SolverStage};
@@ -140,23 +142,73 @@ impl<S: FaceletArray> SolveAlgorithm<S> for CenterReductionAlgorithm {
     }
 
     fn run(&mut self, cube: &mut Cube<S>, context: &mut SolveContext) -> SolveResult<()> {
-        solve_centers_with_transfers(
-            cube,
-            context,
-            &self.transfers,
-            self.schedule,
-            "center reduction",
+        let mut progress = context
+            .progress_enabled()
+            .then(|| CenterStageProgressTracker::new(cube.side_len()));
+        let total_work = progress
+            .as_ref()
+            .map_or(0, CenterStageProgressTracker::total_work);
+
+        context.with_stage_progress(
+            StageProgressSpec::new(
+                SolvePhase::Centers,
+                "center reduction",
+                total_work,
+                "facelets",
+            ),
+            |context| {
+                solve_centers_with_transfers(
+                    cube,
+                    context,
+                    &self.transfers,
+                    self.schedule,
+                    progress.as_mut(),
+                    "center reduction",
+                )
+            },
         )
     }
 }
 
 pub type CenterReductionStage = CenterReductionAlgorithm;
 
+#[derive(Clone, Debug)]
+struct CenterStageProgressTracker {
+    side_length: usize,
+    processed: Vec<bool>,
+}
+
+impl CenterStageProgressTracker {
+    fn new(side_length: usize) -> Self {
+        Self {
+            side_length,
+            processed: vec![false; scalable_center_facelet_count(side_length)],
+        }
+    }
+
+    fn total_work(&self) -> usize {
+        self.processed.len()
+    }
+
+    fn observe(&mut self, location: CenterLocation) -> usize {
+        let Some(index) = center_progress_index(self.side_length, location) else {
+            return 0;
+        };
+
+        if std::mem::replace(&mut self.processed[index], true) {
+            0
+        } else {
+            1
+        }
+    }
+}
+
 fn solve_centers_with_transfers<S: FaceletArray>(
     cube: &mut Cube<S>,
     context: &mut SolveContext,
     transfers: &[CenterTransferSpec],
     schedule: &[CenterScheduleStep],
+    progress: Option<&mut CenterStageProgressTracker>,
     stage_name: &'static str,
 ) -> SolveResult<()> {
     if centers_are_solved(cube) {
@@ -170,6 +222,7 @@ fn solve_centers_with_transfers<S: FaceletArray>(
     }
 
     let mut column_buffer = Vec::with_capacity(cube.side_len().saturating_sub(2));
+    let mut progress = progress;
 
     for transfer in transfers.iter().copied() {
         if centers_are_solved(cube) {
@@ -181,6 +234,7 @@ fn solve_centers_with_transfers<S: FaceletArray>(
             transfer,
             schedule,
             &mut column_buffer,
+            progress.as_deref_mut(),
             stage_name,
         )?;
     }
@@ -342,6 +396,7 @@ fn push_center_transfer<S: FaceletArray>(
     transfer: CenterTransferSpec,
     schedule: &[CenterScheduleStep],
     columns: &mut Vec<usize>,
+    progress: Option<&mut CenterStageProgressTracker>,
     stage_name: &'static str,
 ) -> SolveResult<()> {
     let steps = schedule
@@ -358,12 +413,20 @@ fn push_center_transfer<S: FaceletArray>(
     }
 
     let mut remaining = face_center_color_count(cube, transfer.source, transfer.color);
+    let mut progress = progress;
     while remaining > 0 {
         let before = remaining;
 
         for _ in 0..4 {
             for step in steps.iter().copied() {
-                let moved = apply_center_transfer_step(cube, context, transfer, step, columns);
+                let moved = apply_center_transfer_step(
+                    cube,
+                    context,
+                    transfer,
+                    step,
+                    columns,
+                    progress.as_deref_mut(),
+                );
                 remaining = remaining
                     .checked_sub(moved)
                     .expect("center transfer moved more facelets than remain on source face");
@@ -396,6 +459,7 @@ fn apply_center_transfer_step<S: FaceletArray>(
     transfer: CenterTransferSpec,
     step: CenterScheduleStep,
     columns: &mut Vec<usize>,
+    progress: Option<&mut CenterStageProgressTracker>,
 ) -> usize {
     let side_length = cube.side_len();
     let Some(commutator) =
@@ -406,12 +470,21 @@ fn apply_center_transfer_step<S: FaceletArray>(
         return 0;
     };
     let mut moved = 0;
+    let mut progress = progress;
 
     for row in 1..side_length - 1 {
         let mut destination_rotations = 0;
 
         loop {
-            let source_piece_count = scan_center_transfer_row(cube, transfer, step, row, columns);
+            let source_piece_count = scan_center_transfer_row(
+                cube,
+                context,
+                transfer,
+                step,
+                row,
+                columns,
+                progress.as_deref_mut(),
+            );
 
             if source_piece_count == 0 {
                 break;
@@ -437,10 +510,12 @@ fn apply_center_transfer_step<S: FaceletArray>(
 
 fn scan_center_transfer_row<S: FaceletArray>(
     cube: &Cube<S>,
+    context: &mut SolveContext,
     transfer: CenterTransferSpec,
     step: CenterScheduleStep,
     row: usize,
     columns: &mut Vec<usize>,
+    progress: Option<&mut CenterStageProgressTracker>,
 ) -> usize {
     debug_assert_eq!(step.source_location.face, transfer.source);
     debug_assert_eq!(step.destination_location.face, transfer.destination);
@@ -452,11 +527,18 @@ fn scan_center_transfer_row<S: FaceletArray>(
     let source_storage = cube.face(transfer.source).matrix().storage();
     let destination_storage = cube.face(transfer.destination).matrix().storage();
     let mut source_piece_count = 0;
+    let mut progressed = 0usize;
+    let mut progress = progress;
 
     columns.clear();
     for column in 1..side_length - 1 {
         if row == column {
             continue;
+        }
+
+        if let Some(tracker) = progress.as_deref_mut() {
+            progressed += tracker.observe(step.source_location.eval(side_length, row, column));
+            progressed += tracker.observe(step.destination_location.eval(side_length, row, column));
         }
 
         let source_index = unsafe { source_stream.index_unchecked(column) };
@@ -468,6 +550,10 @@ fn scan_center_transfer_row<S: FaceletArray>(
                 columns.push(column);
             }
         }
+    }
+
+    if progressed > 0 {
+        context.advance_stage_progress(progressed);
     }
 
     source_piece_count
@@ -569,6 +655,70 @@ fn face_center_color_count<S: FaceletArray>(cube: &Cube<S>, face: FaceId, color:
     count
 }
 
+fn scalable_center_facelet_count(side_length: usize) -> usize {
+    let centers_per_face = side_length.saturating_sub(2);
+    let per_face = centers_per_face
+        .checked_mul(centers_per_face)
+        .unwrap_or(usize::MAX);
+    let mut total = per_face
+        .checked_mul(FaceId::ALL.len())
+        .unwrap_or(usize::MAX);
+
+    if side_length >= 3 && side_length % 2 == 1 {
+        total = total.saturating_sub(FaceId::ALL.len());
+    }
+
+    total
+}
+
+fn center_progress_index(side_length: usize, location: CenterLocation) -> Option<usize> {
+    if location.row == 0
+        || location.column == 0
+        || location.row + 1 == side_length
+        || location.column + 1 == side_length
+    {
+        return None;
+    }
+
+    let centers_per_face = side_length.saturating_sub(2);
+    if centers_per_face == 0 {
+        return None;
+    }
+    let per_face = centers_per_face.checked_mul(centers_per_face)?;
+
+    let row_index = location.row - 1;
+    let column_index = location.column - 1;
+    let linear = row_index
+        .checked_mul(centers_per_face)?
+        .checked_add(column_index)?;
+
+    if side_length >= 3 && side_length % 2 == 1 {
+        let middle = side_length / 2;
+        if location.row == middle && location.column == middle {
+            return None;
+        }
+
+        let local_middle = middle - 1;
+        let true_center_linear = local_middle * centers_per_face + local_middle;
+        let local = if linear < true_center_linear {
+            linear
+        } else {
+            linear - 1
+        };
+        return location
+            .face
+            .index()
+            .checked_mul(per_face.checked_sub(1)?)?
+            .checked_add(local);
+    }
+
+    location
+        .face
+        .index()
+        .checked_mul(per_face)?
+        .checked_add(linear)
+}
+
 #[cfg(test)]
 fn total_center_count(side_length: usize) -> usize {
     let centers_per_face = side_length.saturating_sub(2);
@@ -609,6 +759,60 @@ fn face_center_score<S: FaceletArray>(cube: &Cube<S>, face: FaceId) -> usize {
 mod tests {
     use super::*;
     use crate::{conventions::opposite_face, Byte, RandomSource, XorShift64};
+
+    #[test]
+    fn scalable_center_progress_total_excludes_true_centers() {
+        assert_eq!(scalable_center_facelet_count(2), 0);
+        assert_eq!(scalable_center_facelet_count(4), 24);
+        assert_eq!(scalable_center_facelet_count(5), 48);
+        assert_eq!(scalable_center_facelet_count(7), 144);
+    }
+
+    #[test]
+    fn center_progress_index_skips_outer_ring_and_true_centers() {
+        let front_corner = center_progress_index(
+            5,
+            CenterLocation {
+                face: FaceId::F,
+                row: 1,
+                column: 1,
+            },
+        );
+        let right_corner = center_progress_index(
+            5,
+            CenterLocation {
+                face: FaceId::R,
+                row: 3,
+                column: 3,
+            },
+        );
+
+        assert_eq!(
+            center_progress_index(
+                5,
+                CenterLocation {
+                    face: FaceId::F,
+                    row: 0,
+                    column: 2,
+                },
+            ),
+            None,
+        );
+        assert_eq!(
+            center_progress_index(
+                5,
+                CenterLocation {
+                    face: FaceId::F,
+                    row: 2,
+                    column: 2,
+                },
+            ),
+            None,
+        );
+        assert!(front_corner.is_some());
+        assert!(right_corner.is_some());
+        assert_ne!(front_corner, right_corner);
+    }
 
     #[test]
     fn center_commutator_table_contains_only_perpendicular_helpers() {

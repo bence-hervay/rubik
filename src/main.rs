@@ -15,6 +15,7 @@ use rubik::{
 const DEFAULT_SIDE_LENGTH: usize = 5;
 const DEFAULT_SCRAMBLE_ROUNDS: usize = 8;
 const DEFAULT_RANDOM_SEED: u64 = 42;
+const PROGRESS_SIDE_LENGTH_THRESHOLD: usize = 1000;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Command {
@@ -304,6 +305,9 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     println!();
 
     let mut context = SolveContext::new(SolveOptions::new(cli.mode));
+    if progress_bars_enabled(cli.side_length) {
+        context.enable_progress_bars();
+    }
     let solve_start = Instant::now();
     let mut stages_completed = 0usize;
 
@@ -557,6 +561,30 @@ fn stdout_supports_styled_rendering() -> bool {
     }
 
     !matches!(env::var("TERM"), Ok(term) if term.eq_ignore_ascii_case("dumb"))
+}
+
+fn stderr_supports_progress_rendering() -> bool {
+    if env_flag_enabled("CLICOLOR_FORCE") || env_flag_enabled("FORCE_COLOR") {
+        return true;
+    }
+
+    if env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+
+    if !std::io::stderr().is_terminal() {
+        return false;
+    }
+
+    !matches!(env::var("TERM"), Ok(term) if term.eq_ignore_ascii_case("dumb"))
+}
+
+fn progress_bars_enabled(side_length: usize) -> bool {
+    if env_flag_enabled("RUBIK_PROGRESS") {
+        return stderr_supports_progress_rendering();
+    }
+
+    side_length >= PROGRESS_SIDE_LENGTH_THRESHOLD && stderr_supports_progress_rendering()
 }
 
 fn env_flag_enabled(name: &str) -> bool {

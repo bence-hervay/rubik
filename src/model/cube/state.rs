@@ -92,7 +92,13 @@ impl<S: FaceletArray> Cube<S> {
     pub fn apply_move_untracked(&mut self, mv: Move) {
         self.validate_move(mv);
         let specs = self.plan_move(mv);
-        self.rotate_outer_face_meta(mv);
+        self.rotate_outer_face_meta_unchecked(mv);
+        self.apply_side_cycle(specs, mv.angle);
+    }
+
+    pub(crate) fn apply_move_with_plan_untracked(&mut self, mv: Move, specs: [StripSpec; 4]) {
+        self.validate_move(mv);
+        self.rotate_outer_face_meta_unchecked(mv);
         self.apply_side_cycle(specs, mv.angle);
     }
 
@@ -121,6 +127,11 @@ impl<S: FaceletArray> Cube<S> {
 
     pub fn rotate_outer_face_meta(&mut self, mv: Move) {
         self.validate_move(mv);
+        self.rotate_outer_face_meta_unchecked(mv);
+    }
+
+    fn rotate_outer_face_meta_unchecked(&mut self, mv: Move) {
+        debug_assert!(mv.depth < self.n, "move depth out of bounds");
 
         if mv.depth == self.n - 1 {
             let face = geometry::positive_axis_face(mv.axis);

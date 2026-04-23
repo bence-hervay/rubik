@@ -8,7 +8,10 @@ use crate::{
     storage::FaceletArray,
 };
 
-use super::{AlgorithmReport, ExecutionMode, MoveSequence, MoveStats, SolveOptions, SolveOutcome};
+use super::{
+    progress::SolveProgress, AlgorithmReport, ExecutionMode, MoveSequence, MoveStats, SolveOptions,
+    SolveOutcome, StageProgressSpec,
+};
 
 #[derive(Clone, Debug)]
 pub struct SolveContext {
@@ -16,6 +19,7 @@ pub struct SolveContext {
     center_commutators: CenterCommutatorTable,
     moves: MoveSequence,
     move_stats: MoveStats,
+    progress: SolveProgress,
 }
 
 impl SolveContext {
@@ -25,7 +29,12 @@ impl SolveContext {
             center_commutators: CenterCommutatorTable::new(),
             moves: Vec::new(),
             move_stats: MoveStats::default(),
+            progress: SolveProgress::disabled(),
         }
+    }
+
+    pub fn enable_progress_bars(&mut self) {
+        self.progress.enable();
     }
 
     pub fn options(&self) -> SolveOptions {
@@ -46,6 +55,24 @@ impl SolveContext {
 
     pub fn move_stats(&self) -> MoveStats {
         self.move_stats
+    }
+
+    pub(crate) fn progress_enabled(&self) -> bool {
+        self.progress.is_enabled()
+    }
+
+    pub(crate) fn with_stage_progress<T, F>(&mut self, spec: StageProgressSpec, work: F) -> T
+    where
+        F: FnOnce(&mut Self) -> T,
+    {
+        self.progress.start_stage(spec);
+        let result = work(self);
+        self.progress.finish_stage();
+        result
+    }
+
+    pub(crate) fn advance_stage_progress(&mut self, delta: usize) {
+        self.progress.advance(delta);
     }
 
     pub fn into_outcome(self, reports: Vec<AlgorithmReport>) -> SolveOutcome {
