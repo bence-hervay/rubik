@@ -10,8 +10,9 @@ use crate::algorithms::edges::three_cycle::{
 use crate::conventions::{face_layer_move, opposite_face};
 use crate::simulation::derived::{edge_cubie_location, trace_position, FacePosition};
 use crate::{
-    Axis, Byte, Byte3, FaceAngle, FaceId, Facelet, FaceletArray, Move, MoveAngle, Nibble,
-    RandomSource, ThreeBit, XorShift64,
+    Axis, Byte, Byte3, FaceAngle, FaceId, Facelet, FaceletArray, Move, MoveAngle, NetBackground,
+    NetBorderStyle, NetColorScheme, NetRenderOptions, NetTextWeight, Nibble, RandomSource,
+    ThreeBit, XorShift64,
 };
 
 fn basic_singmaster_turn(side_length: usize, notation: &str) -> Move {
@@ -1253,6 +1254,34 @@ fn net_uses_traditional_geometry() {
     assert!(net.contains("| O O | G G | R R | B B |\n"));
     assert!(net.contains("      | Y Y |\n"));
     assert!(!net.contains("| O O |   | G G |"));
+}
+
+#[test]
+fn net_can_render_with_unicode_borders_and_ansi_facelets() {
+    let cube = Cube::<Byte>::new_solved(2);
+    let net = cube.net_string_with_options(NetRenderOptions::terminal_pretty());
+
+    assert!(net.contains("      ┌─────┐\n"));
+    assert!(net.contains("┌─────┼─────"));
+    assert!(net.contains("└─────┼─────"));
+    assert!(net.contains("\u{1b}[1;97mW\u{1b}[0m"));
+    assert!(net.contains("\u{1b}[1;33mO\u{1b}[0m"));
+    assert!(net.contains("\u{1b}[1;94mB\u{1b}[0m"));
+}
+
+#[test]
+fn net_can_render_facelet_backgrounds() {
+    let cube = Cube::<Byte>::new_solved(2);
+    let net = cube.net_string_with_options(NetRenderOptions {
+        colors: NetColorScheme::Standard,
+        borders: NetBorderStyle::Ascii,
+        text_weight: NetTextWeight::Bold,
+        background: NetBackground::Facelets,
+    });
+
+    assert!(net.contains("\u{1b}[1;30;107mW\u{1b}[0m"));
+    assert!(net.contains("\u{1b}[1;30;43mO\u{1b}[0m"));
+    assert!(net.contains("\u{1b}[1;97;104mB\u{1b}[0m"));
 }
 
 #[test]

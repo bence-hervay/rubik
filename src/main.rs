@@ -1,13 +1,15 @@
 use std::{
-    env, fmt, process,
+    env, fmt,
+    io::IsTerminal,
+    process,
     time::{Duration, Instant},
 };
 
 use rubik::{
     conventions::face_outer_move, Axis, Byte, Byte3, CenterReductionStage, CornerReductionStage,
-    Cube, EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, Nibble,
-    RandomSource, SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase, ThreeBit,
-    XorShift64,
+    Cube, EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, NetBackground,
+    NetBorderStyle, NetColorScheme, NetRenderOptions, NetTextWeight, Nibble, RandomSource,
+    SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase, ThreeBit, XorShift64,
 };
 
 const DEFAULT_SIDE_LENGTH: usize = 5;
@@ -27,6 +29,7 @@ struct Cli {
     backend: StorageKind,
     scramble_rounds: usize,
     seed: u64,
+    render: RenderCli,
 }
 
 impl Default for Cli {
@@ -37,6 +40,7 @@ impl Default for Cli {
             backend: StorageKind::Byte,
             scramble_rounds: DEFAULT_SCRAMBLE_ROUNDS,
             seed: DEFAULT_RANDOM_SEED,
+            render: RenderCli::default(),
         }
     }
 }
@@ -84,6 +88,150 @@ impl StorageKind {
 impl fmt::Display for StorageKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}/{}", self.file_name(), self.type_name())
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+struct RenderCli {
+    colors: RenderColorsArg,
+    format: RenderFormatArg,
+    weight: RenderWeightArg,
+    background: RenderBackgroundArg,
+}
+
+impl RenderCli {
+    fn resolve(self) -> NetRenderOptions {
+        let styles_supported = stdout_supports_styled_rendering();
+        let mut options = NetRenderOptions {
+            colors: self.colors.resolve(styles_supported),
+            borders: self.format.resolve(styles_supported),
+            text_weight: self.weight.resolve(styles_supported),
+            background: self.background.resolve(),
+        };
+
+        if options.background == NetBackground::Facelets && options.colors == NetColorScheme::None {
+            options.colors = NetColorScheme::Standard;
+        }
+
+        options
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+enum RenderColorsArg {
+    #[default]
+    Auto,
+    Off,
+    Standard,
+    Cube,
+}
+
+impl RenderColorsArg {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "auto" => Ok(Self::Auto),
+            "off" | "none" | "never" => Ok(Self::Off),
+            "standard" | "ansi" | "ansi16" => Ok(Self::Standard),
+            "cube" | "xterm" | "ansi256" => Ok(Self::Cube),
+            _ => Err(format!(
+                "unknown render colors: {value} (expected one of: auto, off, standard, cube)",
+            )),
+        }
+    }
+
+    fn resolve(self, supported: bool) -> NetColorScheme {
+        match self {
+            Self::Auto if supported => NetColorScheme::Standard,
+            Self::Auto | Self::Off => NetColorScheme::None,
+            Self::Standard => NetColorScheme::Standard,
+            Self::Cube => NetColorScheme::Cube,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+enum RenderFormatArg {
+    #[default]
+    Auto,
+    Ascii,
+    Unicode,
+}
+
+impl RenderFormatArg {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "auto" => Ok(Self::Auto),
+            "ascii" => Ok(Self::Ascii),
+            "unicode" | "box" | "box-drawing" => Ok(Self::Unicode),
+            _ => Err(format!(
+                "unknown render format: {value} (expected one of: auto, ascii, unicode)",
+            )),
+        }
+    }
+
+    fn resolve(self, supported: bool) -> NetBorderStyle {
+        match self {
+            Self::Auto if supported => NetBorderStyle::Unicode,
+            Self::Auto | Self::Ascii => NetBorderStyle::Ascii,
+            Self::Unicode => NetBorderStyle::Unicode,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+enum RenderWeightArg {
+    #[default]
+    Auto,
+    Normal,
+    Bold,
+}
+
+impl RenderWeightArg {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "auto" => Ok(Self::Auto),
+            "normal" => Ok(Self::Normal),
+            "bold" => Ok(Self::Bold),
+            _ => Err(format!(
+                "unknown render weight: {value} (expected one of: auto, normal, bold)",
+            )),
+        }
+    }
+
+    fn resolve(self, supported: bool) -> NetTextWeight {
+        match self {
+            Self::Auto if supported => NetTextWeight::Bold,
+            Self::Auto | Self::Normal => NetTextWeight::Normal,
+            Self::Bold => NetTextWeight::Bold,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+enum RenderBackgroundArg {
+    #[default]
+    Auto,
+    None,
+    Facelets,
+}
+
+impl RenderBackgroundArg {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "auto" => Ok(Self::Auto),
+            "none" | "off" => Ok(Self::None),
+            "facelets" | "stickers" | "cells" => Ok(Self::Facelets),
+            _ => Err(format!(
+                "unknown render background: {value} (expected one of: auto, none, facelets)",
+            )),
+        }
+    }
+
+    fn resolve(self) -> NetBackground {
+        match self {
+            Self::Auto | Self::None => NetBackground::None,
+            Self::Facelets => NetBackground::Facelets,
+        }
     }
 }
 
@@ -153,6 +301,22 @@ where
                 let value = argument_value(&flag, inline_value, &mut iter)?;
                 cli.seed = parse_u64(&value, "seed")?;
             }
+            "--render-colors" => {
+                let value = argument_value(&flag, inline_value, &mut iter)?;
+                cli.render.colors = RenderColorsArg::parse(&value)?;
+            }
+            "--render-format" => {
+                let value = argument_value(&flag, inline_value, &mut iter)?;
+                cli.render.format = RenderFormatArg::parse(&value)?;
+            }
+            "--render-weight" => {
+                let value = argument_value(&flag, inline_value, &mut iter)?;
+                cli.render.weight = RenderWeightArg::parse(&value)?;
+            }
+            "--render-background" => {
+                let value = argument_value(&flag, inline_value, &mut iter)?;
+                cli.render.background = RenderBackgroundArg::parse(&value)?;
+            }
             _ if flag.starts_with('-') => return Err(format!("unknown argument: {flag}")),
             _ => return Err(format!("unexpected positional argument: {flag}")),
         }
@@ -219,11 +383,16 @@ Options:
   -b, --backend <BACKEND>           byte | nibble | three_bit | byte3. Default: byte
   -r, --scramble-rounds <ROUNDS>    Scramble rounds. Default: {DEFAULT_SCRAMBLE_ROUNDS}
   -s, --seed <SEED>                 Scramble seed, decimal or 0x-prefixed hex.
+      --render-colors <MODE>        auto | off | standard | cube. Default: auto
+      --render-format <FORMAT>      auto | ascii | unicode. Default: auto
+      --render-weight <WEIGHT>      auto | normal | bold. Default: auto
+      --render-background <MODE>    auto | none | facelets. Default: auto
   -h, --help                        Print this help.
 
 Examples:
   cargo run -- --n 5 --mode optimized --backend byte3
   cargo run -- -n 7 -m standard -b ThreeBit --seed 0xC0FFEE
+  cargo run -- --render-colors cube --render-format unicode --render-weight bold
 "
     )
 }
@@ -240,6 +409,7 @@ fn run(cli: Cli) -> Result<(), String> {
 fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     let estimated_storage = estimated_storage_bytes::<S>(cli.side_length)?;
     let scramble_moves = generate_scramble_moves(cli.side_length, cli.scramble_rounds, cli.seed)?;
+    let render_options = cli.render.resolve();
 
     println!("rubik solve run");
     println!("  n={}", cli.side_length);
@@ -278,7 +448,7 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
         format_rate(scramble_moves.len(), scramble_elapsed)
     );
     println!("  render after scramble:");
-    print!("{}", cube.net_string());
+    print!("{}", cube.net_string_with_options(render_options));
     println!();
 
     let mut context = SolveContext::new(SolveOptions::new(cli.mode));
@@ -293,18 +463,18 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
         || CenterReductionStage::western_default(),
         None,
     )
-    .map_err(|error| stage_failure_message(&cube, error))?;
-    print_stage_with_render(center, &cube);
+    .map_err(|error| stage_failure_message(&cube, render_options, error))?;
+    print_stage_with_render(center, &cube, render_options);
     stages_completed += 1;
 
     let corner = run_stage(&mut cube, &mut context, CornerReductionStage::default, None)
-        .map_err(|error| stage_failure_message(&cube, error))?;
-    print_stage_with_render(corner, &cube);
+        .map_err(|error| stage_failure_message(&cube, render_options, error))?;
+    print_stage_with_render(corner, &cube, render_options);
     stages_completed += 1;
 
     let edge = run_stage(&mut cube, &mut context, EdgePairingStage::default, None)
-        .map_err(|error| stage_failure_message(&cube, error))?;
-    print_stage_with_render(edge, &cube);
+        .map_err(|error| stage_failure_message(&cube, render_options, error))?;
+    print_stage_with_render(edge, &cube, render_options);
     stages_completed += 1;
 
     let solve_elapsed = solve_start.elapsed();
@@ -385,15 +555,26 @@ fn print_stage(stage: StageRun) {
     }
 }
 
-fn print_stage_with_render<S: FaceletArray>(stage: StageRun, cube: &Cube<S>) {
+fn print_stage_with_render<S: FaceletArray>(
+    stage: StageRun,
+    cube: &Cube<S>,
+    render_options: NetRenderOptions,
+) {
     print_stage(stage);
     println!("  render after {}:", stage.name);
-    print!("{}", cube.net_string());
+    print!("{}", cube.net_string_with_options(render_options));
     println!();
 }
 
-fn stage_failure_message<S: FaceletArray>(cube: &Cube<S>, error: SolveError) -> String {
-    format!("{error}\n\npartial cube state:\n{}", cube.net_string())
+fn stage_failure_message<S: FaceletArray>(
+    cube: &Cube<S>,
+    render_options: NetRenderOptions,
+    error: SolveError,
+) -> String {
+    format!(
+        "{error}\n\npartial cube state:\n{}",
+        cube.net_string_with_options(render_options)
+    )
 }
 
 fn estimated_storage_bytes<S: FaceletArray>(side_length: usize) -> Result<usize, String> {
@@ -499,6 +680,29 @@ fn yes_no(value: bool) -> &'static str {
     }
 }
 
+fn stdout_supports_styled_rendering() -> bool {
+    if env_flag_enabled("CLICOLOR_FORCE") || env_flag_enabled("FORCE_COLOR") {
+        return true;
+    }
+
+    if env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+
+    if !std::io::stdout().is_terminal() {
+        return false;
+    }
+
+    !matches!(env::var("TERM"), Ok(term) if term.eq_ignore_ascii_case("dumb"))
+}
+
+fn env_flag_enabled(name: &str) -> bool {
+    match env::var(name) {
+        Ok(value) => !value.is_empty() && value != "0",
+        Err(_) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -535,6 +739,37 @@ mod tests {
                 backend: StorageKind::ThreeBit,
                 scramble_rounds: 9,
                 seed: 0xC0FFEE,
+                render: RenderCli::default(),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_render_overrides() {
+        assert_eq!(
+            parse_args([
+                "rubik",
+                "--render-colors",
+                "cube",
+                "--render-format=unicode",
+                "--render-weight",
+                "bold",
+                "--render-background",
+                "facelets",
+            ])
+            .unwrap(),
+            Command::Run(Cli {
+                side_length: DEFAULT_SIDE_LENGTH,
+                mode: ExecutionMode::Standard,
+                backend: StorageKind::Byte,
+                scramble_rounds: DEFAULT_SCRAMBLE_ROUNDS,
+                seed: DEFAULT_RANDOM_SEED,
+                render: RenderCli {
+                    colors: RenderColorsArg::Cube,
+                    format: RenderFormatArg::Unicode,
+                    weight: RenderWeightArg::Bold,
+                    background: RenderBackgroundArg::Facelets,
+                },
             })
         );
     }
@@ -552,6 +787,14 @@ mod tests {
         assert_eq!(
             parse_args(["rubik", "--backend", "packed"]).unwrap_err(),
             "unknown backend: packed (expected one of: byte, nibble, three_bit, byte3)"
+        );
+    }
+
+    #[test]
+    fn reject_unknown_render_palette() {
+        assert_eq!(
+            parse_args(["rubik", "--render-colors", "solarized"]).unwrap_err(),
+            "unknown render colors: solarized (expected one of: auto, off, standard, cube)"
         );
     }
 }
