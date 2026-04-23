@@ -287,9 +287,9 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     let init_elapsed = init_start.elapsed();
 
     println!("initialization");
-    println!("  elapsed={:.3} ms", milliseconds(init_elapsed));
+    println!("  time={:.3} ms", milliseconds(init_elapsed));
     println!(
-        "  estimated_facelet_storage={}",
+        "  facelet_storage={}",
         format_bytes(cube.estimated_storage_bytes())
     );
     println!();
@@ -299,14 +299,8 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     let scramble_elapsed = scramble_start.elapsed();
 
     println!("scramble");
-    println!("  elapsed={:.3} ms", milliseconds(scramble_elapsed));
-    println!("  moves={}", scramble_moves.len());
-    println!(
-        "  moves_per_second={}",
-        format_rate(scramble_moves.len(), scramble_elapsed)
-    );
-    println!("  render after scramble:");
-    print!("{}", cube.net_string_with_options(render_options));
+    print_move_stats(scramble_elapsed, scramble_moves.len(), "  ");
+    print_cube_render(&cube, render_options);
     println!();
 
     let mut context = SolveContext::new(SolveOptions::new(cli.mode));
@@ -340,12 +334,7 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
 
     let total_moves = context.move_stats().total;
     println!("overall solve");
-    println!("  elapsed={:.3} ms", milliseconds(solve_elapsed));
-    println!("  moves={total_moves}");
-    println!(
-        "  moves_per_second={}",
-        format_rate(total_moves, solve_elapsed)
-    );
+    print_move_stats(solve_elapsed, total_moves, "  ");
     println!("  recorded_solution_moves={}", context.moves().len());
     println!("  solved={}", yes_no(cube.is_solved()));
     println!("  stages_completed={stages_completed}");
@@ -399,17 +388,13 @@ where
 
 fn print_stage(stage: StageRun) {
     println!(
-        "  {} [{} | steps={}]: {:.3} ms, {} moves, {} mv/s",
-        stage.name,
-        stage.phase,
-        stage.step_count,
-        milliseconds(stage.elapsed),
-        stage.moves,
-        format_rate(stage.moves, stage.elapsed),
+        "  {} [{} | steps={}]",
+        stage.name, stage.phase, stage.step_count
     );
+    print_move_stats(stage.elapsed, stage.moves, "    ");
 
     if let Some(note) = stage.note {
-        println!("    note: {note}");
+        println!("    note={note}");
     }
 }
 
@@ -419,8 +404,7 @@ fn print_stage_with_render<S: FaceletArray>(
     render_options: NetRenderOptions,
 ) {
     print_stage(stage);
-    println!("  render after {}:", stage.name);
-    print!("{}", cube.net_string_with_options(render_options));
+    print_cube_render(cube, render_options);
     println!();
 }
 
@@ -431,8 +415,29 @@ fn stage_failure_message<S: FaceletArray>(
 ) -> String {
     format!(
         "{error}\n\npartial cube state:\n{}",
-        cube.net_string_with_options(render_options)
+        cube_render_body_string(cube, render_options)
     )
+}
+
+fn print_move_stats(duration: Duration, moves: usize, indent: &str) {
+    println!("{indent}time={:.3} ms", milliseconds(duration));
+    println!("{indent}moves={moves}");
+    println!("{indent}mv/s={}", format_rate(moves, duration));
+}
+
+fn print_cube_render<S: FaceletArray>(cube: &Cube<S>, render_options: NetRenderOptions) {
+    print!("{}", cube_render_body_string(cube, render_options));
+}
+
+fn cube_render_body_string<S: FaceletArray>(
+    cube: &Cube<S>,
+    render_options: NetRenderOptions,
+) -> String {
+    let rendered = cube.net_string_with_options(render_options);
+    rendered
+        .split_once('\n')
+        .map(|(_, body)| body.to_owned())
+        .unwrap_or(rendered)
 }
 
 fn estimated_storage_bytes<S: FaceletArray>(side_length: usize) -> Result<usize, String> {
@@ -643,5 +648,15 @@ mod tests {
             parse_args(["rubik", "--plain-render=yes"]).unwrap_err(),
             "--plain-render does not take a value"
         );
+    }
+
+    #[test]
+    fn cube_render_body_string_omits_metadata_header() {
+        let cube = Cube::<Byte>::new_solved(2);
+        let body = cube_render_body_string(&cube, NetRenderOptions::plain_ascii());
+
+        assert!(!body.contains("Cube("));
+        assert!(body.starts_with("      +-----+\n"));
+        assert!(body.contains("| O O | G G | R R | B B |\n"));
     }
 }
