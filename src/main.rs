@@ -270,16 +270,17 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     let scramble_moves = generate_scramble_moves(cli.side_length, cli.scramble_rounds, cli.seed)?;
     let render_options = cli.render.resolve();
 
-    println!("rubik solve run");
-    println!("  n={}", cli.side_length);
-    println!("  mode={}", cli.mode);
-    println!("  backend={}", cli.backend);
-    println!("  scramble_rounds={}", cli.scramble_rounds);
-    println!("  scramble_seed=0x{:016X}", cli.seed);
-    println!("  planned_scramble_moves={}", scramble_moves.len());
-    println!(
-        "  estimated_facelet_storage={}",
-        format_bytes(estimated_storage)
+    println!("Starting Rubik Pipeline");
+    print_value("  ", "N", cli.side_length);
+    print_value("  ", "Mode", title_case(&cli.mode.to_string()));
+    print_value("  ", "Backend", title_case(&cli.backend.to_string()));
+    print_value("  ", "Scramble Rounds", cli.scramble_rounds);
+    print_value("  ", "Scramble Seed", format_args!("0x{:016X}", cli.seed));
+    print_value("  ", "Planned Scramble Moves", scramble_moves.len());
+    print_value(
+        "  ",
+        "Estimated Facelet Storage",
+        format_bytes(estimated_storage),
     );
     println!();
 
@@ -287,11 +288,17 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     let mut cube = Cube::<S>::new_solved(cli.side_length);
     let init_elapsed = init_start.elapsed();
 
-    println!("initialization");
-    println!("  time={:.3} ms", milliseconds(init_elapsed));
-    println!(
-        "  facelet_storage={}",
-        format_bytes(cube.estimated_storage_bytes())
+    println!("Finished Initialization");
+    print_value_with_unit(
+        "  ",
+        "Time",
+        format_args!("{:.3}", milliseconds(init_elapsed)),
+        "ms",
+    );
+    print_value(
+        "  ",
+        "Facelet Storage",
+        format_bytes(cube.estimated_storage_bytes()),
     );
     println!();
 
@@ -299,7 +306,7 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     cube.apply_moves_untracked(scramble_moves.iter().copied());
     let scramble_elapsed = scramble_start.elapsed();
 
-    println!("scramble");
+    println!("Finished Scramble");
     print_move_stats(scramble_elapsed, scramble_moves.len(), "  ");
     print_cube_render(&cube, render_options);
     println!();
@@ -310,8 +317,6 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     }
     let solve_start = Instant::now();
     let mut stages_completed = 0usize;
-
-    println!("solve stages");
 
     let center = run_stage(
         &mut cube,
@@ -337,11 +342,11 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     println!();
 
     let total_moves = context.move_stats().total;
-    println!("overall solve");
+    println!("Finished Rubik Pipeline");
     print_move_stats(solve_elapsed, total_moves, "  ");
-    println!("  recorded_solution_moves={}", context.moves().len());
-    println!("  solved={}", yes_no(cube.is_solved()));
-    println!("  stages_completed={stages_completed}");
+    print_value("  ", "Recorded Solution Moves", context.moves().len());
+    print_value("  ", "Solved", yes_no(cube.is_solved()));
+    print_value("  ", "Stages Completed", stages_completed);
 
     Ok(())
 }
@@ -376,6 +381,8 @@ where
         });
     }
 
+    println!("Starting {}", title_case(stage.name()));
+
     let moves_before = context.move_stats().total;
     stage.run(cube, context)?;
     let moves_after = context.move_stats().total;
@@ -391,14 +398,13 @@ where
 }
 
 fn print_stage(stage: StageRun) {
-    println!(
-        "  {} [{} | steps={}]",
-        stage.name, stage.phase, stage.step_count
-    );
-    print_move_stats(stage.elapsed, stage.moves, "    ");
+    println!("Finished {}", title_case(stage.name));
+    print_value("  ", "Phase", title_case(&stage.phase.to_string()));
+    print_value("  ", "Steps", stage.step_count);
+    print_move_stats(stage.elapsed, stage.moves, "  ");
 
     if let Some(note) = stage.note {
-        println!("    note={note}");
+        print_value("  ", "Note", note);
     }
 }
 
@@ -418,15 +424,21 @@ fn stage_failure_message<S: FaceletArray>(
     error: SolveError,
 ) -> String {
     format!(
-        "{error}\n\npartial cube state:\n{}",
+        "{}\n\nPartial Cube State:\n{}",
+        format_solve_error(&error),
         cube_render_body_string(cube, render_options)
     )
 }
 
 fn print_move_stats(duration: Duration, moves: usize, indent: &str) {
-    println!("{indent}time={:.3} ms", milliseconds(duration));
-    println!("{indent}moves={moves}");
-    println!("{indent}mv/s={}", format_rate(moves, duration));
+    print_value_with_unit(
+        indent,
+        "Time",
+        format_args!("{:.3}", milliseconds(duration)),
+        "ms",
+    );
+    print_value(indent, "Moves", moves);
+    print_value_with_unit(indent, "Rate", format_rate(moves, duration), "mv/s");
 }
 
 fn print_cube_render<S: FaceletArray>(cube: &Cube<S>, render_options: NetRenderOptions) {
@@ -526,7 +538,7 @@ fn format_bytes(bytes: usize) -> String {
     const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
 
     if bytes < 1024 {
-        return format!("{bytes} B");
+        return format!("{bytes}B");
     }
 
     let mut unit_index = 0usize;
@@ -536,15 +548,59 @@ fn format_bytes(bytes: usize) -> String {
         unit_index += 1;
     }
 
-    format!("{value:.2} {}", UNITS[unit_index])
+    format!("{value:.2}{}", UNITS[unit_index])
 }
 
 fn yes_no(value: bool) -> &'static str {
     if value {
-        "yes"
+        "Yes"
     } else {
-        "no"
+        "No"
     }
+}
+
+fn print_value(indent: &str, label: &str, value: impl fmt::Display) {
+    println!("{indent}{label}: {value}");
+}
+
+fn print_value_with_unit(indent: &str, label: &str, value: impl fmt::Display, unit: &str) {
+    println!("{indent}{label}: {value}{unit}");
+}
+
+fn format_solve_error(error: &SolveError) -> String {
+    match error {
+        SolveError::UnsupportedCube { reason } => {
+            format!("Unsupported Cube: {reason}")
+        }
+        SolveError::StageFailed { stage, reason } => {
+            format!("Stage {} Failed: {reason}", title_case(stage))
+        }
+    }
+}
+
+fn title_case(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut capitalize_next = true;
+
+    for ch in value.chars() {
+        match ch {
+            '_' => {
+                output.push(' ');
+                capitalize_next = true;
+            }
+            ' ' | '-' => {
+                output.push(ch);
+                capitalize_next = true;
+            }
+            _ if capitalize_next => {
+                output.extend(ch.to_uppercase());
+                capitalize_next = false;
+            }
+            _ => output.push(ch),
+        }
+    }
+
+    output
 }
 
 fn stdout_supports_styled_rendering() -> bool {
