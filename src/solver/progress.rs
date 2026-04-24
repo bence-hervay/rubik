@@ -72,6 +72,8 @@ impl SolveProgress {
             bar,
             total_work: spec.total_work as u64,
             completed_work: 0,
+            rendered_work: 0,
+            update_quantum: (spec.total_work as u64 / 512).max(1),
         });
     }
 
@@ -87,7 +89,12 @@ impl SolveProgress {
             .completed_work
             .saturating_add(delta as u64)
             .min(active.total_work);
-        active.bar.set_position(active.completed_work);
+        let should_render = active.completed_work == active.total_work
+            || active.completed_work.saturating_sub(active.rendered_work) >= active.update_quantum;
+        if should_render {
+            active.rendered_work = active.completed_work;
+            active.bar.set_position(active.rendered_work);
+        }
     }
 
     pub(crate) fn finish_stage(&mut self) {
@@ -113,6 +120,8 @@ struct ActiveStageProgress {
     bar: ProgressBar,
     total_work: u64,
     completed_work: u64,
+    rendered_work: u64,
+    update_quantum: u64,
 }
 
 fn progress_style() -> ProgressStyle {

@@ -1,8 +1,8 @@
 use crate::{
     algorithms::centers::{CenterCommutatorTable, FaceCommutator},
-    algorithms::operation::OptimizedAlgorithm,
+    algorithms::operation::{record_face_commutator_move_stats, OptimizedAlgorithm},
     conventions::face_outer_move,
-    cube::{Cube, EdgeThreeCyclePlan},
+    cube::{Cube, EdgeThreeCyclePlan, FaceCommutatorMode},
     face::FaceId,
     moves::{Move, MoveAngle},
     storage::FaceletArray,
@@ -101,9 +101,7 @@ impl SolveContext {
                 self.apply_moves(cube, moves);
             }
             ExecutionMode::Optimized => {
-                operation.for_each_literal_move(&mut |mv| {
-                    self.move_stats.record(mv, cube.side_len());
-                });
+                operation.record_move_stats(&mut self.move_stats, cube.side_len());
                 operation.apply_optimized(cube);
             }
         }
@@ -147,6 +145,37 @@ impl SolveContext {
     ) {
         let operation = cube.normalized_face_commutator_plan(commutator, rows, columns);
         self.apply_operation(cube, &operation);
+    }
+
+    pub fn apply_normalized_center_commutator_row<S: FaceletArray>(
+        &mut self,
+        cube: &mut Cube<S>,
+        commutator: FaceCommutator,
+        row: usize,
+        columns: &[usize],
+    ) {
+        let rows = [row];
+
+        match self.execution_mode() {
+            ExecutionMode::Standard => {
+                self.apply_normalized_center_commutator(cube, commutator, &rows, columns);
+            }
+            ExecutionMode::Optimized => {
+                record_face_commutator_move_stats(
+                    &mut self.move_stats,
+                    cube.side_len(),
+                    commutator,
+                    FaceCommutatorMode::Normalized,
+                    &rows,
+                    columns,
+                );
+                cube.apply_normalized_face_commutator_prevalidated_untracked(
+                    commutator,
+                    &rows,
+                    columns,
+                );
+            }
+        }
     }
 
     pub fn apply_edge_three_cycle_plan<S: FaceletArray>(

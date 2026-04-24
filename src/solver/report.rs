@@ -41,24 +41,32 @@ pub struct MoveStats {
 
 impl MoveStats {
     pub fn record(&mut self, mv: Move, side_length: usize) {
-        self.total += 1;
+        self.record_repeated(mv, side_length, 1);
+    }
+
+    pub fn record_repeated(&mut self, mv: Move, side_length: usize, count: usize) {
+        if count == 0 {
+            return;
+        }
+
+        self.total += count;
 
         match mv.axis {
-            Axis::X => self.axis_x += 1,
-            Axis::Y => self.axis_y += 1,
-            Axis::Z => self.axis_z += 1,
+            Axis::X => self.axis_x += count,
+            Axis::Y => self.axis_y += count,
+            Axis::Z => self.axis_z += count,
         }
 
         match mv.angle {
-            MoveAngle::Positive => self.positive += 1,
-            MoveAngle::Double => self.double += 1,
-            MoveAngle::Negative => self.negative += 1,
+            MoveAngle::Positive => self.positive += count,
+            MoveAngle::Double => self.double += count,
+            MoveAngle::Negative => self.negative += count,
         }
 
         if mv.depth == 0 || mv.depth + 1 == side_length {
-            self.outer_layer += 1;
+            self.outer_layer += count;
         } else {
-            self.inner_layer += 1;
+            self.inner_layer += count;
         }
     }
 

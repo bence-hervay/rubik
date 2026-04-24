@@ -1,8 +1,10 @@
 use crate::{
-    cube::{Cube, EdgeThreeCyclePlan, FaceCommutatorPlan},
+    conventions::face_layer_move,
+    cube::{Cube, EdgeThreeCyclePlan, FaceCommutator, FaceCommutatorMode, FaceCommutatorPlan},
     geometry,
     line::StripSpec,
-    moves::Move,
+    moves::{Move, MoveAngle},
+    solver::MoveStats,
     storage::FaceletArray,
 };
 
@@ -10,6 +12,10 @@ pub trait Operation {
     fn side_length(&self) -> usize;
     fn is_valid(&self) -> bool;
     fn for_each_literal_move(&self, f: &mut dyn FnMut(Move));
+
+    fn record_move_stats(&self, stats: &mut MoveStats, side_length: usize) {
+        self.for_each_literal_move(&mut |mv| stats.record(mv, side_length));
+    }
 
     fn literal_move_count(&self) -> usize {
         let mut count = 0;
@@ -68,6 +74,46 @@ impl<'a> MoveSequenceOperation<'a> {
     }
 }
 
+pub(crate) fn record_face_commutator_move_stats(
+    stats: &mut MoveStats,
+    side_length: usize,
+    commutator: FaceCommutator,
+    mode: FaceCommutatorMode,
+    rows: &[usize],
+    columns: &[usize],
+) {
+    let inner_count = rows.len() + columns.len();
+    let sample_depth = rows
+        .first()
+        .copied()
+        .or_else(|| columns.first().copied())
+        .expect("validated face commutator plans must include at least one row or column");
+    let helper = commutator.helper();
+    let reverse = commutator.slice_angle().inverse();
+    let forward = commutator.slice_angle();
+
+    stats.record_repeated(
+        face_layer_move(side_length, helper, sample_depth, reverse),
+        side_length,
+        inner_count,
+    );
+    stats.record_repeated(
+        face_layer_move(side_length, commutator.destination(), 0, MoveAngle::Positive),
+        side_length,
+        2,
+    );
+    stats.record_repeated(
+        face_layer_move(side_length, commutator.destination(), 0, MoveAngle::Negative),
+        side_length,
+        1 + usize::from(mode == FaceCommutatorMode::Normalized),
+    );
+    stats.record_repeated(
+        face_layer_move(side_length, helper, sample_depth, forward),
+        side_length,
+        inner_count,
+    );
+}
+
 impl Operation for FaceCommutatorPlan<'_> {
     fn side_length(&self) -> usize {
         FaceCommutatorPlan::side_length(*self)
@@ -83,6 +129,18 @@ impl Operation for FaceCommutatorPlan<'_> {
 
     fn literal_move_count(&self) -> usize {
         FaceCommutatorPlan::literal_move_count(*self)
+    }
+
+    fn record_move_stats(&self, stats: &mut MoveStats, side_length: usize) {
+        let layers = self.layers();
+        record_face_commutator_move_stats(
+            stats,
+            side_length,
+            self.commutator(),
+            self.mode(),
+            layers.rows(),
+            layers.columns(),
+        );
     }
 }
 

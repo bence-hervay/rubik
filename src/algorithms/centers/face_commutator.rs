@@ -465,6 +465,18 @@ impl<S: FaceletArray> Cube<S> {
         self.apply_face_commutator_plan_untracked(plan);
     }
 
+    pub(crate) fn apply_normalized_face_commutator_prevalidated_untracked(
+        &mut self,
+        commutator: FaceCommutator,
+        rows: &[usize],
+        columns: &[usize],
+    ) {
+        debug_assert!(self
+            .try_normalized_face_commutator_plan(commutator, rows, columns)
+            .is_ok());
+        self.apply_sparse_commutator_template_untracked(commutator.normalized_template, rows, columns);
+    }
+
     pub fn face_commutator_sparse_updates(
         &self,
         commutator: FaceCommutator,
@@ -559,22 +571,21 @@ impl<S: FaceletArray> Cube<S> {
             return;
         }
 
-        let mut writes = Vec::with_capacity(rows.len() * columns.len() * 3);
+        let [first, second, third] = template.updates;
 
         for row in rows.iter().copied() {
             for column in columns.iter().copied() {
-                for update in template.updates {
-                    let from = update.from.eval(self.n, row, column);
-                    let to = update.to.eval(self.n, row, column);
-                    writes.push((to, self.position(from)));
-                }
+                let first_from = first.from.eval(self.n, row, column);
+                let second_from = second.from.eval(self.n, row, column);
+                let third_from = third.from.eval(self.n, row, column);
+                let first_value = self.position(first_from);
+                let second_value = self.position(second_from);
+                let third_value = self.position(third_from);
+
+                self.set_position(first.to.eval(self.n, row, column), first_value);
+                self.set_position(second.to.eval(self.n, row, column), second_value);
+                self.set_position(third.to.eval(self.n, row, column), third_value);
             }
-        }
-
-        assert_unique_positions(writes.iter().map(|(position, _)| *position));
-
-        for (position, value) in writes {
-            self.set_position(position, value);
         }
     }
 
