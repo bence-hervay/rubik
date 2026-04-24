@@ -36,7 +36,7 @@ impl PreparedEdgeTables {
             if let Some((first_orbit, remaining_orbits)) = wing_orbits.split_first_mut() {
                 let cache = first_orbit.build_orientation_cache(slot_setups);
                 for orbit in remaining_orbits {
-                    orbit.set_orientation_cache(cache.clone());
+                    orbit.set_orientation_cache(cache.clone(), slot_setups);
                 }
             }
         }

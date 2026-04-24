@@ -4,22 +4,27 @@ use std::{
 };
 
 use crate::{
-    algorithms::operation::MoveSequenceOperation,
+    algorithms::operation::{MoveSequenceOperation, Operation, OptimizedOperation},
     conventions::{face_layer_move, face_outer_move, home_facelet_for_face, normalize_face_pair},
     cube::{
         edge_cubie_for_facelet_location, edge_cubie_orbit_index,
-        edge_three_cycle_plan_from_updates, Cube, EdgeCubieLocation, EdgeThreeCycle,
-        EdgeThreeCycleDirection, EdgeThreeCyclePlan, FaceletLocation, FaceletUpdate,
+        edge_three_cycle_plan_from_updates, trace_facelet_location_through_moves, Cube,
+        EdgeCubieLocation, EdgeThreeCycle, EdgeThreeCycleDirection, EdgeThreeCyclePlan,
+        FaceletLocation, FaceletUpdate,
     },
     face::FaceId,
     facelet::Facelet,
     geometry,
     moves::{Move, MoveAngle},
-    simulation::derived::trace_edge_cubie_through_move,
+    simulation::derived::{trace_edge_cubie_through_move, FacePosition},
+    solver::MoveStats,
     storage::FaceletArray,
 };
 
-use super::{pairing::EdgeStageProgressTracker, prepared::PreparedEdgeTables, EdgeSlot};
+use super::{
+    pairing::EdgeStageProgressTracker, prepared::PreparedEdgeTables,
+    three_cycle::move_sequence_updates, EdgeSlot,
+};
 use crate::solver::{SolveContext, SolveError, SolveResult};
 
 #[cfg(test)]
@@ -39,11 +44,15 @@ pub(crate) struct WingOrbitTable {
     row: usize,
     side_length: usize,
     positions: Vec<FixedEdgePosition>,
+    position_cubies: Vec<EdgeCubieLocation>,
     slot_positions: [[usize; 2]; 12],
+    slot_target_keys: [[OrientedEdgeKey; 2]; 12],
     planner: OrbitCyclePlanner,
     orientation_generators: Vec<OrientationGenerator>,
     orientation_masks: Vec<u16>,
     orientation_nodes: Vec<Option<MaskNode>>,
+    orientation_solutions: Vec<Option<OrientationSolution>>,
+    orientation_operators: Vec<PreparedOrientationOperator>,
     #[cfg_attr(not(test), allow(dead_code))]
     reachable_ordered_triples: usize,
 }
@@ -53,6 +62,8 @@ pub(crate) struct WingOrientationCache {
     orientation_generators: Vec<OrientationGenerator>,
     orientation_masks: Vec<u16>,
     orientation_nodes: Vec<Option<MaskNode>>,
+    orientation_solutions: Vec<Option<OrientationSolution>>,
+    orientation_update_templates: Vec<Vec<OrientationUpdateTemplate>>,
 }
 
 #[derive(Clone, Debug)]
@@ -74,12 +85,16 @@ struct WingBasePlanTemplate {
 pub(crate) struct MiddleOrbitTable {
     side_length: usize,
     positions: Vec<FixedEdgePosition>,
+    position_cubies: Vec<EdgeCubieLocation>,
     slot_positions: [usize; 12],
+    slot_target_keys: [OrientedEdgeKey; 12],
     target_slot_index: BTreeMap<EdgeColorKey, usize>,
     planner: OrbitCyclePlanner,
     orientation_generators: Vec<OrientationGenerator>,
     orientation_masks: Vec<u16>,
     orientation_nodes: Vec<Option<MaskNode>>,
+    orientation_solutions: Vec<Option<OrientationSolution>>,
+    orientation_operators: Vec<PreparedOrientationOperator>,
     #[cfg_attr(not(test), allow(dead_code))]
     reachable_ordered_triples: usize,
 }
@@ -266,6 +281,15 @@ impl WingOrbitTable {
         );
 
         let slot_positions = wing_slot_positions();
+        let position_cubies = positions
+            .iter()
+            .copied()
+            .map(|position| cubie_from_fixed_position(side_length, position))
+            .collect::<Vec<_>>();
+        let slot_target_keys = EdgeSlot::ALL.map(|slot| {
+            slot_positions[slot.index()]
+                .map(|position_index| home_oriented_edge_key(position_cubies[position_index]))
+        });
         let base_plan = setup_template
             .base_plan
             .instantiate(side_length, row, &positions);
@@ -291,11 +315,15 @@ impl WingOrbitTable {
             row,
             side_length,
             positions,
+            position_cubies,
             slot_positions,
+            slot_target_keys,
             planner,
             orientation_generators: Vec::new(),
             orientation_masks: Vec::new(),
             orientation_nodes: Vec::new(),
+            orientation_solutions: Vec::new(),
+            orientation_operators: Vec::new(),
             reachable_ordered_triples: setup_template.reachable_ordered_triples,
         }
     }
@@ -327,12 +355,10 @@ impl WingOrbitTable {
     }
 
     fn current_keys_from_cube<S: FaceletArray>(&self, cube: &Cube<S>) -> Vec<EdgeColorKey> {
-        self.positions
+        self.position_cubies
             .iter()
             .copied()
-            .map(|position| {
-                read_edge_key_from_cube(cube, cubie_from_fixed_position(self.side_length, position))
-            })
+            .map(|cubie| read_edge_key_from_cube(cube, cubie))
             .collect()
     }
 
@@ -341,10 +367,23 @@ impl WingOrbitTable {
             .plan_for_cycle(cycle, &self.positions, self.side_length)
     }
 
-    pub(crate) fn set_orientation_cache(&mut self, cache: WingOrientationCache) {
+    pub(crate) fn set_orientation_cache(
+        &mut self,
+        cache: WingOrientationCache,
+        slot_setups: &EdgeSlotSetupTable,
+    ) {
         self.orientation_generators = cache.orientation_generators;
         self.orientation_masks = cache.orientation_masks;
         self.orientation_nodes = cache.orientation_nodes;
+        self.orientation_solutions = cache.orientation_solutions;
+        if cache.orientation_update_templates.len() == self.orientation_generators.len() {
+            self.rebuild_orientation_operators_from_templates(
+                slot_setups,
+                &cache.orientation_update_templates,
+            );
+        } else {
+            self.rebuild_orientation_operators(slot_setups);
+        }
     }
 
     pub(crate) fn build_orientation_cache(
@@ -367,29 +406,81 @@ impl WingOrbitTable {
             }
         }
         self.orientation_nodes = build_mask_solution_table(&self.orientation_masks);
+        self.orientation_solutions = build_mask_solution_sequences(&self.orientation_nodes);
+        self.rebuild_orientation_operators(slot_setups);
+        let orientation_update_templates = self.build_orientation_update_templates();
 
         WingOrientationCache {
             orientation_generators: self.orientation_generators.clone(),
             orientation_masks: self.orientation_masks.clone(),
             orientation_nodes: self.orientation_nodes.clone(),
+            orientation_solutions: self.orientation_solutions.clone(),
+            orientation_update_templates,
         }
     }
 
-    fn orientation_solution(&self, mask: u16) -> Option<Vec<OrientationGenerator>> {
-        let mut current = mask as usize;
-        let mut reversed = Vec::new();
+    fn rebuild_orientation_operators(&mut self, slot_setups: &EdgeSlotSetupTable) {
+        self.orientation_operators = self
+            .orientation_generators
+            .iter()
+            .copied()
+            .zip(self.orientation_masks.iter().copied())
+            .map(|(generator, mask)| {
+                let moves = orientation_generator_moves(
+                    self.side_length,
+                    Some(self.row),
+                    slot_setups,
+                    generator,
+                );
+                let updates = wing_orientation_updates(self, mask, &moves);
+                PreparedOrientationOperator::new(self.side_length, moves, updates)
+            })
+            .collect();
+    }
 
-        while current != 0 {
-            let node = self
-                .orientation_nodes
-                .get(current)
-                .and_then(|entry| *entry)?;
-            reversed.push(self.orientation_generators[node.generator_index as usize]);
-            current = node.prev as usize;
+    fn rebuild_orientation_operators_from_templates(
+        &mut self,
+        slot_setups: &EdgeSlotSetupTable,
+        update_templates: &[Vec<OrientationUpdateTemplate>],
+    ) {
+        self.orientation_operators = self
+            .orientation_generators
+            .iter()
+            .copied()
+            .zip(update_templates.iter())
+            .map(|(generator, updates)| {
+                let moves = orientation_generator_moves(
+                    self.side_length,
+                    Some(self.row),
+                    slot_setups,
+                    generator,
+                );
+                let updates = instantiate_wing_orientation_updates(self, updates);
+                PreparedOrientationOperator::new(self.side_length, moves, updates)
+            })
+            .collect();
+    }
+
+    fn build_orientation_update_templates(&self) -> Vec<Vec<OrientationUpdateTemplate>> {
+        if self.side_length <= FULL_ORIENTATION_UPDATE_SIDE_LIMIT {
+            return Vec::new();
         }
 
-        reversed.reverse();
-        Some(reversed)
+        self.orientation_operators
+            .iter()
+            .map(|operator| wing_orientation_update_templates(self, &operator.optimized_updates))
+            .collect()
+    }
+
+    fn orientation_solution(&self, mask: u16) -> Option<&[u8]> {
+        self.orientation_solutions
+            .get(mask as usize)
+            .and_then(Option::as_ref)
+            .map(OrientationSolution::as_slice)
+    }
+
+    fn orientation_operator(&self, generator_index: u8) -> Option<&PreparedOrientationOperator> {
+        self.orientation_operators.get(generator_index as usize)
     }
 }
 
@@ -513,6 +604,13 @@ impl MiddleOrbitTable {
         );
 
         let slot_positions = build_middle_slot_positions(&positions);
+        let position_cubies = positions
+            .iter()
+            .copied()
+            .map(|position| cubie_from_fixed_position(side_length, position))
+            .collect::<Vec<_>>();
+        let slot_target_keys = EdgeSlot::ALL
+            .map(|slot| home_oriented_edge_key(position_cubies[slot_positions[slot.index()]]));
         let target_slot_index = EdgeSlot::ALL
             .into_iter()
             .map(|slot| (slot.solved_key(), slot_positions[slot.index()]))
@@ -541,12 +639,16 @@ impl MiddleOrbitTable {
         let mut this = Self {
             side_length,
             positions,
+            position_cubies,
             slot_positions,
+            slot_target_keys,
             target_slot_index,
             planner,
             orientation_generators: Vec::new(),
             orientation_masks: Vec::new(),
             orientation_nodes: Vec::new(),
+            orientation_solutions: Vec::new(),
+            orientation_operators: Vec::new(),
             reachable_ordered_triples,
         };
         this.build_orientation_cache(slot_setups);
@@ -571,12 +673,10 @@ impl MiddleOrbitTable {
     }
 
     fn current_slot_keys_from_cube<S: FaceletArray>(&self, cube: &Cube<S>) -> Vec<EdgeColorKey> {
-        self.positions
+        self.position_cubies
             .iter()
             .copied()
-            .map(|position| {
-                read_edge_key_from_cube(cube, cubie_from_fixed_position(self.side_length, position))
-            })
+            .map(|cubie| read_edge_key_from_cube(cube, cubie))
             .collect()
     }
 
@@ -602,23 +702,34 @@ impl MiddleOrbitTable {
             }
         }
         self.orientation_nodes = build_mask_solution_table(&self.orientation_masks);
+        self.orientation_solutions = build_mask_solution_sequences(&self.orientation_nodes);
+        self.rebuild_orientation_operators(slot_setups);
     }
 
-    fn orientation_solution(&self, mask: u16) -> Option<Vec<OrientationGenerator>> {
-        let mut current = mask as usize;
-        let mut reversed = Vec::new();
+    fn rebuild_orientation_operators(&mut self, slot_setups: &EdgeSlotSetupTable) {
+        self.orientation_operators = self
+            .orientation_generators
+            .iter()
+            .copied()
+            .zip(self.orientation_masks.iter().copied())
+            .map(|(generator, mask)| {
+                let moves =
+                    orientation_generator_moves(self.side_length, None, slot_setups, generator);
+                let updates = middle_orientation_updates(self, mask, &moves);
+                PreparedOrientationOperator::new(self.side_length, moves, updates)
+            })
+            .collect();
+    }
 
-        while current != 0 {
-            let node = self
-                .orientation_nodes
-                .get(current)
-                .and_then(|entry| *entry)?;
-            reversed.push(self.orientation_generators[node.generator_index as usize]);
-            current = node.prev as usize;
-        }
+    fn orientation_solution(&self, mask: u16) -> Option<&[u8]> {
+        self.orientation_solutions
+            .get(mask as usize)
+            .and_then(Option::as_ref)
+            .map(OrientationSolution::as_slice)
+    }
 
-        reversed.reverse();
-        Some(reversed)
+    fn orientation_operator(&self, generator_index: u8) -> Option<&PreparedOrientationOperator> {
+        self.orientation_operators.get(generator_index as usize)
     }
 }
 
@@ -708,6 +819,95 @@ struct SetupNode {
 struct MaskNode {
     prev: u16,
     generator_index: u8,
+}
+
+const MAX_ORIENTATION_SOLUTION_GENERATORS: usize = 12;
+const MAX_ORIENTATION_UPDATES: usize = 64;
+const FULL_ORIENTATION_UPDATE_SIDE_LIMIT: usize = 64;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct OrientationSolution {
+    generator_indices: [u8; MAX_ORIENTATION_SOLUTION_GENERATORS],
+    len: u8,
+}
+
+impl OrientationSolution {
+    const fn empty() -> Self {
+        Self {
+            generator_indices: [0; MAX_ORIENTATION_SOLUTION_GENERATORS],
+            len: 0,
+        }
+    }
+
+    fn as_slice(&self) -> &[u8] {
+        &self.generator_indices[..self.len as usize]
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PreparedOrientationOperator {
+    side_length: usize,
+    literal_moves: Vec<Move>,
+    optimized_updates: Vec<FaceletUpdate>,
+    literal_stats: MoveStats,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct OrientationUpdateTemplate {
+    from_position: u8,
+    from_sticker: u8,
+    to_position: u8,
+    to_sticker: u8,
+}
+
+impl PreparedOrientationOperator {
+    fn new(
+        side_length: usize,
+        literal_moves: Vec<Move>,
+        optimized_updates: Vec<FaceletUpdate>,
+    ) -> Self {
+        let mut literal_stats = MoveStats::default();
+        literal_stats.record_all(literal_moves.iter().copied(), side_length);
+
+        Self {
+            side_length,
+            literal_moves,
+            optimized_updates,
+            literal_stats,
+        }
+    }
+}
+
+impl Operation for PreparedOrientationOperator {
+    fn side_length(&self) -> usize {
+        self.side_length
+    }
+
+    fn is_valid(&self) -> bool {
+        self.literal_moves
+            .iter()
+            .all(|mv| mv.depth < self.side_length)
+    }
+
+    fn for_each_literal_move(&self, f: &mut dyn FnMut(Move)) {
+        for mv in self.literal_moves.iter().copied() {
+            f(mv);
+        }
+    }
+
+    fn literal_move_count(&self) -> usize {
+        self.literal_moves.len()
+    }
+
+    fn record_move_stats(&self, stats: &mut MoveStats, _side_length: usize) {
+        add_move_stats(stats, self.literal_stats);
+    }
+}
+
+impl OptimizedOperation for PreparedOrientationOperator {
+    fn apply_optimized<S: FaceletArray>(&self, cube: &mut Cube<S>) {
+        apply_sparse_facelet_updates(cube, &self.optimized_updates);
+    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -835,6 +1035,7 @@ fn reverse_oriented_edge_key(key: OrientedEdgeKey) -> OrientedEdgeKey {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn slot_position_target_key(side_length: usize, position: FixedEdgePosition) -> OrientedEdgeKey {
     home_oriented_edge_key(cubie_from_fixed_position(side_length, position))
 }
@@ -1044,7 +1245,7 @@ pub(super) fn solve_wing_orientations<S: FaceletArray>(
     cube: &mut Cube<S>,
     context: &mut SolveContext,
     orbit: &WingOrbitTable,
-    slot_setups: &EdgeSlotSetupTable,
+    _slot_setups: &EdgeSlotSetupTable,
     progress: Option<&mut EdgeStageProgressTracker>,
 ) -> SolveResult<()> {
     if let Some(progress) = progress {
@@ -1066,10 +1267,15 @@ pub(super) fn solve_wing_orientations<S: FaceletArray>(
             reason: "wing orientation mask is unreachable from the solved state",
         })?;
 
-    for generator in solution {
-        let moves =
-            orientation_generator_moves(cube.side_len(), Some(orbit.row), slot_setups, generator);
-        apply_move_sequence_operation(cube, context, &moves);
+    for generator_index in solution.iter().copied() {
+        let operation =
+            orbit
+                .orientation_operator(generator_index)
+                .ok_or(SolveError::StageFailed {
+                    stage: "edge pairing",
+                    reason: "wing orientation solution referenced a missing prepared operator",
+                })?;
+        context.apply_operation(cube, operation);
     }
 
     if wing_flip_mask_from_cube(orbit, cube) == Some(0) {
@@ -1086,7 +1292,7 @@ fn solve_middle_orientations<S: FaceletArray>(
     cube: &mut Cube<S>,
     context: &mut SolveContext,
     orbit: &MiddleOrbitTable,
-    slot_setups: &EdgeSlotSetupTable,
+    _slot_setups: &EdgeSlotSetupTable,
 ) -> SolveResult<()> {
     let mask = middle_flip_mask_from_cube(orbit, cube).ok_or(SolveError::StageFailed {
         stage: "edge pairing",
@@ -1103,9 +1309,15 @@ fn solve_middle_orientations<S: FaceletArray>(
             reason: "middle-edge orientation mask is unreachable from the solved state",
         })?;
 
-    for generator in solution {
-        let moves = orientation_generator_moves(cube.side_len(), None, slot_setups, generator);
-        apply_move_sequence_operation(cube, context, &moves);
+    for generator_index in solution.iter().copied() {
+        let operation =
+            orbit
+                .orientation_operator(generator_index)
+                .ok_or(SolveError::StageFailed {
+                    stage: "edge pairing",
+                    reason: "middle orientation solution referenced a missing prepared operator",
+                })?;
+        context.apply_operation(cube, operation);
     }
 
     if middle_flip_mask_from_cube(orbit, cube) == Some(0) {
@@ -1470,6 +1682,34 @@ fn build_mask_solution_table(generator_masks: &[u16]) -> Vec<Option<MaskNode>> {
     }
 
     nodes
+}
+
+fn build_mask_solution_sequences(nodes: &[Option<MaskNode>]) -> Vec<Option<OrientationSolution>> {
+    (0..nodes.len())
+        .map(|mask| {
+            let mut current = mask;
+            let mut reversed = [0u8; MAX_ORIENTATION_SOLUTION_GENERATORS];
+            let mut len = 0usize;
+
+            while current != 0 {
+                let node = nodes.get(current).and_then(|entry| *entry)?;
+                if len == reversed.len() {
+                    return None;
+                }
+                reversed[len] = node.generator_index;
+                len += 1;
+                current = node.prev as usize;
+            }
+
+            let mut solution = OrientationSolution::empty();
+            solution.len = len as u8;
+            for index in 0..len {
+                solution.generator_indices[index] = reversed[len - 1 - index];
+            }
+
+            Some(solution)
+        })
+        .collect()
 }
 
 pub(super) fn solved_edge_slot_keys() -> [EdgeColorKey; 12] {
@@ -2102,10 +2342,7 @@ fn wing_slot_pair_for_slot_from_cube<S: FaceletArray>(
     slot: EdgeSlot,
 ) -> [OrientedEdgeKey; 2] {
     orbit.slot_positions[slot.index()].map(|position_index| {
-        read_oriented_edge_key_from_cube(
-            cube,
-            cubie_from_fixed_position(orbit.side_length, orbit.positions[position_index]),
-        )
+        read_oriented_edge_key_from_cube(cube, orbit.position_cubies[position_index])
     })
 }
 
@@ -2148,12 +2385,9 @@ fn wing_slot_orientation_state_from_cube<S: FaceletArray>(
     cube: &Cube<S>,
     slot: EdgeSlot,
 ) -> SlotOrientationState {
-    let [first_target, second_target] = orbit.slot_positions[slot.index()].map(|position_index| {
-        slot_position_target_key(orbit.side_length, orbit.positions[position_index])
-    });
     wing_slot_orientation_state_for_target(
         wing_slot_pair_for_slot_from_cube(orbit, cube, slot),
-        [first_target, second_target],
+        orbit.slot_target_keys[slot.index()],
     )
 }
 
@@ -2162,12 +2396,11 @@ fn middle_slot_orientation_state_from_cube<S: FaceletArray>(
     cube: &Cube<S>,
     slot: EdgeSlot,
 ) -> SlotOrientationState {
-    let position = orbit.positions[orbit.slot_positions[slot.index()]];
     let actual = read_oriented_edge_key_from_cube(
         cube,
-        cubie_from_fixed_position(orbit.side_length, position),
+        orbit.position_cubies[orbit.slot_positions[slot.index()]],
     );
-    let target = slot_position_target_key(orbit.side_length, position);
+    let target = orbit.slot_target_keys[slot.index()];
     slot_orientation_state_for_position(actual, target)
 }
 
@@ -2233,6 +2466,166 @@ fn wing_flip_mask_from_cube<S: FaceletArray>(
     }
 
     Some(mask)
+}
+
+fn wing_orientation_updates(
+    orbit: &WingOrbitTable,
+    _mask: u16,
+    moves: &[Move],
+) -> Vec<FaceletUpdate> {
+    orientation_updates_for_operator(orbit.side_length, orbit.position_cubies.iter(), moves)
+}
+
+fn middle_orientation_updates(
+    orbit: &MiddleOrbitTable,
+    _mask: u16,
+    moves: &[Move],
+) -> Vec<FaceletUpdate> {
+    orientation_updates_for_operator(orbit.side_length, orbit.position_cubies.iter(), moves)
+}
+
+fn orientation_updates_for_operator<'a>(
+    side_length: usize,
+    cubies: impl IntoIterator<Item = &'a EdgeCubieLocation>,
+    moves: &[Move],
+) -> Vec<FaceletUpdate> {
+    if side_length <= FULL_ORIENTATION_UPDATE_SIDE_LIMIT {
+        return move_sequence_updates(side_length, moves)
+            .expect("orientation operator move sequence must be valid");
+    }
+
+    orientation_updates_from_moves(side_length, cubies, moves)
+}
+
+fn orientation_updates_from_moves<'a>(
+    side_length: usize,
+    cubies: impl IntoIterator<Item = &'a EdgeCubieLocation>,
+    moves: &[Move],
+) -> Vec<FaceletUpdate> {
+    let mut updates = Vec::new();
+
+    for cubie in cubies {
+        for from in cubie.stickers() {
+            let to = trace_facelet_location_through_moves(side_length, from, moves);
+            if from != to {
+                updates.push(FaceletUpdate { from, to });
+            }
+        }
+    }
+
+    updates
+}
+
+fn wing_orientation_update_templates(
+    orbit: &WingOrbitTable,
+    updates: &[FaceletUpdate],
+) -> Vec<OrientationUpdateTemplate> {
+    updates
+        .iter()
+        .copied()
+        .map(|update| {
+            let (from_position, from_sticker) = find_wing_orbit_sticker(orbit, update.from)
+                .expect("large-cube wing orientation updates must stay in the wing orbit");
+            let (to_position, to_sticker) = find_wing_orbit_sticker(orbit, update.to)
+                .expect("large-cube wing orientation updates must stay in the wing orbit");
+
+            OrientationUpdateTemplate {
+                from_position,
+                from_sticker,
+                to_position,
+                to_sticker,
+            }
+        })
+        .collect()
+}
+
+fn instantiate_wing_orientation_updates(
+    orbit: &WingOrbitTable,
+    templates: &[OrientationUpdateTemplate],
+) -> Vec<FaceletUpdate> {
+    templates
+        .iter()
+        .copied()
+        .map(|template| {
+            let from = orbit.position_cubies[template.from_position as usize].stickers()
+                [template.from_sticker as usize];
+            let to = orbit.position_cubies[template.to_position as usize].stickers()
+                [template.to_sticker as usize];
+            FaceletUpdate { from, to }
+        })
+        .collect()
+}
+
+fn find_wing_orbit_sticker(orbit: &WingOrbitTable, location: FaceletLocation) -> Option<(u8, u8)> {
+    for (position_index, cubie) in orbit.position_cubies.iter().copied().enumerate() {
+        for (sticker_index, sticker) in cubie.stickers().into_iter().enumerate() {
+            if sticker == location {
+                return Some((position_index as u8, sticker_index as u8));
+            }
+        }
+    }
+
+    None
+}
+
+fn apply_sparse_facelet_updates<S: FaceletArray>(cube: &mut Cube<S>, updates: &[FaceletUpdate]) {
+    if updates.len() > MAX_ORIENTATION_UPDATES {
+        let values = updates
+            .iter()
+            .copied()
+            .map(|update| {
+                cube.position(FacePosition {
+                    face: update.from.face,
+                    row: update.from.row,
+                    col: update.from.col,
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for (update, value) in updates.iter().copied().zip(values) {
+            cube.set_position(
+                FacePosition {
+                    face: update.to.face,
+                    row: update.to.row,
+                    col: update.to.col,
+                },
+                value,
+            );
+        }
+        return;
+    }
+
+    let mut values = [Facelet::White; MAX_ORIENTATION_UPDATES];
+    for (index, update) in updates.iter().copied().enumerate() {
+        values[index] = cube.position(FacePosition {
+            face: update.from.face,
+            row: update.from.row,
+            col: update.from.col,
+        });
+    }
+
+    for (index, update) in updates.iter().copied().enumerate() {
+        cube.set_position(
+            FacePosition {
+                face: update.to.face,
+                row: update.to.row,
+                col: update.to.col,
+            },
+            values[index],
+        );
+    }
+}
+
+fn add_move_stats(stats: &mut MoveStats, delta: MoveStats) {
+    stats.total += delta.total;
+    stats.axis_x += delta.axis_x;
+    stats.axis_y += delta.axis_y;
+    stats.axis_z += delta.axis_z;
+    stats.positive += delta.positive;
+    stats.double += delta.double;
+    stats.negative += delta.negative;
+    stats.outer_layer += delta.outer_layer;
+    stats.inner_layer += delta.inner_layer;
 }
 
 fn mapped_face_layer_move(
@@ -2673,6 +3066,64 @@ mod tests {
     }
 
     #[test]
+    fn prepared_wing_orientation_operators_match_literal_moves_on_full_cube_state() {
+        for side_length in 4..=6 {
+            let cache = PreparedEdgeTables::new(side_length);
+            for orbit in &cache.wing_orbits {
+                assert_eq!(
+                    orbit.orientation_operators.len(),
+                    orbit.orientation_generators.len()
+                );
+
+                for (operator_index, operator) in orbit.orientation_operators.iter().enumerate() {
+                    let mut expected =
+                        patterned_cube::<Byte>(side_length, 71 + orbit.row * 13 + operator_index);
+                    expected.apply_moves_untracked(operator.literal_moves.iter().copied());
+
+                    let mut actual =
+                        patterned_cube::<Byte>(side_length, 71 + orbit.row * 13 + operator_index);
+                    OptimizedOperation::apply_optimized(operator, &mut actual);
+
+                    assert_orbit_facelets_match(&actual, &expected, &orbit.position_cubies);
+
+                    let mut expected = Cube::<Byte>::new_solved(side_length);
+                    expected.apply_moves_untracked(operator.literal_moves.iter().copied());
+
+                    let mut actual = Cube::<Byte>::new_solved(side_length);
+                    OptimizedOperation::apply_optimized(operator, &mut actual);
+
+                    assert_cubes_match(&actual, &expected);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn prepared_middle_orientation_operators_match_literal_moves_on_full_cube_state() {
+        for side_length in [3usize, 5, 7] {
+            let cache = PreparedEdgeTables::new(side_length);
+            let orbit = cache
+                .middle_orbit
+                .as_ref()
+                .expect("odd cubes must prepare a middle orbit");
+            assert_eq!(
+                orbit.orientation_operators.len(),
+                orbit.orientation_generators.len()
+            );
+
+            for (operator_index, operator) in orbit.orientation_operators.iter().enumerate() {
+                let mut expected = patterned_cube::<Byte>(side_length, 89 + operator_index);
+                expected.apply_moves_untracked(operator.literal_moves.iter().copied());
+
+                let mut actual = patterned_cube::<Byte>(side_length, 89 + operator_index);
+                OptimizedOperation::apply_optimized(operator, &mut actual);
+
+                assert_cubes_match(&actual, &expected);
+            }
+        }
+    }
+
+    #[test]
     fn wing_orientation_generators_span_all_masks() {
         let side_length = 4;
         let cache = PreparedEdgeTables::new(side_length);
@@ -3020,6 +3471,38 @@ mod tests {
                         "cube states differ at {face}({row},{col})",
                     );
                 }
+            }
+        }
+    }
+
+    fn assert_orbit_facelets_match<S: FaceletArray>(
+        left: &Cube<S>,
+        right: &Cube<S>,
+        cubies: &[EdgeCubieLocation],
+    ) {
+        assert_eq!(
+            left.side_len(),
+            right.side_len(),
+            "cube side lengths differ"
+        );
+        for face in FaceId::ALL {
+            assert_eq!(
+                left.face(face).rotation(),
+                right.face(face).rotation(),
+                "face rotation metadata differs for {face}",
+            );
+        }
+
+        for cubie in cubies {
+            for location in cubie.stickers() {
+                assert_eq!(
+                    left.face(location.face).get(location.row, location.col),
+                    right.face(location.face).get(location.row, location.col),
+                    "orbit facelet differs at {}({}, {})",
+                    location.face,
+                    location.row,
+                    location.col,
+                );
             }
         }
     }
