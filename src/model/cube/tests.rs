@@ -1262,9 +1262,17 @@ fn net_can_render_with_bold_colored_ascii_facelets() {
 
     assert!(net.contains("      +-----+\n"));
     assert!(net.contains("+-----+-----+-----+-----+\n"));
-    assert!(net.contains("\u{1b}[1;97mW\u{1b}[0m"));
-    assert!(net.contains("\u{1b}[1;33mO\u{1b}[0m"));
-    assert!(net.contains("\u{1b}[1;94mB\u{1b}[0m"));
+    for styled_facelet in [
+        "\u{1b}[1;38;5;15mW\u{1b}[0m",
+        "\u{1b}[1;38;5;226mY\u{1b}[0m",
+        "\u{1b}[1;38;5;196mR\u{1b}[0m",
+        "\u{1b}[1;38;5;208mO\u{1b}[0m",
+        "\u{1b}[1;38;5;46mG\u{1b}[0m",
+        "\u{1b}[1;38;5;33mB\u{1b}[0m",
+    ] {
+        assert!(net.contains(styled_facelet));
+    }
+    assert!(!net.contains("\u{1b}[1;33mO\u{1b}[0m"));
 }
 
 #[test]

@@ -272,35 +272,44 @@ fn push_render_char(out: &mut String, ch: char, options: NetRenderOptions) {
         return;
     }
 
-    let Some(facelet) = facelet_for_render_char(ch) else {
+    let Some(entry) = ascii_facelet_palette_entry(ch) else {
         out.push(ch);
         return;
     };
 
-    let _ = write!(out, "\x1b[1;{}m{}\x1b[0m", standard_fg_code(facelet), ch);
+    let _ = write!(out, "\x1b[1;{}m{}\x1b[0m", entry.sgr_fg, ch);
 }
 
-fn facelet_for_render_char(ch: char) -> Option<Facelet> {
-    match ch {
-        'W' => Some(Facelet::White),
-        'Y' => Some(Facelet::Yellow),
-        'R' => Some(Facelet::Red),
-        'O' => Some(Facelet::Orange),
-        'G' => Some(Facelet::Green),
-        'B' => Some(Facelet::Blue),
-        _ => None,
+#[derive(Copy, Clone)]
+struct AsciiFaceletPaletteEntry {
+    symbol: char,
+    sgr_fg: &'static str,
+}
+
+impl AsciiFaceletPaletteEntry {
+    const fn new(facelet: Facelet, sgr_fg: &'static str) -> Self {
+        Self {
+            symbol: facelet.as_char(),
+            sgr_fg,
+        }
     }
 }
 
-fn standard_fg_code(facelet: Facelet) -> &'static str {
-    match facelet {
-        Facelet::White => "97",
-        Facelet::Yellow => "93",
-        Facelet::Red => "91",
-        Facelet::Orange => "33",
-        Facelet::Green => "92",
-        Facelet::Blue => "94",
-    }
+// ANSI's basic 16-color set has no orange, so use a 256-color palette.
+const ASCII_FACELET_PALETTE: [AsciiFaceletPaletteEntry; 6] = [
+    AsciiFaceletPaletteEntry::new(Facelet::White, "38;5;15"),
+    AsciiFaceletPaletteEntry::new(Facelet::Yellow, "38;5;226"),
+    AsciiFaceletPaletteEntry::new(Facelet::Red, "38;5;196"),
+    AsciiFaceletPaletteEntry::new(Facelet::Orange, "38;5;208"),
+    AsciiFaceletPaletteEntry::new(Facelet::Green, "38;5;46"),
+    AsciiFaceletPaletteEntry::new(Facelet::Blue, "38;5;33"),
+];
+
+fn ascii_facelet_palette_entry(ch: char) -> Option<AsciiFaceletPaletteEntry> {
+    ASCII_FACELET_PALETTE
+        .iter()
+        .copied()
+        .find(|entry| entry.symbol == ch)
 }
 
 impl<S: FaceletArray> fmt::Display for Cube<S> {
