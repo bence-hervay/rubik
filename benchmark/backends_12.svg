@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="840" viewBox="0 0 1200 840">
+<rect width="1200" height="840" fill="#fbfaf7"/>
+<text x="42.0" y="38.0" font-family="monospace" font-size="18" fill="#111827" text-anchor="start" font-weight="700" >Backend runtime comparison - n=4096, mode=optimized, trials=3</text>
+<text x="42.0" y="58.0" font-family="monospace" font-size="12" fill="#4b5563" text-anchor="start" font-weight="400" >Each panel has its own linear millisecond scale.</text>
+<rect x="70.0" y="78.0" width="520.0" height="197.3" fill="#ffffff" stroke="#d1d5db"/>
+<text x="80.0" y="100.0" font-family="monospace" font-size="14" fill="#111827" text-anchor="start" font-weight="700" >init</text>
+<line x1="70.0" y1="275.3" x2="590" y2="275.3" stroke="#e5e7eb"/>
+<text x="62.0" y="279.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >0.000</text>
+<line x1="70.0" y1="236.5" x2="590" y2="236.5" stroke="#e5e7eb"/>
+<text x="62.0" y="240.5" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >250.00</text>
+<line x1="70.0" y1="197.7" x2="590" y2="197.7" stroke="#e5e7eb"/>
+<text x="62.0" y="201.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >500.00</text>
+<line x1="70.0" y1="158.8" x2="590" y2="158.8" stroke="#e5e7eb"/>
+<text x="62.0" y="162.8" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >750.00</text>
+<line x1="70.0" y1="120.0" x2="590" y2="120.0" stroke="#e5e7eb"/>
+<text x="62.0" y="124.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >1000</text>
+<rect x="86.0" y="242.4" width="110.0" height="33.0" fill="#4c78a8"/>
+<text x="141.0" y="236.4" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >212.21</text>
+<text x="141.0" y="293.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 141.0 293.3)">byte</text>
+<rect x="212.0" y="204.1" width="110.0" height="71.2" fill="#f58518"/>
+<text x="267.0" y="198.1" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >458.52</text>
+<text x="267.0" y="293.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 267.0 293.3)">nibble</text>
+<rect x="338.0" y="154.3" width="110.0" height="121.0" fill="#54a24b"/>
+<text x="393.0" y="148.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >778.91</text>
+<text x="393.0" y="293.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 393.0 293.3)">three_bit</text>
+<rect x="464.0" y="191.2" width="110.0" height="84.1" fill="#e45756"/>
+<text x="519.0" y="185.2" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >541.52</text>
+<text x="519.0" y="293.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 519.0 293.3)">third_byte</text>
+<rect x="644.0" y="78.0" width="520.0" height="197.3" fill="#ffffff" stroke="#d1d5db"/>
+<text x="654.0" y="100.0" font-family="monospace" font-size="14" fill="#111827" text-anchor="start" font-weight="700" >scramble</text>
+<line x1="644.0" y1="275.3" x2="1164" y2="275.3" stroke="#e5e7eb"/>
+<text x="636.0" y="279.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >0.000</text>
+<line x1="644.0" y1="236.5" x2="1164" y2="236.5" stroke="#e5e7eb"/>
+<text x="636.0" y="240.5" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >1250</text>
+<line x1="644.0" y1="197.7" x2="1164" y2="197.7" stroke="#e5e7eb"/>
+<text x="636.0" y="201.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >2500</text>
+<line x1="644.0" y1="158.8" x2="1164" y2="158.8" stroke="#e5e7eb"/>
+<text x="636.0" y="162.8" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >3750</text>
+<line x1="644.0" y1="120.0" x2="1164" y2="120.0" stroke="#e5e7eb"/>
+<text x="636.0" y="124.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >5000</text>
+<rect x="660.0" y="204.0" width="110.0" height="71.3" fill="#4c78a8"/>
+<text x="715.0" y="198.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >2295</text>
+<text x="715.0" y="293.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 715.0 293.3)">byte</text>
+<rect x="786.0" y="206.7" width="110.0" height="68.6" fill="#f58518"/>
+<text x="841.0" y="200.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >2208</text>
+<text x="841.0" y="293.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 841.0 293.3)">nibble</text>
+<rect x="912.0" y="213.1" width="110.0" height="62.3" fill="#54a24b"/>
+<text x="967.0" y="207.1" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >2004</text>
+<text x="967.0" y="293.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 967.0 293.3)">three_bit</text>
+<rect x="1038.0" y="176.3" width="110.0" height="99.1" fill="#e45756"/>
+<text x="1093.0" y="170.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >3189</text>
+<text x="1093.0" y="293.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 1093.0 293.3)">third_byte</text>
+<rect x="70.0" y="329.3" width="520.0" height="197.3" fill="#ffffff" stroke="#d1d5db"/>
+<text x="80.0" y="351.3" font-family="monospace" font-size="14" fill="#111827" text-anchor="start" font-weight="700" >corner</text>
+<line x1="70.0" y1="526.7" x2="590" y2="526.7" stroke="#e5e7eb"/>
+<text x="62.0" y="530.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >0.000</text>
+<line x1="70.0" y1="487.8" x2="590" y2="487.8" stroke="#e5e7eb"/>
+<text x="62.0" y="491.8" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >5.000</text>
+<line x1="70.0" y1="449.0" x2="590" y2="449.0" stroke="#e5e7eb"/>
+<text x="62.0" y="453.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >10.00</text>
+<line x1="70.0" y1="410.2" x2="590" y2="410.2" stroke="#e5e7eb"/>
+<text x="62.0" y="414.2" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >15.00</text>
+<line x1="70.0" y1="371.3" x2="590" y2="371.3" stroke="#e5e7eb"/>
+<text x="62.0" y="375.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >20.00</text>
+<rect x="86.0" y="443.3" width="110.0" height="83.4" fill="#4c78a8"/>
+<text x="141.0" y="437.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >10.74</text>
+<text x="141.0" y="544.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 141.0 544.7)">byte</text>
+<rect x="212.0" y="457.6" width="110.0" height="69.0" fill="#f58518"/>
+<text x="267.0" y="451.6" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >8.890</text>
+<text x="267.0" y="544.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 267.0 544.7)">nibble</text>
+<rect x="338.0" y="455.8" width="110.0" height="70.9" fill="#54a24b"/>
+<text x="393.0" y="449.8" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >9.130</text>
+<text x="393.0" y="544.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 393.0 544.7)">three_bit</text>
+<rect x="464.0" y="426.6" width="110.0" height="100.1" fill="#e45756"/>
+<text x="519.0" y="420.6" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >12.88</text>
+<text x="519.0" y="544.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 519.0 544.7)">third_byte</text>
+<rect x="644.0" y="329.3" width="520.0" height="197.3" fill="#ffffff" stroke="#d1d5db"/>
+<text x="654.0" y="351.3" font-family="monospace" font-size="14" fill="#111827" text-anchor="start" font-weight="700" >edge</text>
+<line x1="644.0" y1="526.7" x2="1164" y2="526.7" stroke="#e5e7eb"/>
+<text x="636.0" y="530.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >0.000</text>
+<line x1="644.0" y1="487.8" x2="1164" y2="487.8" stroke="#e5e7eb"/>
+<text x="636.0" y="491.8" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >125.00</text>
+<line x1="644.0" y1="449.0" x2="1164" y2="449.0" stroke="#e5e7eb"/>
+<text x="636.0" y="453.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >250.00</text>
+<line x1="644.0" y1="410.2" x2="1164" y2="410.2" stroke="#e5e7eb"/>
+<text x="636.0" y="414.2" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >375.00</text>
+<line x1="644.0" y1="371.3" x2="1164" y2="371.3" stroke="#e5e7eb"/>
+<text x="636.0" y="375.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >500.00</text>
+<rect x="660.0" y="408.4" width="110.0" height="118.3" fill="#4c78a8"/>
+<text x="715.0" y="402.4" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >380.76</text>
+<text x="715.0" y="544.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 715.0 544.7)">byte</text>
+<rect x="786.0" y="408.1" width="110.0" height="118.6" fill="#f58518"/>
+<text x="841.0" y="402.1" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >381.62</text>
+<text x="841.0" y="544.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 841.0 544.7)">nibble</text>
+<rect x="912.0" y="404.3" width="110.0" height="122.4" fill="#54a24b"/>
+<text x="967.0" y="398.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >394.00</text>
+<text x="967.0" y="544.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 967.0 544.7)">three_bit</text>
+<rect x="1038.0" y="406.9" width="110.0" height="119.8" fill="#e45756"/>
+<text x="1093.0" y="400.9" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >385.62</text>
+<text x="1093.0" y="544.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 1093.0 544.7)">third_byte</text>
+<rect x="70.0" y="580.7" width="520.0" height="197.3" fill="#ffffff" stroke="#d1d5db"/>
+<text x="80.0" y="602.7" font-family="monospace" font-size="14" fill="#111827" text-anchor="start" font-weight="700" >center</text>
+<line x1="70.0" y1="778.0" x2="590" y2="778.0" stroke="#e5e7eb"/>
+<text x="62.0" y="782.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >0.000</text>
+<line x1="70.0" y1="739.2" x2="590" y2="739.2" stroke="#e5e7eb"/>
+<text x="62.0" y="743.2" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >12500</text>
+<line x1="70.0" y1="700.3" x2="590" y2="700.3" stroke="#e5e7eb"/>
+<text x="62.0" y="704.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >25000</text>
+<line x1="70.0" y1="661.5" x2="590" y2="661.5" stroke="#e5e7eb"/>
+<text x="62.0" y="665.5" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >37500</text>
+<line x1="70.0" y1="622.7" x2="590" y2="622.7" stroke="#e5e7eb"/>
+<text x="62.0" y="626.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >50000</text>
+<rect x="86.0" y="695.4" width="110.0" height="82.6" fill="#4c78a8"/>
+<text x="141.0" y="689.4" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >26595</text>
+<text x="141.0" y="796.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 141.0 796.0)">byte</text>
+<rect x="212.0" y="687.4" width="110.0" height="90.6" fill="#f58518"/>
+<text x="267.0" y="681.4" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >29148</text>
+<text x="267.0" y="796.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 267.0 796.0)">nibble</text>
+<rect x="338.0" y="697.7" width="110.0" height="80.3" fill="#54a24b"/>
+<text x="393.0" y="691.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >25845</text>
+<text x="393.0" y="796.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 393.0 796.0)">three_bit</text>
+<rect x="464.0" y="666.5" width="110.0" height="111.5" fill="#e45756"/>
+<text x="519.0" y="660.5" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >35887</text>
+<text x="519.0" y="796.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 519.0 796.0)">third_byte</text>
+<rect x="644.0" y="580.7" width="520.0" height="197.3" fill="#ffffff" stroke="#d1d5db"/>
+<text x="654.0" y="602.7" font-family="monospace" font-size="14" fill="#111827" text-anchor="start" font-weight="700" >total</text>
+<line x1="644.0" y1="778.0" x2="1164" y2="778.0" stroke="#e5e7eb"/>
+<text x="636.0" y="782.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >0.000</text>
+<line x1="644.0" y1="739.2" x2="1164" y2="739.2" stroke="#e5e7eb"/>
+<text x="636.0" y="743.2" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >12500</text>
+<line x1="644.0" y1="700.3" x2="1164" y2="700.3" stroke="#e5e7eb"/>
+<text x="636.0" y="704.3" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >25000</text>
+<line x1="644.0" y1="661.5" x2="1164" y2="661.5" stroke="#e5e7eb"/>
+<text x="636.0" y="665.5" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >37500</text>
+<line x1="644.0" y1="622.7" x2="1164" y2="622.7" stroke="#e5e7eb"/>
+<text x="636.0" y="626.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="end" font-weight="400" >50000</text>
+<rect x="660.0" y="686.4" width="110.0" height="91.6" fill="#4c78a8"/>
+<text x="715.0" y="680.4" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >29493</text>
+<text x="715.0" y="796.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 715.0 796.0)">byte</text>
+<rect x="786.0" y="678.0" width="110.0" height="100.0" fill="#f58518"/>
+<text x="841.0" y="672.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >32205</text>
+<text x="841.0" y="796.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 841.0 796.0)">nibble</text>
+<rect x="912.0" y="687.8" width="110.0" height="90.2" fill="#54a24b"/>
+<text x="967.0" y="681.8" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >29031</text>
+<text x="967.0" y="796.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 967.0 796.0)">three_bit</text>
+<rect x="1038.0" y="653.7" width="110.0" height="124.3" fill="#e45756"/>
+<text x="1093.0" y="647.7" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" >40016</text>
+<text x="1093.0" y="796.0" font-family="monospace" font-size="10" fill="#374151" text-anchor="middle" font-weight="400" transform="rotate(28 1093.0 796.0)">third_byte</text>
+</svg>
