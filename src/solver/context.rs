@@ -170,9 +170,7 @@ impl SolveContext {
                     columns,
                 );
                 cube.apply_normalized_face_commutator_prevalidated_untracked(
-                    commutator,
-                    &rows,
-                    columns,
+                    commutator, &rows, columns,
                 );
             }
         }

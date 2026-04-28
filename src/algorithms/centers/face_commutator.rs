@@ -474,7 +474,11 @@ impl<S: FaceletArray> Cube<S> {
         debug_assert!(self
             .try_normalized_face_commutator_plan(commutator, rows, columns)
             .is_ok());
-        self.apply_sparse_commutator_template_untracked(commutator.normalized_template, rows, columns);
+        self.apply_sparse_commutator_template_untracked(
+            commutator.normalized_template,
+            rows,
+            columns,
+        );
     }
 
     pub fn face_commutator_sparse_updates(

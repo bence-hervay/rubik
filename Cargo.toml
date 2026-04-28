@@ -18,3 +18,8 @@ harness = false
 name = "stage_solve_time"
 path = "benchmark/stage_solve_time.rs"
 harness = false
+
+[[bench]]
+name = "init_scramble_solve_cycle"
+path = "benchmark/init_scramble_solve_cycle.rs"
+harness = false

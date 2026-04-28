@@ -14,9 +14,7 @@ use crate::{
     storage::FaceletArray,
 };
 
-use super::precompute::{
-    CenterLocationExpr, CenterScheduleStep, GENERATED_CENTER_SCHEDULE,
-};
+use super::precompute::{CenterLocationExpr, CenterScheduleStep, GENERATED_CENTER_SCHEDULE};
 
 #[cfg(test)]
 use super::precompute::CenterLocation;
@@ -164,12 +162,7 @@ impl<S: FaceletArray> SolveAlgorithm<S> for CenterReductionAlgorithm {
         let progress_enabled = context.progress_enabled();
 
         context.with_stage_progress(
-            StageProgressSpec::new(
-                SolvePhase::Centers,
-                stage_name,
-                total_work,
-                "facelets",
-            ),
+            StageProgressSpec::new(SolvePhase::Centers, stage_name, total_work, "facelets"),
             |context| {
                 solve_centers_with_transfers(
                     cube,
@@ -441,13 +434,7 @@ fn apply_center_transfer_step<S: FaceletArray>(
         let mut destination_rotations = 0;
 
         loop {
-            let source_piece_count = scan_center_transfer_row(
-                cube,
-                transfer,
-                step,
-                row,
-                columns,
-            );
+            let source_piece_count = scan_center_transfer_row(cube, transfer, step, row, columns);
 
             if source_piece_count == 0 {
                 break;

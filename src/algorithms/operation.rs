@@ -98,12 +98,22 @@ pub(crate) fn record_face_commutator_move_stats(
         inner_count,
     );
     stats.record_repeated(
-        face_layer_move(side_length, commutator.destination(), 0, MoveAngle::Positive),
+        face_layer_move(
+            side_length,
+            commutator.destination(),
+            0,
+            MoveAngle::Positive,
+        ),
         side_length,
         2,
     );
     stats.record_repeated(
-        face_layer_move(side_length, commutator.destination(), 0, MoveAngle::Negative),
+        face_layer_move(
+            side_length,
+            commutator.destination(),
+            0,
+            MoveAngle::Negative,
+        ),
         side_length,
         1 + usize::from(mode == FaceCommutatorMode::Normalized),
     );
