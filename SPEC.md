@@ -70,7 +70,7 @@ The required storage implementations are:
 
 - **byte**: one full byte per facelet; wasteful in memory but fast
 - **half byte**: one nibble (4 bits) per facelet; half the memory usage, with somewhat slower operations
-- **third byte**: three facelets packed into one byte as a base-6 unsigned integer, since `6^3 < 2^8`; one third of the byte-based memory usage, with slower operations than the half-byte representation
+- **third_byte**: three facelets packed into one byte as a base-6 unsigned integer, since `6^3 < 2^8`; one third of the byte-based memory usage, with slower operations than the half-byte representation
 
 These storage implementations must share a common abstraction with a clean, consistent set of operations.
 
@@ -370,7 +370,7 @@ The intended project structure is:
 2. **Storage layer**
    - array abstraction
    - matrix abstraction
-   - byte / half-byte / third-byte implementations
+   - byte / half-byte / third_byte implementations
 
 3. **Simulation and geometry layer**
    - move representation

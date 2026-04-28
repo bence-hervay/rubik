@@ -7,7 +7,7 @@ use std::{
     process::Command,
 };
 
-pub const BACKENDS: [&str; 4] = ["byte", "nibble", "three_bit", "byte3"];
+pub const BACKENDS: [&str; 4] = ["byte", "nibble", "three_bit", "third_byte"];
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Stage {
@@ -1318,7 +1318,7 @@ fn backend_color(backend: &str) -> &'static str {
         "byte" => "#4c78a8",
         "nibble" => "#f58518",
         "three_bit" => "#54a24b",
-        "byte3" => "#e45756",
+        "third_byte" => "#e45756",
         _ => "#6b7280",
     }
 }

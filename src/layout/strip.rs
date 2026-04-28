@@ -254,7 +254,7 @@ impl MoveScratch {
 #[cfg(test)]
 mod tests {
     use super::{cycle_four_line_arrays, cycle_four_line_arrays_many};
-    use crate::{Byte, Byte3, Facelet, FaceletArray, MoveAngle, Nibble, ThreeBit};
+    use crate::{Byte, Facelet, FaceletArray, MoveAngle, Nibble, ThirdByte, ThreeBit};
 
     fn storage(values: &[Facelet]) -> Byte {
         let mut storage = Byte::with_len(values.len(), Facelet::White);
@@ -427,7 +427,7 @@ mod tests {
             scope.spawn(run_cycle_regression_cases::<Byte>);
             scope.spawn(run_cycle_regression_cases::<Nibble>);
             scope.spawn(run_cycle_regression_cases::<ThreeBit>);
-            scope.spawn(run_cycle_regression_cases::<Byte3>);
+            scope.spawn(run_cycle_regression_cases::<ThirdByte>);
         });
     }
 }

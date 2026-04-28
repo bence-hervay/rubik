@@ -10,8 +10,8 @@ use crate::algorithms::edges::three_cycle::{
 use crate::conventions::{face_layer_move, opposite_face};
 use crate::simulation::derived::{edge_cubie_location, trace_position, FacePosition};
 use crate::{
-    Axis, Byte, Byte3, FaceAngle, FaceId, Facelet, FaceletArray, Move, MoveAngle, NetRenderOptions,
-    Nibble, RandomSource, ThreeBit, XorShift64,
+    Axis, Byte, FaceAngle, FaceId, Facelet, FaceletArray, Move, MoveAngle, NetRenderOptions,
+    Nibble, RandomSource, ThirdByte, ThreeBit, XorShift64,
 };
 
 fn basic_singmaster_turn(side_length: usize, notation: &str) -> Move {
@@ -407,8 +407,8 @@ fn inverse_restores_byte() {
 }
 
 #[test]
-fn inverse_restores_byte3() {
-    every_move_inverse_restores::<Byte3>();
+fn inverse_restores_third_byte() {
+    every_move_inverse_restores::<ThirdByte>();
 }
 
 #[test]
@@ -427,16 +427,16 @@ fn cube_backends_agree_after_random_moves() {
     let moves = random_moves(side_length, 1_000, 0xC0DE_CAFE);
 
     let mut byte = Cube::<Byte>::new_solved(side_length);
-    let mut byte3 = Cube::<Byte3>::new_solved(side_length);
+    let mut third_byte = Cube::<ThirdByte>::new_solved(side_length);
     let mut nibble = Cube::<Nibble>::new_solved(side_length);
     let mut three_bit = Cube::<ThreeBit>::new_solved(side_length);
 
     byte.apply_moves_untracked(moves.iter().copied());
-    byte3.apply_moves_untracked(moves.iter().copied());
+    third_byte.apply_moves_untracked(moves.iter().copied());
     nibble.apply_moves_untracked(moves.iter().copied());
     three_bit.apply_moves_untracked(moves.iter().copied());
 
-    assert_cubes_match(&byte3, &byte);
+    assert_cubes_match(&third_byte, &byte);
     assert_cubes_match(&nibble, &byte);
     assert_cubes_match(&three_bit, &byte);
 }
@@ -630,16 +630,16 @@ fn edge_three_cycles_work_for_all_storage_backends() {
         for cycle in edge_three_cycle_specs(side_length) {
             let plan = probe.edge_three_cycle_plan(cycle);
             let mut byte = patterned_cube::<Byte>(side_length, 29);
-            let mut byte3 = patterned_cube::<Byte3>(side_length, 29);
+            let mut third_byte = patterned_cube::<ThirdByte>(side_length, 29);
             let mut nibble = patterned_cube::<Nibble>(side_length, 29);
             let mut three_bit = patterned_cube::<ThreeBit>(side_length, 29);
 
             byte.apply_edge_three_cycle_plan_untracked(&plan);
-            byte3.apply_edge_three_cycle_plan_untracked(&plan);
+            third_byte.apply_edge_three_cycle_plan_untracked(&plan);
             nibble.apply_edge_three_cycle_plan_untracked(&plan);
             three_bit.apply_edge_three_cycle_plan_untracked(&plan);
 
-            assert_cubes_match(&byte3, &byte);
+            assert_cubes_match(&third_byte, &byte);
             assert_cubes_match(&nibble, &byte);
             assert_cubes_match(&three_bit, &byte);
         }
@@ -743,32 +743,32 @@ fn direct_face_commutators_work_for_all_storage_backends() {
                 let probe = Cube::<Byte>::new_solved(side_length);
                 let expanded_plan = probe.face_commutator_plan(commutator, &rows, &columns);
                 let mut byte = patterned_cube::<Byte>(side_length, 3);
-                let mut byte3 = patterned_cube::<Byte3>(side_length, 3);
+                let mut third_byte = patterned_cube::<ThirdByte>(side_length, 3);
                 let mut nibble = patterned_cube::<Nibble>(side_length, 3);
                 let mut three_bit = patterned_cube::<ThreeBit>(side_length, 3);
 
                 byte.apply_face_commutator_plan_untracked(expanded_plan);
-                byte3.apply_face_commutator_plan_untracked(expanded_plan);
+                third_byte.apply_face_commutator_plan_untracked(expanded_plan);
                 nibble.apply_face_commutator_plan_untracked(expanded_plan);
                 three_bit.apply_face_commutator_plan_untracked(expanded_plan);
 
-                assert_cubes_match(&byte3, &byte);
+                assert_cubes_match(&third_byte, &byte);
                 assert_cubes_match(&nibble, &byte);
                 assert_cubes_match(&three_bit, &byte);
 
                 let normalized_plan =
                     probe.normalized_face_commutator_plan(commutator, &rows, &columns);
                 let mut byte = patterned_cube::<Byte>(side_length, 5);
-                let mut byte3 = patterned_cube::<Byte3>(side_length, 5);
+                let mut third_byte = patterned_cube::<ThirdByte>(side_length, 5);
                 let mut nibble = patterned_cube::<Nibble>(side_length, 5);
                 let mut three_bit = patterned_cube::<ThreeBit>(side_length, 5);
 
                 byte.apply_face_commutator_plan_untracked(normalized_plan);
-                byte3.apply_face_commutator_plan_untracked(normalized_plan);
+                third_byte.apply_face_commutator_plan_untracked(normalized_plan);
                 nibble.apply_face_commutator_plan_untracked(normalized_plan);
                 three_bit.apply_face_commutator_plan_untracked(normalized_plan);
 
-                assert_cubes_match(&byte3, &byte);
+                assert_cubes_match(&third_byte, &byte);
                 assert_cubes_match(&nibble, &byte);
                 assert_cubes_match(&three_bit, &byte);
             }
@@ -986,7 +986,7 @@ fn move_sequence_regressions_cover_all_storage_backends() {
         scope.spawn(move_sequence_round_trips::<Byte>);
         scope.spawn(move_sequence_round_trips::<Nibble>);
         scope.spawn(move_sequence_round_trips::<ThreeBit>);
-        scope.spawn(move_sequence_round_trips::<Byte3>);
+        scope.spawn(move_sequence_round_trips::<ThirdByte>);
     });
 }
 
@@ -998,8 +998,8 @@ fn cube_storage_estimates_are_exact() {
             exact_cube_storage_bytes::<Byte>(side_length)
         );
         assert_eq!(
-            Cube::<Byte3>::new_solved(side_length).estimated_storage_bytes(),
-            exact_cube_storage_bytes::<Byte3>(side_length)
+            Cube::<ThirdByte>::new_solved(side_length).estimated_storage_bytes(),
+            exact_cube_storage_bytes::<ThirdByte>(side_length)
         );
         assert_eq!(
             Cube::<Nibble>::new_solved(side_length).estimated_storage_bytes(),

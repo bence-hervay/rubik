@@ -52,7 +52,7 @@ pub use solver::{
     SolverStage, StageContract, StageExecutionSupport, StageReport, StageSideLengthSupport,
     SubStageSpec,
 };
-pub use storage::{Byte, Byte3, FaceletArray, Nibble, ThreeBit};
+pub use storage::{Byte, FaceletArray, Nibble, ThirdByte, ThreeBit};
 pub use util::random;
 pub use util::threading::default_thread_count;
 pub use util::{RandomSource, XorShift64};

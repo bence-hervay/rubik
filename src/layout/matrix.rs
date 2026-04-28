@@ -165,7 +165,7 @@ impl<S: FaceletArray> Matrix<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{line::LineKind, Byte, Byte3, Nibble, ThreeBit};
+    use crate::{line::LineKind, Byte, Nibble, ThirdByte, ThreeBit};
 
     fn assert_line_io_round_trip<S: FaceletArray>() {
         let mut matrix = Matrix::<S>::new_filled(3, Facelet::White);
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn matrix_line_io_works_across_storage_backends() {
         assert_line_io_round_trip::<Byte>();
-        assert_line_io_round_trip::<Byte3>();
+        assert_line_io_round_trip::<ThirdByte>();
         assert_line_io_round_trip::<Nibble>();
         assert_line_io_round_trip::<ThreeBit>();
     }

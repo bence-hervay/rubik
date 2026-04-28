@@ -21,7 +21,7 @@ lines  path
 205 src/storage/backends/three_bit.rs
 174 src/bin/generate_center_schedule.rs
 164 src/storage/mod.rs
-151 src/storage/backends/byte3.rs
+151 src/storage/backends/third_byte.rs
 145 src/simulation/conventions.rs
 144 src/algorithms/traits.rs
 142 src/solver/context.rs

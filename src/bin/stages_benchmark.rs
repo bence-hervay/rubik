@@ -222,7 +222,7 @@ fn usage() -> String {
 Usage: cargo run --release --bin stages_benchmark -- [options]
 
 Options:
-  --backend <BACKEND>           byte | nibble | three_bit | byte3. Default: {DEFAULT_BACKEND}
+  --backend <BACKEND>           byte | nibble | three_bit | third_byte. Default: {DEFAULT_BACKEND}
   --mode <MODE>                 standard | optimized. Default: {DEFAULT_MODE}
   --attempts <N>                Runs per size. Default: {DEFAULT_ATTEMPTS}
   --sizes <LIST>                Comma- or space-separated side lengths. Default: powers of two from 1 to 2048

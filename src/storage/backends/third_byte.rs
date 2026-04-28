@@ -3,12 +3,12 @@ use crate::facelet::Facelet;
 use super::{init, FaceletArray};
 
 #[derive(Clone, Debug, Default)]
-pub struct Byte3 {
+pub struct ThirdByte {
     len: usize,
     data: Vec<u8>,
 }
 
-impl Byte3 {
+impl ThirdByte {
     const FACELETS_PER_BYTE: usize = 3;
     const BASE: u8 = 6;
 
@@ -44,7 +44,7 @@ impl Byte3 {
                 let old = *byte / place;
                 *byte = *byte - old * place + value * place;
             }
-            _ => unreachable!("byte3 slot must be 0, 1, or 2"),
+            _ => unreachable!("third_byte slot must be 0, 1, or 2"),
         }
     }
 
@@ -64,12 +64,12 @@ impl Byte3 {
             0 => raw,
             1 => raw % Self::BASE,
             2 => raw % (Self::BASE * Self::BASE),
-            _ => unreachable!("byte3 remainder must be 0, 1, or 2"),
+            _ => unreachable!("third_byte remainder must be 0, 1, or 2"),
         };
     }
 }
 
-impl FaceletArray for Byte3 {
+impl FaceletArray for ThirdByte {
     fn with_len(len: usize, fill: Facelet) -> Self {
         let mut this = Self {
             len,
@@ -103,7 +103,7 @@ impl FaceletArray for Byte3 {
             0 => packed % Self::BASE,
             1 => (packed / Self::BASE) % Self::BASE,
             2 => packed / (Self::BASE * Self::BASE),
-            _ => unreachable!("byte3 slot must be 0, 1, or 2"),
+            _ => unreachable!("third_byte slot must be 0, 1, or 2"),
         };
         Facelet::from_u8(raw)
     }
@@ -128,7 +128,7 @@ impl FaceletArray for Byte3 {
             0 => packed % Self::BASE,
             1 => (packed / Self::BASE) % Self::BASE,
             2 => packed / (Self::BASE * Self::BASE),
-            _ => unreachable!("byte3 slot must be 0, 1, or 2"),
+            _ => unreachable!("third_byte slot must be 0, 1, or 2"),
         }
     }
 

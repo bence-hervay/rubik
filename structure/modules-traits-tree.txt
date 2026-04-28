@@ -53,7 +53,7 @@ crate rubik
 ├── mod storage: pub
 │   ├── mod backends: pub(self)
 │   │   ├── mod byte: pub(self)
-│   │   ├── mod byte3: pub(self)
+│   │   ├── mod third_byte: pub(self)
 │   │   ├── mod nibble: pub(self)
 │   │   └── mod three_bit: pub(self)
 │   ├── mod facelet_array: pub(self)

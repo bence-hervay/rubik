@@ -1095,9 +1095,9 @@
 <polygon fill="#000000" stroke="#000000" points="683.6,-474.52 694.2,-474.46 685.88,-467.9 683.6,-474.52"/>
 <text text-anchor="middle" x="546.5" y="-440.5" font-family="monospace" font-size="10.00">owns</text>
 </g>
-<!-- rubik::storage::backends&#45;&gt;rubik::storage::backends::byte3 -->
+<!-- rubik::storage::backends&#45;&gt;rubik::storage::backends::third_byte -->
 <g id="edge156" class="edge">
-<title>rubik::storage::backends&#45;&gt;rubik::storage::backends::byte3</title>
+<title>rubik::storage::backends&#45;&gt;rubik::storage::backends::third_byte</title>
 <path fill="none" stroke="#000000" d="M471.2,-383.94C523.17,-389.65 599.81,-398.06 659.51,-404.62"/>
 <polygon fill="#000000" stroke="#000000" points="659.37,-408.13 669.7,-405.74 660.14,-401.17 659.37,-408.13"/>
 <text text-anchor="middle" x="546.5" y="-395.5" font-family="monospace" font-size="10.00">owns</text>
@@ -1123,9 +1123,9 @@
 <polygon fill="#000000" stroke="#000000" points="1106.61,-497 1116.61,-493.5 1106.6,-490 1106.61,-497"/>
 <text text-anchor="middle" x="954.5" y="-496.5" font-family="monospace" font-size="10.00">owns</text>
 </g>
-<!-- rubik::storage::backends::byte3&#45;&gt;rubik::storage::backends::byte3::Byte3 -->
+<!-- rubik::storage::backends::third_byte&#45;&gt;rubik::storage::backends::third_byte::ThirdByte -->
 <g id="edge160" class="edge">
-<title>rubik::storage::backends::byte3&#45;&gt;rubik::storage::backends::byte3::Byte3</title>
+<title>rubik::storage::backends::third_byte&#45;&gt;rubik::storage::backends::third_byte::ThirdByte</title>
 <path fill="none" stroke="#000000" d="M831.1,-414.5C905.53,-414.5 1017.36,-414.5 1100.54,-414.5"/>
 <polygon fill="#000000" stroke="#000000" points="1100.79,-418 1110.79,-414.5 1100.79,-411 1100.79,-418"/>
 <text text-anchor="middle" x="954.5" y="-417.5" font-family="monospace" font-size="10.00">owns</text>
@@ -2403,21 +2403,21 @@
 <polyline fill="none" stroke="black" points="673,-493.5 828,-493.5 "/>
 <text text-anchor="middle" x="750.5" y="-481.5" font-family="monospace" font-size="10.00">storage::backends::byte</text>
 </g>
-<!-- rubik::storage::backends::byte3 -->
+<!-- rubik::storage::backends::third_byte -->
 <g id="node154" class="node">
-<title>rubik::storage::backends::byte3</title>
+<title>rubik::storage::backends::third_byte</title>
 <polygon fill="#db5367" stroke="black" points="670,-395.5 670,-433.5 831,-433.5 831,-395.5 670,-395.5"/>
 <text text-anchor="middle" x="750.5" y="-421.5" font-family="monospace" font-size="10.00">pub(self) mod</text>
 <polyline fill="none" stroke="black" points="670,-414.5 831,-414.5 "/>
-<text text-anchor="middle" x="750.5" y="-402.5" font-family="monospace" font-size="10.00">storage::backends::byte3</text>
+<text text-anchor="middle" x="750.5" y="-402.5" font-family="monospace" font-size="10.00">storage::backends::third_byte</text>
 </g>
-<!-- rubik::storage::backends::byte3::Byte3 -->
+<!-- rubik::storage::backends::third_byte::ThirdByte -->
 <g id="node155" class="node">
-<title>rubik::storage::backends::byte3::Byte3</title>
+<title>rubik::storage::backends::third_byte::ThirdByte</title>
 <polygon fill="#81c169" stroke="black" points="1111,-395.5 1111,-433.5 1314,-433.5 1314,-395.5 1111,-395.5"/>
 <text text-anchor="middle" x="1212.5" y="-421.5" font-family="monospace" font-size="10.00">pub struct</text>
 <polyline fill="none" stroke="black" points="1111,-414.5 1314,-414.5 "/>
-<text text-anchor="middle" x="1212.5" y="-402.5" font-family="monospace" font-size="10.00">storage::backends::byte3::Byte3</text>
+<text text-anchor="middle" x="1212.5" y="-402.5" font-family="monospace" font-size="10.00">storage::backends::third_byte::ThirdByte</text>
 </g>
 <!-- rubik::storage::backends::byte::Byte -->
 <g id="node156" class="node">

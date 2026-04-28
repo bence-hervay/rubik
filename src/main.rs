@@ -6,10 +6,10 @@ use std::{
 };
 
 use rubik::{
-    conventions::face_outer_move, Axis, Byte, Byte3, CenterReductionStage, CornerReductionStage,
-    Cube, EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, NetRenderOptions,
+    conventions::face_outer_move, Axis, Byte, CenterReductionStage, CornerReductionStage, Cube,
+    EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, NetRenderOptions,
     Nibble, RandomSource, SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase,
-    ThreeBit, XorShift64,
+    ThirdByte, ThreeBit, XorShift64,
 };
 
 const DEFAULT_SIDE_LENGTH: usize = 5;
@@ -51,7 +51,7 @@ enum StorageKind {
     Byte,
     Nibble,
     ThreeBit,
-    Byte3,
+    ThirdByte,
 }
 
 impl StorageKind {
@@ -60,7 +60,7 @@ impl StorageKind {
             Self::Byte => "byte",
             Self::Nibble => "nibble",
             Self::ThreeBit => "three_bit",
-            Self::Byte3 => "byte3",
+            Self::ThirdByte => "third_byte",
         }
     }
 
@@ -69,7 +69,7 @@ impl StorageKind {
             Self::Byte => "Byte",
             Self::Nibble => "Nibble",
             Self::ThreeBit => "ThreeBit",
-            Self::Byte3 => "Byte3",
+            Self::ThirdByte => "ThirdByte",
         }
     }
 
@@ -78,9 +78,9 @@ impl StorageKind {
             "byte" | "Byte" => Ok(Self::Byte),
             "nibble" | "Nibble" => Ok(Self::Nibble),
             "three_bit" | "threebit" | "ThreeBit" | "3bit" => Ok(Self::ThreeBit),
-            "byte3" | "Byte3" => Ok(Self::Byte3),
+            "third_byte" | "ThirdByte" => Ok(Self::ThirdByte),
             _ => Err(format!(
-                "unknown backend: {value} (expected one of: byte, nibble, three_bit, byte3)",
+                "unknown backend: {value} (expected one of: byte, nibble, three_bit, third_byte)",
             )),
         }
     }
@@ -242,14 +242,14 @@ Usage: cargo run -- [options]
 Options:
   -n, --n <N>                        Cube side length. Default: {DEFAULT_SIDE_LENGTH}
   -m, --mode <MODE>                 standard | optimized. Default: standard
-  -b, --backend <BACKEND>           byte | nibble | three_bit | byte3. Default: byte
+  -b, --backend <BACKEND>           byte | nibble | three_bit | third_byte. Default: byte
   -r, --scramble-rounds <ROUNDS>    Scramble rounds. Default: {DEFAULT_SCRAMBLE_ROUNDS}
   -s, --seed <SEED>                 Scramble seed, decimal or 0x-prefixed hex.
       --plain-render                 Disable ANSI styling and print plain ASCII facelets.
   -h, --help                        Print this help.
 
 Examples:
-  cargo run -- --n 5 --mode optimized --backend byte3
+  cargo run -- --n 5 --mode optimized --backend third_byte
   cargo run -- -n 7 -m standard -b ThreeBit --seed 0xC0FFEE
   cargo run -- --plain-render
 "
@@ -261,7 +261,7 @@ fn run(cli: Cli) -> Result<(), String> {
         StorageKind::Byte => run_with_storage::<Byte>(cli),
         StorageKind::Nibble => run_with_storage::<Nibble>(cli),
         StorageKind::ThreeBit => run_with_storage::<ThreeBit>(cli),
-        StorageKind::Byte3 => run_with_storage::<Byte3>(cli),
+        StorageKind::ThirdByte => run_with_storage::<ThirdByte>(cli),
     }
 }
 
@@ -718,7 +718,7 @@ mod tests {
     fn reject_unknown_backend() {
         assert_eq!(
             parse_args(["rubik", "--backend", "packed"]).unwrap_err(),
-            "unknown backend: packed (expected one of: byte, nibble, three_bit, byte3)"
+            "unknown backend: packed (expected one of: byte, nibble, three_bit, third_byte)"
         );
     }
 

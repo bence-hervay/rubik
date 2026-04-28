@@ -83,7 +83,7 @@ digraph {
     "rubik::storage" [label="pub mod|storage", fillcolor="#81c169"]; // "mod" node
     "rubik::storage::backends" [label="pub(self) mod|storage::backends", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::byte" [label="pub(self) mod|storage::backends::byte", fillcolor="#db5367"]; // "mod" node
-    "rubik::storage::backends::byte3" [label="pub(self) mod|storage::backends::byte3", fillcolor="#db5367"]; // "mod" node
+    "rubik::storage::backends::third_byte" [label="pub(self) mod|storage::backends::third_byte", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::nibble" [label="pub(self) mod|storage::backends::nibble", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::three_bit" [label="pub(self) mod|storage::backends::three_bit", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::facelet_array" [label="pub(self) mod|storage::facelet_array", fillcolor="#db5367"]; // "mod" node
@@ -150,7 +150,7 @@ digraph {
     "rubik::storage" -> "rubik::storage::facelet_array" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage" -> "rubik::storage::init" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends" -> "rubik::storage::backends::byte3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends" -> "rubik::storage::backends::third_byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::nibble" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::three_bit" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::facelet_array" -> "rubik::storage::facelet_array::FaceletArray" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge

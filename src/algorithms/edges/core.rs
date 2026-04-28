@@ -2734,7 +2734,7 @@ fn middle_edge_parity_fix_moves(side_length: usize) -> Vec<Move> {
 mod tests {
     use super::*;
     use crate::{
-        cube::trace_facelet_location_through_moves, Byte, Byte3, Nibble, ThreeBit, XorShift64,
+        cube::trace_facelet_location_through_moves, Byte, Nibble, ThirdByte, ThreeBit, XorShift64,
     };
 
     #[test]
@@ -2826,7 +2826,7 @@ mod tests {
     #[test]
     fn edge_stage_pairs_random_scrambles_for_all_storage_backends() {
         run_edge_stage_for_storage::<Byte>(6, 0xE000_0001);
-        run_edge_stage_for_storage::<Byte3>(6, 0xE000_0002);
+        run_edge_stage_for_storage::<ThirdByte>(6, 0xE000_0002);
         run_edge_stage_for_storage::<Nibble>(6, 0xE000_0003);
         run_edge_stage_for_storage::<ThreeBit>(6, 0xE000_0004);
     }

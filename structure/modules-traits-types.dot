@@ -182,8 +182,8 @@ digraph {
     "rubik::storage" [label="pub mod|storage", fillcolor="#81c169"]; // "mod" node
     "rubik::storage::backends" [label="pub(self) mod|storage::backends", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::byte" [label="pub(self) mod|storage::backends::byte", fillcolor="#db5367"]; // "mod" node
-    "rubik::storage::backends::byte3" [label="pub(self) mod|storage::backends::byte3", fillcolor="#db5367"]; // "mod" node
-    "rubik::storage::backends::byte3::Byte3" [label="pub struct|storage::backends::byte3::Byte3", fillcolor="#81c169"]; // "struct" node
+    "rubik::storage::backends::third_byte" [label="pub(self) mod|storage::backends::third_byte", fillcolor="#db5367"]; // "mod" node
+    "rubik::storage::backends::third_byte::ThirdByte" [label="pub struct|storage::backends::third_byte::ThirdByte", fillcolor="#81c169"]; // "struct" node
     "rubik::storage::backends::byte::Byte" [label="pub struct|storage::backends::byte::Byte", fillcolor="#81c169"]; // "struct" node
     "rubik::storage::backends::nibble" [label="pub(self) mod|storage::backends::nibble", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::nibble::Nibble" [label="pub struct|storage::backends::nibble::Nibble", fillcolor="#81c169"]; // "struct" node
@@ -353,11 +353,11 @@ digraph {
     "rubik::storage" -> "rubik::storage::facelet_array" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage" -> "rubik::storage::init" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends" -> "rubik::storage::backends::byte3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends" -> "rubik::storage::backends::third_byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::nibble" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::three_bit" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::byte" -> "rubik::storage::backends::byte::Byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3" -> "rubik::storage::backends::byte3::Byte3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte" -> "rubik::storage::backends::third_byte::ThirdByte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::nibble" -> "rubik::storage::backends::nibble::Nibble" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::three_bit" -> "rubik::storage::backends::three_bit::ThreeBit" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::facelet_array" -> "rubik::storage::facelet_array::FaceletArray" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge

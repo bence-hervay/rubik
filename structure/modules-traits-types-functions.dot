@@ -714,25 +714,25 @@ digraph {
     "rubik::storage" [label="pub mod|storage", fillcolor="#81c169"]; // "mod" node
     "rubik::storage::backends" [label="pub(self) mod|storage::backends", fillcolor="#db5367"]; // "mod" node
     "rubik::storage::backends::byte" [label="pub(self) mod|storage::backends::byte", fillcolor="#db5367"]; // "mod" node
-    "rubik::storage::backends::byte3" [label="pub(self) mod|storage::backends::byte3", fillcolor="#db5367"]; // "mod" node
-    "rubik::storage::backends::byte3::Byte3" [label="pub struct|storage::backends::byte3::Byte3", fillcolor="#81c169"]; // "struct" node
-    "rubik::storage::backends::byte3::Byte3::as_packed_slice" [label="pub fn|storage::backends::byte3::Byte3::as_packed_slice", fillcolor="#81c169"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::bits_per_facelet" [label="pub(self) fn|storage::backends::byte3::Byte3::bits_per_facelet", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::byte_and_slot" [label="pub(self) fn|storage::backends::byte3::Byte3::byte_and_slot", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::capacity_bytes" [label="pub fn|storage::backends::byte3::Byte3::capacity_bytes", fillcolor="#81c169"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::clear_unused_slots" [label="pub(self) fn|storage::backends::byte3::Byte3::clear_unused_slots", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::fill" [label="pub(self) fn|storage::backends::byte3::Byte3::fill", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::get" [label="pub(self) fn|storage::backends::byte3::Byte3::get", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::get_unchecked" [label="pub(self) unsafe fn|storage::backends::byte3::Byte3::get_unchecked", fillcolor="#db5367"]; // "unsafe fn" node
-    "rubik::storage::backends::byte3::Byte3::get_unchecked_raw" [label="pub(self) unsafe fn|storage::backends::byte3::Byte3::get_unchecked_raw", fillcolor="#db5367"]; // "unsafe fn" node
-    "rubik::storage::backends::byte3::Byte3::len" [label="pub(self) fn|storage::backends::byte3::Byte3::len", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::packed_byte" [label="pub(self) fn|storage::backends::byte3::Byte3::packed_byte", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::replace_slot" [label="pub(self) fn|storage::backends::byte3::Byte3::replace_slot", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::set" [label="pub(self) fn|storage::backends::byte3::Byte3::set", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::set_unchecked" [label="pub(self) unsafe fn|storage::backends::byte3::Byte3::set_unchecked", fillcolor="#db5367"]; // "unsafe fn" node
-    "rubik::storage::backends::byte3::Byte3::set_unchecked_raw" [label="pub(self) unsafe fn|storage::backends::byte3::Byte3::set_unchecked_raw", fillcolor="#db5367"]; // "unsafe fn" node
-    "rubik::storage::backends::byte3::Byte3::storage_bytes_for_len" [label="pub(self) fn|storage::backends::byte3::Byte3::storage_bytes_for_len", fillcolor="#db5367"]; // "fn" node
-    "rubik::storage::backends::byte3::Byte3::with_len" [label="pub(self) fn|storage::backends::byte3::Byte3::with_len", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte" [label="pub(self) mod|storage::backends::third_byte", fillcolor="#db5367"]; // "mod" node
+    "rubik::storage::backends::third_byte::ThirdByte" [label="pub struct|storage::backends::third_byte::ThirdByte", fillcolor="#81c169"]; // "struct" node
+    "rubik::storage::backends::third_byte::ThirdByte::as_packed_slice" [label="pub fn|storage::backends::third_byte::ThirdByte::as_packed_slice", fillcolor="#81c169"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::bits_per_facelet" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::bits_per_facelet", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::byte_and_slot" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::byte_and_slot", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::capacity_bytes" [label="pub fn|storage::backends::third_byte::ThirdByte::capacity_bytes", fillcolor="#81c169"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::clear_unused_slots" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::clear_unused_slots", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::fill" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::fill", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::get" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::get", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::get_unchecked" [label="pub(self) unsafe fn|storage::backends::third_byte::ThirdByte::get_unchecked", fillcolor="#db5367"]; // "unsafe fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::get_unchecked_raw" [label="pub(self) unsafe fn|storage::backends::third_byte::ThirdByte::get_unchecked_raw", fillcolor="#db5367"]; // "unsafe fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::len" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::len", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::packed_byte" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::packed_byte", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::replace_slot" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::replace_slot", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::set" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::set", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::set_unchecked" [label="pub(self) unsafe fn|storage::backends::third_byte::ThirdByte::set_unchecked", fillcolor="#db5367"]; // "unsafe fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::set_unchecked_raw" [label="pub(self) unsafe fn|storage::backends::third_byte::ThirdByte::set_unchecked_raw", fillcolor="#db5367"]; // "unsafe fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::storage_bytes_for_len" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::storage_bytes_for_len", fillcolor="#db5367"]; // "fn" node
+    "rubik::storage::backends::third_byte::ThirdByte::with_len" [label="pub(self) fn|storage::backends::third_byte::ThirdByte::with_len", fillcolor="#db5367"]; // "fn" node
     "rubik::storage::backends::byte::Byte" [label="pub struct|storage::backends::byte::Byte", fillcolor="#81c169"]; // "struct" node
     "rubik::storage::backends::byte::Byte::as_mut_slice" [label="pub fn|storage::backends::byte::Byte::as_mut_slice", fillcolor="#81c169"]; // "fn" node
     "rubik::storage::backends::byte::Byte::as_slice" [label="pub fn|storage::backends::byte::Byte::as_slice", fillcolor="#81c169"]; // "fn" node
@@ -1487,28 +1487,28 @@ digraph {
     "rubik::storage" -> "rubik::storage::facelet_array" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage" -> "rubik::storage::init" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends" -> "rubik::storage::backends::byte3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends" -> "rubik::storage::backends::third_byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::nibble" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends" -> "rubik::storage::backends::three_bit" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::byte" -> "rubik::storage::backends::byte::Byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3" -> "rubik::storage::backends::byte3::Byte3" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::as_packed_slice" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::bits_per_facelet" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::byte_and_slot" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::capacity_bytes" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::clear_unused_slots" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::fill" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::get" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::get_unchecked" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::get_unchecked_raw" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::len" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::packed_byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::replace_slot" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::set" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::set_unchecked" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::set_unchecked_raw" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::storage_bytes_for_len" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
-    "rubik::storage::backends::byte3::Byte3" -> "rubik::storage::backends::byte3::Byte3::with_len" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte" -> "rubik::storage::backends::third_byte::ThirdByte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::as_packed_slice" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::bits_per_facelet" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::byte_and_slot" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::capacity_bytes" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::clear_unused_slots" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::fill" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::get" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::get_unchecked" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::get_unchecked_raw" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::len" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::packed_byte" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::replace_slot" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::set" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::set_unchecked" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::set_unchecked_raw" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::storage_bytes_for_len" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
+    "rubik::storage::backends::third_byte::ThirdByte" -> "rubik::storage::backends::third_byte::ThirdByte::with_len" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::byte::Byte" -> "rubik::storage::backends::byte::Byte::as_mut_slice" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::byte::Byte" -> "rubik::storage::backends::byte::Byte::as_slice" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge
     "rubik::storage::backends::byte::Byte" -> "rubik::storage::backends::byte::Byte::bits_per_facelet" [label="owns", color="#000000", style="solid"] [constraint=true]; // "owns" edge

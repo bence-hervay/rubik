@@ -4,9 +4,9 @@ use std::{
 };
 
 use rubik::{
-    conventions::face_outer_move, Axis, Byte, Byte3, CenterReductionStage, CornerReductionStage,
-    Cube, EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, Nibble,
-    RandomSource, SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase, ThreeBit,
+    conventions::face_outer_move, Axis, Byte, CenterReductionStage, CornerReductionStage, Cube,
+    EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, Nibble, RandomSource,
+    SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase, ThirdByte, ThreeBit,
     XorShift64,
 };
 
@@ -46,7 +46,7 @@ enum StorageKind {
     Byte,
     Nibble,
     ThreeBit,
-    Byte3,
+    ThirdByte,
 }
 
 impl StorageKind {
@@ -55,7 +55,7 @@ impl StorageKind {
             Self::Byte => "byte",
             Self::Nibble => "nibble",
             Self::ThreeBit => "three_bit",
-            Self::Byte3 => "byte3",
+            Self::ThirdByte => "third_byte",
         }
     }
 
@@ -64,7 +64,7 @@ impl StorageKind {
             Self::Byte => "Byte",
             Self::Nibble => "Nibble",
             Self::ThreeBit => "ThreeBit",
-            Self::Byte3 => "Byte3",
+            Self::ThirdByte => "ThirdByte",
         }
     }
 
@@ -73,9 +73,9 @@ impl StorageKind {
             "byte" | "Byte" => Ok(Self::Byte),
             "nibble" | "Nibble" => Ok(Self::Nibble),
             "three_bit" | "threebit" | "ThreeBit" | "3bit" => Ok(Self::ThreeBit),
-            "byte3" | "Byte3" => Ok(Self::Byte3),
+            "third_byte" | "ThirdByte" => Ok(Self::ThirdByte),
             _ => Err(format!(
-                "unknown backend: {value} (expected one of: byte, nibble, three_bit, byte3)",
+                "unknown backend: {value} (expected one of: byte, nibble, three_bit, third_byte)",
             )),
         }
     }
@@ -215,7 +215,7 @@ Usage: cargo run --release --bin run_pipeline_no_render -- [options]
 Options:
   -n, --n <N>                        Cube side length. Default: {DEFAULT_SIDE_LENGTH}
   -m, --mode <MODE>                 standard | optimized. Default: standard
-  -b, --backend <BACKEND>           byte | nibble | three_bit | byte3. Default: byte
+  -b, --backend <BACKEND>           byte | nibble | three_bit | third_byte. Default: byte
   -r, --scramble-rounds <ROUNDS>    Scramble rounds. Default: {DEFAULT_SCRAMBLE_ROUNDS}
   -s, --seed <SEED>                 Scramble seed, decimal or 0x-prefixed hex.
   -h, --help                        Print this help.
@@ -228,7 +228,7 @@ fn run(cli: Cli) -> Result<(), String> {
         StorageKind::Byte => run_with_storage::<Byte>(cli),
         StorageKind::Nibble => run_with_storage::<Nibble>(cli),
         StorageKind::ThreeBit => run_with_storage::<ThreeBit>(cli),
-        StorageKind::Byte3 => run_with_storage::<Byte3>(cli),
+        StorageKind::ThirdByte => run_with_storage::<ThirdByte>(cli),
     }
 }
 
