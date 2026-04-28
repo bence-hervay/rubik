@@ -1129,7 +1129,21 @@ fn canonical_time_ticks(max: f64) -> Vec<f64> {
 }
 
 fn format_submillisecond_tick(value: f64) -> String {
-    format!("{} ms", format_ms(value))
+    format!("{} us", format_microseconds(value * 1_000.0))
+}
+
+fn format_microseconds(value: f64) -> String {
+    if value >= 1.0 {
+        format!("{value:.0}")
+    } else if value >= 0.001 {
+        let formatted = format!("{value:.3}");
+        formatted
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_owned()
+    } else {
+        format!("{value:.6}")
+    }
 }
 
 fn format_time_tick(value: f64) -> String {
@@ -1327,4 +1341,22 @@ fn tail(value: &str, max_chars: usize) -> String {
     let mut chars: Vec<char> = value.chars().rev().take(max_chars).collect();
     chars.reverse();
     chars.into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn submillisecond_time_axis_ticks_use_microseconds() {
+        let labels: Vec<String> = time_axis_ticks(0.001, 100.0)
+            .into_iter()
+            .map(|(_, label)| label)
+            .collect();
+
+        assert_eq!(
+            labels,
+            ["1 us", "10 us", "100 us", "1 ms", "10 ms", "100 ms"]
+        );
+    }
 }
