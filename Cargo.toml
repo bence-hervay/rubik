@@ -9,17 +9,22 @@ default-run = "rubik"
 [dependencies]
 indicatif = "0.17.11"
 
-[[bench]]
-name = "large_cube_memory_and_move_time"
-path = "benchmark/large_cube_memory_and_move_time.rs"
-harness = false
+[[bin]]
+name = "rubik"
+path = "src/main.rs"
 
-[[bench]]
-name = "stage_solve_time"
-path = "benchmark/stage_solve_time.rs"
-harness = false
+[[bin]]
+name = "run_pipeline_no_render"
+path = "src/bin/run_pipeline_no_render.rs"
 
-[[bench]]
-name = "init_scramble_solve_cycle"
-path = "benchmark/init_scramble_solve_cycle.rs"
-harness = false
+[[bin]]
+name = "stages_benchmark"
+path = "src/bin/stages_benchmark.rs"
+
+[[bin]]
+name = "backends_benchmark"
+path = "src/bin/backends_benchmark.rs"
+
+[[bin]]
+name = "generate_center_schedule"
+path = "src/bin/generate_center_schedule.rs"
