@@ -823,7 +823,11 @@ struct MaskNode {
 
 const MAX_ORIENTATION_SOLUTION_GENERATORS: usize = 12;
 const MAX_ORIENTATION_UPDATES: usize = 64;
-const FULL_ORIENTATION_UPDATE_SIDE_LIMIT: usize = 64;
+// Exact whole-cube update derivation is only worthwhile on tiny cubes where we
+// validate full-state equivalence directly. Larger cubes should stay on the
+// orbit-local sparse path during cache construction, otherwise precompute time
+// dominates the entire edge stage.
+const FULL_ORIENTATION_UPDATE_SIDE_LIMIT: usize = 7;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 struct OrientationSolution {
@@ -3067,7 +3071,7 @@ mod tests {
 
     #[test]
     fn prepared_wing_orientation_operators_match_literal_moves_on_full_cube_state() {
-        for side_length in 4..=6 {
+        for side_length in [4usize, 5, 6, 8] {
             let cache = PreparedEdgeTables::new(side_length);
             for orbit in &cache.wing_orbits {
                 assert_eq!(
@@ -3120,6 +3124,35 @@ mod tests {
 
                 assert_cubes_match(&actual, &expected);
             }
+        }
+    }
+
+    #[test]
+    fn prepared_middle_orientation_operators_match_literal_moves_on_relevant_facelets_above_full_update_limit(
+    ) {
+        let side_length = FULL_ORIENTATION_UPDATE_SIDE_LIMIT + 2;
+        let cache = PreparedEdgeTables::new(side_length);
+        let orbit = cache
+            .middle_orbit
+            .as_ref()
+            .expect("odd cubes above the full-update limit must prepare a middle orbit");
+
+        for (operator_index, operator) in orbit.orientation_operators.iter().enumerate() {
+            let mut expected = patterned_cube::<Byte>(side_length, 97 + operator_index);
+            expected.apply_moves_untracked(operator.literal_moves.iter().copied());
+
+            let mut actual = patterned_cube::<Byte>(side_length, 97 + operator_index);
+            OptimizedOperation::apply_optimized(operator, &mut actual);
+
+            assert_orbit_facelets_match(&actual, &expected, &orbit.position_cubies);
+
+            let mut expected = Cube::<Byte>::new_solved(side_length);
+            expected.apply_moves_untracked(operator.literal_moves.iter().copied());
+
+            let mut actual = Cube::<Byte>::new_solved(side_length);
+            OptimizedOperation::apply_optimized(operator, &mut actual);
+
+            assert_cubes_match(&actual, &expected);
         }
     }
 
