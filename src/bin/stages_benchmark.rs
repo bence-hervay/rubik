@@ -15,7 +15,7 @@ const DEFAULT_MODE: &str = "optimized";
 const DEFAULT_ATTEMPTS: usize = 3;
 const DEFAULT_FIT_THRESHOLD: usize = 512;
 const DEFAULT_EXTRAPOLATE_TO: usize = 1 << 18;
-const DEFAULT_SCRAMBLE_ROUNDS: usize = 8;
+const DEFAULT_SCRAMBLE_ROUNDS: usize = rubik::DEFAULT_SCRAMBLE_ROUNDS;
 const DEFAULT_SEED: u64 = 42;
 const DEFAULT_OUTPUT: &str = "stages.svg";
 const DEFAULT_RUNNER: &str = "target/release/run_pipeline_no_render";
@@ -228,7 +228,7 @@ Options:
   --sizes <LIST>                Comma- or space-separated side lengths. Default: powers of two from 1 to 2048
   --fit-threshold <N>           Fit only measured sizes >= N. Default: {DEFAULT_FIT_THRESHOLD}
   --extrapolate-to <N>          Draw fitted extrapolation through this side length. Default: {DEFAULT_EXTRAPOLATE_TO}
-  --scramble-rounds <N>         Scramble rounds passed to run_pipeline_no_render. Default: {DEFAULT_SCRAMBLE_ROUNDS}
+  --scramble-rounds <N>         Uniform random layer rounds passed to run_pipeline_no_render. Default: {DEFAULT_SCRAMBLE_ROUNDS}
   --seed <N>                    Base scramble seed. Attempt i uses seed+i. Default: {DEFAULT_SEED}
   --output <PATH>               SVG output path. Default: {DEFAULT_OUTPUT}
   --csv-output <PATH>           CSV output path. Default: SVG output with .csv extension

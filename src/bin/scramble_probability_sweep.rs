@@ -334,7 +334,7 @@ fn render_csv(rows: &[Row], trials: usize) -> String {
 fn render_report(cli: &Cli, rows: &[Row]) -> String {
     let mut out = String::new();
     let target = blue_threshold_unseen_rate();
-    let _ = writeln!(out, "Biased random layer probability sweep");
+    let _ = writeln!(out, "Outer-layer probability sweep");
     let _ = writeln!(out);
     let _ = writeln!(
         out,

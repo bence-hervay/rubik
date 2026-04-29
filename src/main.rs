@@ -6,14 +6,13 @@ use std::{
 };
 
 use rubik::{
-    conventions::face_outer_move, Axis, Byte, CenterReductionStage, CornerReductionStage, Cube,
-    EdgePairingStage, ExecutionMode, FaceId, FaceletArray, Move, MoveAngle, NetRenderOptions,
-    Nibble, RandomSource, SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase,
-    ThirdByte, ThreeBit, XorShift64,
+    Axis, Byte, CenterReductionStage, CornerReductionStage, Cube, EdgePairingStage, ExecutionMode,
+    FaceletArray, Move, MoveAngle, NetRenderOptions, Nibble, RandomSource, SolveAlgorithm,
+    SolveContext, SolveError, SolveOptions, SolvePhase, ThirdByte, ThreeBit, XorShift64,
 };
 
 const DEFAULT_SIDE_LENGTH: usize = 5;
-const DEFAULT_SCRAMBLE_ROUNDS: usize = 8;
+const DEFAULT_SCRAMBLE_ROUNDS: usize = rubik::DEFAULT_SCRAMBLE_ROUNDS;
 const DEFAULT_RANDOM_SEED: u64 = 42;
 const PROGRESS_SIDE_LENGTH_THRESHOLD: usize = 1000;
 
@@ -243,7 +242,7 @@ Options:
   -n, --n <N>                        Cube side length. Default: {DEFAULT_SIDE_LENGTH}
   -m, --mode <MODE>                 standard | optimized. Default: standard
   -b, --backend <BACKEND>           byte | nibble | three_bit | third_byte. Default: byte
-  -r, --scramble-rounds <ROUNDS>    Scramble rounds. Default: {DEFAULT_SCRAMBLE_ROUNDS}
+  -r, --scramble-rounds <ROUNDS>    Uniform random layer rounds; each round is 3*n moves. Default: {DEFAULT_SCRAMBLE_ROUNDS}
   -s, --seed <SEED>                 Scramble seed, decimal or 0x-prefixed hex.
       --plain-render                 Disable ANSI styling and print plain ASCII facelets.
   -h, --help                        Print this help.
@@ -472,7 +471,7 @@ fn generate_scramble_moves(
     seed: u64,
 ) -> Result<Vec<Move>, String> {
     let per_round = side_length
-        .checked_add(FaceId::ALL.len())
+        .checked_mul(3)
         .ok_or_else(|| "scramble plan would overflow usize".to_owned())?;
     let capacity = rounds
         .checked_mul(per_round)
@@ -482,16 +481,8 @@ fn generate_scramble_moves(
     let mut moves = Vec::with_capacity(capacity);
 
     for _ in 0..rounds {
-        for _ in 0..side_length {
+        for _ in 0..per_round {
             moves.push(random_move(side_length, &mut rng));
-        }
-
-        for face in FaceId::ALL {
-            moves.push(face_outer_move(
-                side_length,
-                face,
-                random_move_angle(&mut rng),
-            ));
         }
     }
 

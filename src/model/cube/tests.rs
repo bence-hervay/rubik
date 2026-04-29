@@ -1101,7 +1101,7 @@ fn random_move_stays_within_cube_bounds() {
 }
 
 #[test]
-fn scramble_applies_six_rounds_of_random_moves_and_outer_face_turns() {
+fn scramble_applies_four_rounds_of_uniform_random_layer_turns() {
     let side_length = 5;
     let seed = 0x5C4A_2B1E;
 
@@ -1112,17 +1112,12 @@ fn scramble_applies_six_rounds_of_random_moves_and_outer_face_turns() {
     let mut expected = Cube::<Byte>::new_solved(side_length);
     let mut expected_rng = XorShift64::new(seed);
     for _ in 0..DEFAULT_SCRAMBLE_ROUNDS {
-        expected.scramble_random_moves(&mut expected_rng, side_length);
-
-        for face in FaceId::ALL {
-            let mv = expected.random_outer_face_move(face, &mut expected_rng);
-            expected.apply_move(mv);
-        }
+        expected.scramble_random_moves(&mut expected_rng, 3 * side_length);
     }
 
     assert_eq!(
         actual.history().len(),
-        DEFAULT_SCRAMBLE_ROUNDS * (side_length + FaceId::ALL.len())
+        DEFAULT_SCRAMBLE_ROUNDS * 3 * side_length
     );
     assert_cubes_match(&actual, &expected);
     assert_eq!(actual.history().as_slice(), expected.history().as_slice());

@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rubik::{balanced_outer_layer_probability, Byte, Cube, FaceId, Facelet, XorShift64};
+use rubik::{Byte, Cube, FaceId, Facelet, XorShift64};
 
 const DEFAULT_SIDE_LENGTH: usize = 20;
 const DEFAULT_MAX_K: usize = 32;
@@ -40,37 +40,37 @@ impl Default for Cli {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Method {
-    BiasedRandomLayers,
+    UniformRandomLayers,
     LayerSweeps,
 }
 
 impl Method {
-    const ALL: [Self; 2] = [Self::BiasedRandomLayers, Self::LayerSweeps];
+    const ALL: [Self; 2] = [Self::UniformRandomLayers, Self::LayerSweeps];
 
     const fn name(self) -> &'static str {
         match self {
-            Self::BiasedRandomLayers => "biased_random_layers",
+            Self::UniformRandomLayers => "uniform_random_layers",
             Self::LayerSweeps => "layer_sweeps",
         }
     }
 
     const fn label(self) -> &'static str {
         match self {
-            Self::BiasedRandomLayers => "Biased random layers",
+            Self::UniformRandomLayers => "Uniform random layers",
             Self::LayerSweeps => "Layer sweeps",
         }
     }
 
     const fn color(self) -> &'static str {
         match self {
-            Self::BiasedRandomLayers => "#2563eb",
+            Self::UniformRandomLayers => "#2563eb",
             Self::LayerSweeps => "#dc2626",
         }
     }
 
     const fn seed_salt(self) -> u64 {
         match self {
-            Self::BiasedRandomLayers => 0xB1A5_ED00_0000,
+            Self::UniformRandomLayers => 0xB1A5_ED00_0000,
             Self::LayerSweeps => 0x5EED_5000_0000,
         }
     }
@@ -177,7 +177,7 @@ fn collect_rows(cli: &Cli) -> Vec<Row> {
 
                 let start = Instant::now();
                 match method {
-                    Method::BiasedRandomLayers => cube.scramble_biased_random_layers(&mut rng, k),
+                    Method::UniformRandomLayers => cube.scramble_uniform_random_layers(&mut rng, k),
                     Method::LayerSweeps => cube.scramble_layer_sweeps(&mut rng, k),
                 }
                 stats.elapsed += start.elapsed();
@@ -345,8 +345,7 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#111827}
     );
     let _ = writeln!(
         out,
-        r#"<text x="80" y="88" class="subtitle">Both methods use 3*n*k move attempts; biased random layers use balanced outer p={:.4}% (2/n, capped at 100%).</text>"#,
-        100.0 * balanced_outer_layer_probability(cli.side_length)
+        r#"<text x="80" y="88" class="subtitle">Both methods use 3*n*k move attempts; uniform random layers choose outer and inner depths with equal per-layer probability.</text>"#
     );
 
     render_panel(

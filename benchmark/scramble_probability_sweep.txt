@@ -1,4 +1,4 @@
-Biased random layer probability sweep
+Outer-layer probability sweep
 
 Target: same expected untouched-layer rate as n=20, p=10%, k=4: 1.8316%.
 

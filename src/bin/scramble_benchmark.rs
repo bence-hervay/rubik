@@ -6,20 +6,18 @@ use std::{
 };
 
 use rubik::{
-    conventions::face_outer_move, Axis, Byte, CenterReductionStage, CornerReductionStage, Cube,
-    EdgePairingStage, ExecutionMode, FaceId, Move, MoveAngle, RandomSource, ReductionSolver,
-    SolveOptions, Solver, XorShift64,
+    Byte, CenterReductionStage, CornerReductionStage, Cube, EdgePairingStage, ExecutionMode,
+    ReductionSolver, SolveOptions, Solver, XorShift64, DEFAULT_SCRAMBLE_ROUNDS,
 };
 
 const MIN_SIZE: usize = 1;
 const MAX_SIZE: usize = 20;
 const ATTEMPTS: usize = 25;
-const TRADITIONAL_ROUNDS: usize = 8;
 const BASE_SEED: u64 = 0x51C4_AA11_0000;
-const EXAMPLE_NET_PATH: &str = "tmp/direct_scramble_example_nets_1_to_7.txt";
+const EXAMPLE_NET_PATH: &str = "tmp/random_layer_scramble_example_nets_1_to_7.txt";
 
 fn main() -> Result<(), String> {
-    validate_direct_scrambles()?;
+    validate_random_layer_scrambles()?;
     let rows = benchmark_scramblers();
     print_benchmark(&rows);
     write_example_nets(Path::new(EXAMPLE_NET_PATH))?;
@@ -30,16 +28,16 @@ fn main() -> Result<(), String> {
 #[derive(Copy, Clone, Debug)]
 struct BenchmarkRow {
     side_length: usize,
-    direct: Duration,
-    traditional: Duration,
+    random_layer: Duration,
+    direct_reference: Duration,
 }
 
-fn validate_direct_scrambles() -> Result<(), String> {
+fn validate_random_layer_scrambles() -> Result<(), String> {
     for side_length in MIN_SIZE..=MAX_SIZE {
         for mode in [ExecutionMode::Standard, ExecutionMode::Optimized] {
             let mut cube = Cube::<Byte>::new_solved(side_length);
             let mut rng = XorShift64::new(BASE_SEED ^ side_length as u64);
-            cube.scramble_direct(&mut rng);
+            cube.scramble(&mut rng);
 
             let mut solver = ReductionSolver::<Byte>::new(SolveOptions::new(mode))
                 .with_stage(CenterReductionStage::western_default())
@@ -56,7 +54,7 @@ fn validate_direct_scrambles() -> Result<(), String> {
     }
 
     println!(
-        "validated direct scrambles for n={MIN_SIZE}..={MAX_SIZE} in standard and optimized modes"
+        "validated {DEFAULT_SCRAMBLE_ROUNDS}-round uniform random layer scrambles for n={MIN_SIZE}..={MAX_SIZE} in standard and optimized modes"
     );
     Ok(())
 }
@@ -65,29 +63,29 @@ fn benchmark_scramblers() -> Vec<BenchmarkRow> {
     let mut rows = Vec::new();
 
     for side_length in MIN_SIZE..=MAX_SIZE {
-        let mut direct_total = Duration::ZERO;
-        let mut traditional_total = Duration::ZERO;
+        let mut random_layer_total = Duration::ZERO;
+        let mut direct_reference_total = Duration::ZERO;
 
         for attempt in 0..ATTEMPTS {
             let seed = BASE_SEED ^ ((side_length as u64) << 16) ^ attempt as u64;
 
-            let mut direct = Cube::<Byte>::new_solved(side_length);
-            let mut direct_rng = XorShift64::new(seed);
+            let mut random_layer = Cube::<Byte>::new_solved(side_length);
+            let mut random_layer_rng = XorShift64::new(seed);
             let start = Instant::now();
-            direct.scramble_direct(&mut direct_rng);
-            direct_total += start.elapsed();
+            random_layer.scramble(&mut random_layer_rng);
+            random_layer_total += start.elapsed();
 
-            let moves = traditional_scramble_moves(side_length, TRADITIONAL_ROUNDS, seed);
-            let mut traditional = Cube::<Byte>::new_solved(side_length);
+            let mut direct_reference = Cube::<Byte>::new_solved(side_length);
+            let mut direct_reference_rng = XorShift64::new(seed);
             let start = Instant::now();
-            traditional.apply_moves_untracked(moves);
-            traditional_total += start.elapsed();
+            direct_reference.scramble_direct(&mut direct_reference_rng);
+            direct_reference_total += start.elapsed();
         }
 
         rows.push(BenchmarkRow {
             side_length,
-            direct: direct_total / ATTEMPTS as u32,
-            traditional: traditional_total / ATTEMPTS as u32,
+            random_layer: random_layer_total / ATTEMPTS as u32,
+            direct_reference: direct_reference_total / ATTEMPTS as u32,
         });
     }
 
@@ -97,18 +95,20 @@ fn benchmark_scramblers() -> Vec<BenchmarkRow> {
 fn print_benchmark(rows: &[BenchmarkRow]) {
     println!();
     println!("average scramble time over {ATTEMPTS} attempts");
-    println!("n   direct_ms  traditional_8_round_ms  speedup");
+    println!(
+        "n   random_layer_{DEFAULT_SCRAMBLE_ROUNDS}_round_ms  direct_reference_ms  direct/random"
+    );
     for row in rows {
-        let direct_ms = row.direct.as_secs_f64() * 1000.0;
-        let traditional_ms = row.traditional.as_secs_f64() * 1000.0;
-        let speedup = if direct_ms > 0.0 {
-            traditional_ms / direct_ms
+        let random_layer_ms = row.random_layer.as_secs_f64() * 1000.0;
+        let direct_reference_ms = row.direct_reference.as_secs_f64() * 1000.0;
+        let ratio = if random_layer_ms > 0.0 {
+            direct_reference_ms / random_layer_ms
         } else {
             f64::INFINITY
         };
         println!(
-            "{:<3} {:>9.4} {:>23.4} {:>8.2}x",
-            row.side_length, direct_ms, traditional_ms, speedup
+            "{:<3} {:>23.4} {:>20.4} {:>12.2}x",
+            row.side_length, random_layer_ms, direct_reference_ms, ratio
         );
     }
 }
@@ -119,10 +119,10 @@ fn write_example_nets(path: &Path) -> Result<(), String> {
     for side_length in 1..=7 {
         let mut cube = Cube::<Byte>::new_solved(side_length);
         let mut rng = XorShift64::new(BASE_SEED ^ 0xE4A4_0000 ^ side_length as u64);
-        cube.scramble_direct(&mut rng);
+        cube.scramble(&mut rng);
         writeln!(
             out,
-            "direct scramble example n={side_length}, seed=0x{:016X}\n{}",
+            "uniform random layer scramble example n={side_length}, rounds={DEFAULT_SCRAMBLE_ROUNDS}, seed=0x{:016X}\n{}",
             BASE_SEED ^ 0xE4A4_0000 ^ side_length as u64,
             cube.net_string(),
         )
@@ -130,43 +130,4 @@ fn write_example_nets(path: &Path) -> Result<(), String> {
     }
 
     fs::write(path, out).map_err(|error| format!("failed to write {}: {error}", path.display()))
-}
-
-fn traditional_scramble_moves(side_length: usize, rounds: usize, seed: u64) -> Vec<Move> {
-    let mut rng = XorShift64::new(seed);
-    let mut moves = Vec::with_capacity(rounds * (side_length + FaceId::ALL.len()));
-
-    for _ in 0..rounds {
-        for _ in 0..side_length {
-            moves.push(random_move(side_length, &mut rng));
-        }
-
-        for face in FaceId::ALL {
-            moves.push(face_outer_move(
-                side_length,
-                face,
-                random_move_angle(&mut rng),
-            ));
-        }
-    }
-
-    moves
-}
-
-fn random_move(side_length: usize, rng: &mut impl RandomSource) -> Move {
-    let axis = match (rng.next_u64() % 3) as u8 {
-        0 => Axis::X,
-        1 => Axis::Y,
-        _ => Axis::Z,
-    };
-    let depth = (rng.next_u64() as usize) % side_length;
-    Move::new(axis, depth, random_move_angle(rng))
-}
-
-fn random_move_angle(rng: &mut impl RandomSource) -> MoveAngle {
-    match (rng.next_u64() % 3) as u8 {
-        0 => MoveAngle::Positive,
-        1 => MoveAngle::Double,
-        _ => MoveAngle::Negative,
-    }
 }

@@ -170,22 +170,21 @@ impl<S: FaceletArray> Cube<S> {
     }
 
     pub fn scramble_with_rounds<R: RandomSource>(&mut self, rng: &mut R, rounds: usize) {
-        for _ in 0..rounds {
-            self.scramble_random_moves(rng, self.n);
+        self.scramble_uniform_random_layers(rng, rounds);
+    }
 
-            for face in FaceId::ALL {
-                let mv = self.random_outer_face_move(face, rng);
-                self.apply_move(mv);
-            }
+    pub fn scramble_uniform_random_layers<R: RandomSource>(&mut self, rng: &mut R, k: usize) {
+        let moves_per_round = self
+            .n
+            .checked_mul(3)
+            .expect("scramble move count overflowed usize");
+        for _ in 0..k {
+            self.scramble_random_moves(rng, moves_per_round);
         }
     }
 
     pub fn scramble_biased_random_layers<R: RandomSource>(&mut self, rng: &mut R, k: usize) {
-        self.scramble_biased_random_layers_with_outer_probability(
-            rng,
-            k,
-            balanced_outer_layer_probability(self.n),
-        );
+        self.scramble_uniform_random_layers(rng, k);
     }
 
     pub fn scramble_biased_random_layers_with_outer_probability<R: RandomSource>(

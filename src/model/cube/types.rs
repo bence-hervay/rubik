@@ -5,7 +5,7 @@ use crate::{
     storage::FaceletArray,
 };
 
-pub const DEFAULT_SCRAMBLE_ROUNDS: usize = 6;
+pub const DEFAULT_SCRAMBLE_ROUNDS: usize = 4;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ColorScheme {

@@ -13,7 +13,7 @@ use benchmark_common::{
 const DEFAULT_SIZE: usize = 2048;
 const DEFAULT_MODE: &str = "optimized";
 const DEFAULT_TRIALS: usize = 5;
-const DEFAULT_SCRAMBLE_ROUNDS: usize = 8;
+const DEFAULT_SCRAMBLE_ROUNDS: usize = rubik::DEFAULT_SCRAMBLE_ROUNDS;
 const DEFAULT_SEED: u64 = 42;
 const DEFAULT_OUTPUT: &str = "backends.svg";
 const DEFAULT_RUNNER: &str = "target/release/run_pipeline_no_render";
@@ -195,7 +195,7 @@ Options:
   --backends <LIST>              Comma- or space-separated backend names. Default: {}
   --mode <MODE>                  standard | optimized. Default: {DEFAULT_MODE}
   --trials <N>                   Runs per backend. Default: {DEFAULT_TRIALS}
-  --scramble-rounds <N>          Scramble rounds passed to run_pipeline_no_render. Default: {DEFAULT_SCRAMBLE_ROUNDS}
+  --scramble-rounds <N>          Uniform random layer rounds passed to run_pipeline_no_render. Default: {DEFAULT_SCRAMBLE_ROUNDS}
   --seed <N>                     Base scramble seed. Trial i uses seed+i. Default: {DEFAULT_SEED}
   --output <PATH>                SVG output path. Default: {DEFAULT_OUTPUT}
   --csv-output <PATH>            CSV output path. Default: SVG output with .csv extension

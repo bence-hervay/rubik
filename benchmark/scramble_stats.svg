@@ -10,7 +10,7 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#111827}
 .legend{font-size:13px}
 </style>
 <text x="80" y="42" class="title">Scramble mixing statistics, n=20</text>
-<text x="80" y="66" class="subtitle">Average over 64 trials. Lower total variation distance means closer to random/uniform.</text>
+<text x="80" y="66" class="subtitle">Average over 32 trials. Lower total variation distance means closer to random/uniform.</text>
 <text x="80" y="88" class="subtitle">Both methods use 3*n*k move attempts; uniform random layers choose outer and inner depths with equal per-layer probability.</text>
 <text x="80" y="88" class="panel-title">Face color distribution</text>
 <text x="80" y="108" class="subtitle">TV distance from uniform face/color bins</text>
@@ -21,24 +21,24 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#111827}
 <line x1="80" y1="345" x2="550" y2="345" class="grid"/>
 <text x="72" y="349" text-anchor="end" class="tick">0.42</text>
 <line x1="80" y1="237.5" x2="550" y2="237.5" class="grid"/>
-<text x="72" y="241.5" text-anchor="end" class="tick">0.63</text>
+<text x="72" y="241.5" text-anchor="end" class="tick">0.62</text>
 <line x1="80" y1="130" x2="550" y2="130" class="grid"/>
 <text x="72" y="134" text-anchor="end" class="tick">0.83</text>
 <line x1="80" y1="130" x2="80" y2="560" class="grid"/>
 <text x="80" y="582" text-anchor="middle" class="tick">0</text>
 <line x1="197.5" y1="130" x2="197.5" y2="560" class="grid"/>
-<text x="197.5" y="582" text-anchor="middle" class="tick">8</text>
+<text x="197.5" y="582" text-anchor="middle" class="tick">4</text>
 <line x1="315" y1="130" x2="315" y2="560" class="grid"/>
-<text x="315" y="582" text-anchor="middle" class="tick">16</text>
+<text x="315" y="582" text-anchor="middle" class="tick">8</text>
 <line x1="432.5" y1="130" x2="432.5" y2="560" class="grid"/>
-<text x="432.5" y="582" text-anchor="middle" class="tick">24</text>
+<text x="432.5" y="582" text-anchor="middle" class="tick">12</text>
 <line x1="550" y1="130" x2="550" y2="560" class="grid"/>
-<text x="550" y="582" text-anchor="middle" class="tick">32</text>
+<text x="550" y="582" text-anchor="middle" class="tick">16</text>
 <line x1="80" y1="560" x2="550" y2="560" class="axis"/>
 <line x1="80" y1="130" x2="80" y2="560" class="axis"/>
 <text x="315" y="610" text-anchor="middle" class="tick">k</text>
-<polyline points="80.00,130.00 94.69,492.41 109.38,531.67 124.06,537.31 138.75,537.43 153.44,538.30 168.12,538.36 182.81,538.48 197.50,538.63 212.19,538.68 226.88,538.59 241.56,538.09 256.25,538.87 270.94,537.89 285.62,538.23 300.31,538.48 315.00,537.98 329.69,537.81 344.38,538.44 359.06,538.72 373.75,538.31 388.44,538.76 403.12,538.53 417.81,539.36 432.50,538.41 447.19,538.74 461.88,538.87 476.56,538.50 491.25,538.93 505.94,538.30 520.62,538.91 535.31,538.42 550.00,538.29 " fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="80.00,130.00 94.69,418.81 109.38,494.21 124.06,515.12 138.75,524.70 153.44,531.49 168.12,536.14 182.81,537.36 197.50,537.47 212.19,538.65 226.88,538.89 241.56,538.22 256.25,538.33 270.94,537.81 285.62,538.28 300.31,538.57 315.00,538.70 329.69,538.84 344.38,537.87 359.06,538.45 373.75,538.14 388.44,538.41 403.12,538.86 417.81,538.41 432.50,538.41 447.19,538.33 461.88,538.62 476.56,538.51 491.25,538.58 505.94,538.22 520.62,538.95 535.31,538.03 550.00,538.51 " fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="80.00,130.00 109.38,493.35 138.75,531.83 168.12,537.36 197.50,537.21 226.88,538.30 256.25,538.23 285.62,538.53 315.00,538.25 344.38,538.48 373.75,538.69 403.12,537.95 432.50,538.97 461.88,537.41 491.25,538.44 520.62,538.22 550.00,538.39 " fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="80.00,130.00 109.38,414.95 138.75,495.68 168.12,514.54 197.50,523.87 226.88,531.77 256.25,536.40 285.62,536.97 315.00,537.11 344.38,538.10 373.75,538.45 403.12,538.37 432.50,538.13 461.88,538.30 491.25,537.87 520.62,539.59 550.00,538.42 " fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
 <text x="610" y="88" class="panel-title">Neighbor color-pair distribution</text>
 <text x="610" y="108" class="subtitle">TV distance from random unordered pairs</text>
 <line x1="610" y1="560" x2="1080" y2="560" class="grid"/>
@@ -48,24 +48,24 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#111827}
 <line x1="610" y1="345" x2="1080" y2="345" class="grid"/>
 <text x="602" y="349" text-anchor="end" class="tick">0.42</text>
 <line x1="610" y1="237.5" x2="1080" y2="237.5" class="grid"/>
-<text x="602" y="241.5" text-anchor="end" class="tick">0.63</text>
+<text x="602" y="241.5" text-anchor="end" class="tick">0.62</text>
 <line x1="610" y1="130" x2="1080" y2="130" class="grid"/>
 <text x="602" y="134" text-anchor="end" class="tick">0.83</text>
 <line x1="610" y1="130" x2="610" y2="560" class="grid"/>
 <text x="610" y="582" text-anchor="middle" class="tick">0</text>
 <line x1="727.5" y1="130" x2="727.5" y2="560" class="grid"/>
-<text x="727.5" y="582" text-anchor="middle" class="tick">8</text>
+<text x="727.5" y="582" text-anchor="middle" class="tick">4</text>
 <line x1="845" y1="130" x2="845" y2="560" class="grid"/>
-<text x="845" y="582" text-anchor="middle" class="tick">16</text>
+<text x="845" y="582" text-anchor="middle" class="tick">8</text>
 <line x1="962.5" y1="130" x2="962.5" y2="560" class="grid"/>
-<text x="962.5" y="582" text-anchor="middle" class="tick">24</text>
+<text x="962.5" y="582" text-anchor="middle" class="tick">12</text>
 <line x1="1080" y1="130" x2="1080" y2="560" class="grid"/>
-<text x="1080" y="582" text-anchor="middle" class="tick">32</text>
+<text x="1080" y="582" text-anchor="middle" class="tick">16</text>
 <line x1="610" y1="560" x2="1080" y2="560" class="axis"/>
 <line x1="610" y1="130" x2="610" y2="560" class="axis"/>
 <text x="845" y="610" text-anchor="middle" class="tick">k</text>
-<polyline points="610.00,130.00 624.69,498.72 639.38,544.19 654.06,547.23 668.75,547.87 683.44,547.95 698.12,548.11 712.81,547.62 727.50,548.07 742.19,547.83 756.88,548.16 771.56,548.16 786.25,548.08 800.94,547.96 815.62,548.55 830.31,547.92 845.00,548.38 859.69,547.85 874.38,548.30 889.06,547.75 903.75,548.36 918.44,548.16 933.12,548.21 947.81,548.03 962.50,548.04 977.19,547.98 991.88,547.90 1006.56,548.52 1021.25,547.63 1035.94,547.58 1050.62,548.19 1065.31,548.04 1080.00,548.05 " fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="610.00,130.00 624.69,391.39 639.38,485.45 654.06,521.51 668.75,536.03 683.44,543.99 698.12,546.87 712.81,548.00 727.50,548.07 742.19,547.96 756.88,547.81 771.56,548.19 786.25,547.91 800.94,548.06 815.62,547.55 830.31,547.66 845.00,547.67 859.69,547.89 874.38,547.87 889.06,548.33 903.75,548.14 918.44,548.25 933.12,548.09 947.81,548.09 962.50,548.30 977.19,547.77 991.88,547.69 1006.56,547.85 1021.25,547.09 1035.94,548.07 1050.62,548.35 1065.31,547.75 1080.00,548.12 " fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="610.00,130.00 639.38,500.07 668.75,544.15 698.12,547.21 727.50,548.04 756.88,548.08 786.25,547.97 815.62,547.34 845.00,547.93 874.38,548.35 903.75,548.46 933.12,548.09 962.50,548.32 991.88,547.63 1021.25,548.85 1050.62,548.44 1080.00,548.35 " fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="610.00,130.00 639.38,394.27 668.75,488.33 698.12,520.54 727.50,536.14 756.88,544.12 786.25,546.90 815.62,547.66 845.00,547.81 874.38,548.09 903.75,547.52 933.12,548.11 962.50,547.65 991.88,548.03 1021.25,547.55 1050.62,547.94 1080.00,547.82 " fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
 <line x1="390" y1="620" x2="428" y2="620" stroke="#2563eb" stroke-width="3"/>
 <text x="438" y="624" class="legend">Uniform random layers</text>
 <line x1="610" y1="620" x2="648" y2="620" stroke="#dc2626" stroke-width="3"/>
