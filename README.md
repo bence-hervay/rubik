@@ -134,6 +134,8 @@ The checked-in scramble statistics compare uniform random layers against layer
 sweeps. For `n=20`, 64 trials, the default-style uniform scramble is already
 near its long-run distribution by `k=3` rounds:
 
+![Scramble mixing statistics for n=20](benchmark/scramble_stats_n20.svg)
+
 | k | method | face/color TV | neighbor-pair TV | average scramble time |
 |---:|---|---:|---:|---:|
 | 1 | uniform random layers | 0.13098 | 0.11876 | 0.0138 ms |
@@ -151,6 +153,8 @@ The analytic balance for biased scrambles is `p = 2/n`: that makes one outer
 layer and one inner layer receive the same expected hit count per `k`. On the
 requested 5%-95% grid for `n=500..4000`, the best grid value is 5%, but the true
 analytic optimum is below that grid for those large sizes.
+
+![Outer-layer probability sweep](benchmark/scramble_probability_sweep.svg)
 
 ## Solver Pipeline
 
@@ -293,6 +297,8 @@ The stage/backend benchmarks run `run_pipeline_no_render` and parse the
 The checked-in stage benchmark uses `backend=byte`, `mode=optimized`,
 `scramble_rounds=3`, `attempts=3`, and `seed=42`. Selected measured rows:
 
+![Stage runtime scaling](benchmark/stages_13.svg)
+
 | n | init | scramble | center | corner | edge | full pipeline |
 |---:|---:|---:|---:|---:|---:|---:|
 | 1024 | 0.014 s | 0.117 s | 0.284 s | 1.758 ms | 0.102 s | 0.519 s |
@@ -317,6 +323,8 @@ full pipeline because the benchmark scramble applies many full layer moves.
 
 The checked-in backend benchmark uses `n=4096`, `mode=optimized`,
 `scramble_rounds=8`, `trials=3`, and `seed=42`:
+
+![Backend runtime comparison](benchmark/backends_12.svg)
 
 | backend | init | scramble | center | corner | edge | full pipeline |
 |---|---:|---:|---:|---:|---:|---:|
