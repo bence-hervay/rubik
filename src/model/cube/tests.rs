@@ -10,8 +10,9 @@ use crate::algorithms::edges::three_cycle::{
 use crate::conventions::{face_layer_move, opposite_face};
 use crate::simulation::derived::{edge_cubie_location, trace_position, FacePosition};
 use crate::{
-    Axis, Byte, FaceAngle, FaceId, Facelet, FaceletArray, Move, MoveAngle, NetRenderOptions,
-    Nibble, RandomSource, ThirdByte, ThreeBit, XorShift64,
+    Axis, Byte, CenterReductionStage, CornerReductionStage, EdgePairingStage, ExecutionMode,
+    FaceAngle, FaceId, Facelet, FaceletArray, Move, MoveAngle, NetRenderOptions, Nibble,
+    RandomSource, ReductionSolver, SolveOptions, Solver, ThirdByte, ThreeBit, XorShift64,
 };
 
 fn basic_singmaster_turn(side_length: usize, notation: &str) -> Move {
@@ -1125,6 +1126,54 @@ fn scramble_applies_six_rounds_of_random_moves_and_outer_face_turns() {
     );
     assert_cubes_match(&actual, &expected);
     assert_eq!(actual.history().as_slice(), expected.history().as_slice());
+}
+
+#[test]
+fn direct_scramble_is_reachable_untracked_and_backend_stable() {
+    for side_length in 1..=8 {
+        let seed = 0xD1EC_0000 ^ side_length as u64;
+        let mut byte = Cube::<Byte>::new_solved(side_length);
+        let mut nibble = Cube::<Nibble>::new_solved(side_length);
+        let mut three_bit = Cube::<ThreeBit>::new_solved(side_length);
+        let mut third_byte = Cube::<ThirdByte>::new_solved(side_length);
+
+        byte.scramble_direct(&mut XorShift64::new(seed));
+        nibble.scramble_direct(&mut XorShift64::new(seed));
+        three_bit.scramble_direct(&mut XorShift64::new(seed));
+        third_byte.scramble_direct(&mut XorShift64::new(seed));
+
+        assert_eq!(byte.reachability(), CubeReachability::Reachable);
+        assert_eq!(byte.history().len(), 0);
+        assert_cubes_match(&byte, &nibble);
+        assert_cubes_match(&byte, &three_bit);
+        assert_cubes_match(&byte, &third_byte);
+    }
+}
+
+#[test]
+fn direct_scramble_solves_with_default_pipeline_in_both_modes_for_small_sizes() {
+    for side_length in 1..=7 {
+        let seed = 0xD1EC_5000 ^ side_length as u64;
+        let mut initial = Cube::<Byte>::new_solved(side_length);
+        initial.scramble_direct(&mut XorShift64::new(seed));
+
+        for mode in [ExecutionMode::Standard, ExecutionMode::Optimized] {
+            let mut cube = initial.clone();
+            let mut solver = ReductionSolver::<Byte>::new(SolveOptions::new(mode))
+                .with_stage(CenterReductionStage::western_default())
+                .with_stage(CornerReductionStage::default())
+                .with_stage(EdgePairingStage::default());
+
+            solver.solve(&mut cube).unwrap_or_else(|error| {
+                panic!(
+                    "direct-scrambled cube did not solve for n={side_length}, mode={mode:?}: {error}\n{}",
+                    cube.net_string(),
+                )
+            });
+
+            assert!(cube.is_solved(), "pipeline did not solve n={side_length}");
+        }
+    }
 }
 
 #[test]

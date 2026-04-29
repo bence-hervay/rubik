@@ -1,3 +1,4 @@
+mod scramble;
 mod state;
 #[cfg(test)]
 mod tests;

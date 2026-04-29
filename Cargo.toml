@@ -28,3 +28,7 @@ path = "src/bin/backends_benchmark.rs"
 [[bin]]
 name = "generate_center_schedule"
 path = "src/bin/generate_center_schedule.rs"
+
+[[bin]]
+name = "scramble_benchmark"
+path = "src/bin/scramble_benchmark.rs"
