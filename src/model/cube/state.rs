@@ -174,6 +174,31 @@ impl<S: FaceletArray> Cube<S> {
         }
     }
 
+    pub fn scramble_biased_random_layers<R: RandomSource>(&mut self, rng: &mut R, k: usize) {
+        for _ in 0..k {
+            for _ in 0..self.n {
+                for _ in 0..3 {
+                    let mv = Move::new(
+                        random_axis(rng),
+                        random_biased_layer(self.n, rng),
+                        random_move_angle(rng),
+                    );
+                    self.apply_move(mv);
+                }
+            }
+        }
+    }
+
+    pub fn scramble_layer_sweeps<R: RandomSource>(&mut self, rng: &mut R, k: usize) {
+        for _ in 0..k {
+            for axis in [Axis::X, Axis::Y, Axis::Z] {
+                for depth in 0..self.n {
+                    self.apply_move(Move::new(axis, depth, random_move_angle(rng)));
+                }
+            }
+        }
+    }
+
     pub fn scramble_random_moves<R: RandomSource>(&mut self, rng: &mut R, count: usize) {
         for _ in 0..count {
             let mv = self.random_move(rng);
@@ -299,5 +324,25 @@ fn random_move_angle<R: RandomSource>(rng: &mut R) -> MoveAngle {
         0 => MoveAngle::Positive,
         1 => MoveAngle::Double,
         _ => MoveAngle::Negative,
+    }
+}
+
+fn random_axis<R: RandomSource>(rng: &mut R) -> Axis {
+    match (rng.next_u64() % 3) as u8 {
+        0 => Axis::X,
+        1 => Axis::Y,
+        _ => Axis::Z,
+    }
+}
+
+fn random_biased_layer<R: RandomSource>(side_length: usize, rng: &mut R) -> usize {
+    if side_length <= 2 || rng.next_u64() % 10 == 0 {
+        if rng.next_u64() & 1 == 0 {
+            0
+        } else {
+            side_length - 1
+        }
+    } else {
+        1 + (rng.next_u64() as usize % (side_length - 2))
     }
 }

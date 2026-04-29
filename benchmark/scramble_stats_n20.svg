@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 720" width="1120" height="720">
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#111827}
+.subtitle{fill:#4b5563;font-size:14px}
+.axis{stroke:#111827;stroke-width:1.2}
+.grid{stroke:#e5e7eb;stroke-width:1}
+.tick{fill:#374151;font-size:12px}
+.title{font-size:22px;font-weight:700}
+.panel-title{font-size:16px;font-weight:700}
+.legend{font-size:13px}
+</style>
+<text x="80" y="42" class="title">Scramble mixing statistics, n=20</text>
+<text x="80" y="66" class="subtitle">Average over 64 trials. Lower total variation distance means closer to random/uniform.</text>
+<text x="80" y="88" class="subtitle">Both methods use 3*n*k move attempts; biased random layers use 10% outer-layer picks and 90% inner-layer picks.</text>
+<text x="80" y="88" class="panel-title">Face color distribution</text>
+<text x="80" y="108" class="subtitle">TV distance from uniform face/color bins</text>
+<line x1="80" y1="560" x2="550" y2="560" class="grid"/>
+<text x="72" y="564" text-anchor="end" class="tick">0.00</text>
+<line x1="80" y1="452.5" x2="550" y2="452.5" class="grid"/>
+<text x="72" y="456.5" text-anchor="end" class="tick">0.21</text>
+<line x1="80" y1="345" x2="550" y2="345" class="grid"/>
+<text x="72" y="349" text-anchor="end" class="tick">0.42</text>
+<line x1="80" y1="237.5" x2="550" y2="237.5" class="grid"/>
+<text x="72" y="241.5" text-anchor="end" class="tick">0.63</text>
+<line x1="80" y1="130" x2="550" y2="130" class="grid"/>
+<text x="72" y="134" text-anchor="end" class="tick">0.83</text>
+<line x1="80" y1="130" x2="80" y2="560" class="grid"/>
+<text x="80" y="582" text-anchor="middle" class="tick">0</text>
+<line x1="197.5" y1="130" x2="197.5" y2="560" class="grid"/>
+<text x="197.5" y="582" text-anchor="middle" class="tick">8</text>
+<line x1="315" y1="130" x2="315" y2="560" class="grid"/>
+<text x="315" y="582" text-anchor="middle" class="tick">16</text>
+<line x1="432.5" y1="130" x2="432.5" y2="560" class="grid"/>
+<text x="432.5" y="582" text-anchor="middle" class="tick">24</text>
+<line x1="550" y1="130" x2="550" y2="560" class="grid"/>
+<text x="550" y="582" text-anchor="middle" class="tick">32</text>
+<line x1="80" y1="560" x2="550" y2="560" class="axis"/>
+<line x1="80" y1="130" x2="80" y2="560" class="axis"/>
+<text x="315" y="610" text-anchor="middle" class="tick">k</text>
+<polyline points="80.00,130.00 94.69,497.76 109.38,530.26 124.06,537.10 138.75,538.23 153.44,538.56 168.12,538.87 182.81,538.96 197.50,538.18 212.19,538.78 226.88,538.75 241.56,538.74 256.25,538.33 270.94,539.58 285.62,537.99 300.31,538.21 315.00,538.70 329.69,537.89 344.38,538.39 359.06,537.90 373.75,537.70 388.44,538.88 403.12,538.34 417.81,538.95 432.50,538.96 447.19,538.84 461.88,538.52 476.56,538.94 491.25,538.14 505.94,539.00 520.62,538.31 535.31,538.23 550.00,538.53 " fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="80.00,130.00 94.69,418.81 109.38,494.21 124.06,515.12 138.75,524.70 153.44,531.49 168.12,536.14 182.81,537.36 197.50,537.47 212.19,538.65 226.88,538.89 241.56,538.22 256.25,538.33 270.94,537.81 285.62,538.28 300.31,538.57 315.00,538.70 329.69,538.84 344.38,537.87 359.06,538.45 373.75,538.14 388.44,538.41 403.12,538.86 417.81,538.41 432.50,538.41 447.19,538.33 461.88,538.62 476.56,538.51 491.25,538.58 505.94,538.22 520.62,538.95 535.31,538.03 550.00,538.51 " fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="610" y="88" class="panel-title">Neighbor color-pair distribution</text>
+<text x="610" y="108" class="subtitle">TV distance from random unordered pairs</text>
+<line x1="610" y1="560" x2="1080" y2="560" class="grid"/>
+<text x="602" y="564" text-anchor="end" class="tick">0.00</text>
+<line x1="610" y1="452.5" x2="1080" y2="452.5" class="grid"/>
+<text x="602" y="456.5" text-anchor="end" class="tick">0.21</text>
+<line x1="610" y1="345" x2="1080" y2="345" class="grid"/>
+<text x="602" y="349" text-anchor="end" class="tick">0.42</text>
+<line x1="610" y1="237.5" x2="1080" y2="237.5" class="grid"/>
+<text x="602" y="241.5" text-anchor="end" class="tick">0.63</text>
+<line x1="610" y1="130" x2="1080" y2="130" class="grid"/>
+<text x="602" y="134" text-anchor="end" class="tick">0.83</text>
+<line x1="610" y1="130" x2="610" y2="560" class="grid"/>
+<text x="610" y="582" text-anchor="middle" class="tick">0</text>
+<line x1="727.5" y1="130" x2="727.5" y2="560" class="grid"/>
+<text x="727.5" y="582" text-anchor="middle" class="tick">8</text>
+<line x1="845" y1="130" x2="845" y2="560" class="grid"/>
+<text x="845" y="582" text-anchor="middle" class="tick">16</text>
+<line x1="962.5" y1="130" x2="962.5" y2="560" class="grid"/>
+<text x="962.5" y="582" text-anchor="middle" class="tick">24</text>
+<line x1="1080" y1="130" x2="1080" y2="560" class="grid"/>
+<text x="1080" y="582" text-anchor="middle" class="tick">32</text>
+<line x1="610" y1="560" x2="1080" y2="560" class="axis"/>
+<line x1="610" y1="130" x2="610" y2="560" class="axis"/>
+<text x="845" y="610" text-anchor="middle" class="tick">k</text>
+<polyline points="610.00,130.00 624.69,498.50 639.38,543.05 654.06,547.17 668.75,547.79 683.44,548.20 698.12,548.18 712.81,548.47 727.50,548.40 742.19,547.56 756.88,548.04 771.56,548.10 786.25,547.66 800.94,548.25 815.62,548.39 830.31,547.77 845.00,547.63 859.69,548.16 874.38,548.42 889.06,547.99 903.75,548.02 918.44,548.24 933.12,547.87 947.81,547.31 962.50,548.64 977.19,548.03 991.88,547.87 1006.56,547.48 1021.25,547.55 1035.94,548.15 1050.62,547.86 1065.31,548.02 1080.00,548.07 " fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="610.00,130.00 624.69,391.39 639.38,485.45 654.06,521.51 668.75,536.03 683.44,543.99 698.12,546.87 712.81,548.00 727.50,548.07 742.19,547.96 756.88,547.81 771.56,548.19 786.25,547.91 800.94,548.06 815.62,547.55 830.31,547.66 845.00,547.67 859.69,547.89 874.38,547.87 889.06,548.33 903.75,548.14 918.44,548.25 933.12,548.09 947.81,548.09 962.50,548.30 977.19,547.77 991.88,547.69 1006.56,547.85 1021.25,547.09 1035.94,548.07 1050.62,548.35 1065.31,547.75 1080.00,548.12 " fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<line x1="390" y1="620" x2="428" y2="620" stroke="#2563eb" stroke-width="3"/>
+<text x="438" y="624" class="legend">Biased random layers</text>
+<line x1="610" y1="620" x2="648" y2="620" stroke="#dc2626" stroke-width="3"/>
+<text x="658" y="624" class="legend">Layer sweeps</text>
+</svg>

@@ -1177,6 +1177,25 @@ fn direct_scramble_solves_with_default_pipeline_in_both_modes_for_small_sizes() 
 }
 
 #[test]
+fn structured_scramble_variants_use_equal_move_budgets() {
+    let k = 4;
+
+    for side_length in [1usize, 2, 5, 8] {
+        let expected_moves = k * 3 * side_length;
+
+        let mut biased = Cube::<Byte>::new_solved(side_length);
+        biased.scramble_biased_random_layers(&mut XorShift64::new(0xB1A5_0000), k);
+        assert_eq!(biased.history().len(), expected_moves);
+        assert_eq!(biased.reachability(), CubeReachability::Reachable);
+
+        let mut sweeps = Cube::<Byte>::new_solved(side_length);
+        sweeps.scramble_layer_sweeps(&mut XorShift64::new(0x5EED_0000), k);
+        assert_eq!(sweeps.history().len(), expected_moves);
+        assert_eq!(sweeps.reachability(), CubeReachability::Reachable);
+    }
+}
+
+#[test]
 fn basic_singmaster_turns_match_our_move_notation() {
     let side_length = 5;
     let last = side_length - 1;
