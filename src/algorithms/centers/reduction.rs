@@ -188,6 +188,9 @@ fn solve_centers_with_transfers<S: FaceletArray>(
     stage_name: &'static str,
 ) -> SolveResult<()> {
     let mut column_buffer = Vec::with_capacity(cube.side_len().saturating_sub(2));
+    let mut source_column_buffer = Vec::with_capacity(cube.side_len().saturating_sub(2));
+
+    let mut virtual_rotations = VirtualCenterRotations::default();
     for transfer in transfers.iter().copied() {
         push_center_transfer(
             cube,
@@ -195,6 +198,8 @@ fn solve_centers_with_transfers<S: FaceletArray>(
             transfer,
             schedule,
             &mut column_buffer,
+            &mut source_column_buffer,
+            &mut virtual_rotations,
             progress_enabled,
             stage_name,
         )?;
@@ -351,12 +356,72 @@ fn center_orientation_after_move(mut state: [Facelet; 6], mv: Move) -> [Facelet;
     state
 }
 
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+struct VirtualCenterRotations {
+    turns: [u8; 6],
+}
+
+impl VirtualCenterRotations {
+    fn as_array(&self) -> &[u8; 6] {
+        &self.turns
+    }
+
+    fn state_ref(&self) -> CenterRotationStateRef<'_> {
+        CenterRotationStateRef { rotations: self }
+    }
+
+    fn rotate(&mut self, face: FaceId, angle: MoveAngle) {
+        let slot = &mut self.turns[face.index()];
+        *slot = (*slot + angle.as_u8()) & 3;
+    }
+
+    fn physical_coords<S: FaceletArray>(
+        self,
+        cube: &Cube<S>,
+        face: FaceId,
+        row: usize,
+        column: usize,
+    ) -> (usize, usize) {
+        let side_length = cube.side_len();
+        debug_assert!(row < side_length, "row out of bounds");
+        debug_assert!(column < side_length, "column out of bounds");
+
+        let turns = (cube.face(face).rotation().as_u8() + self.turns[face.index()]) & 3;
+        match turns {
+            0 => (row, column),
+            1 => (side_length - 1 - column, row),
+            2 => (side_length - 1 - row, side_length - 1 - column),
+            3 => (column, side_length - 1 - row),
+            _ => unreachable!("face angle is always normalized"),
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct CenterRotationStateRef<'a> {
+    rotations: &'a VirtualCenterRotations,
+}
+
+impl CenterRotationStateRef<'_> {
+    fn physical_coords<S: FaceletArray>(
+        self,
+        cube: &Cube<S>,
+        face: FaceId,
+        row: usize,
+        column: usize,
+    ) -> (usize, usize) {
+        self.rotations.physical_coords(cube, face, row, column)
+    }
+}
+
 fn push_center_transfer<S: FaceletArray>(
     cube: &mut Cube<S>,
     context: &mut SolveContext,
     transfer: CenterTransferSpec,
     schedule: &[CenterScheduleStep],
     columns: &mut Vec<usize>,
+    source_columns: &mut Vec<usize>,
+    rotations: &mut VirtualCenterRotations,
     progress_enabled: bool,
     stage_name: &'static str,
 ) -> SolveResult<()> {
@@ -385,6 +450,8 @@ fn push_center_transfer<S: FaceletArray>(
                     transfer,
                     step,
                     columns,
+                    source_columns,
+                    rotations,
                     progress_enabled,
                 );
                 remaining = remaining
@@ -399,7 +466,7 @@ fn push_center_transfer<S: FaceletArray>(
                 }
             }
 
-            context.apply_center_face_rotation(cube, transfer.source, MoveAngle::Positive);
+            rotations.rotate(transfer.source, MoveAngle::Positive);
         }
 
         if remaining >= before {
@@ -419,6 +486,8 @@ fn apply_center_transfer_step<S: FaceletArray>(
     transfer: CenterTransferSpec,
     step: CenterScheduleStep,
     columns: &mut Vec<usize>,
+    source_columns: &mut Vec<usize>,
+    rotations: &mut VirtualCenterRotations,
     progress_enabled: bool,
 ) -> usize {
     let side_length = cube.side_len();
@@ -430,21 +499,37 @@ fn apply_center_transfer_step<S: FaceletArray>(
         return 0;
     };
     let mut moved = 0;
+
     for row in 1..side_length - 1 {
+        scan_center_source_row(
+            cube,
+            transfer,
+            step,
+            row,
+            source_columns,
+            rotations.state_ref(),
+        );
+        if source_columns.is_empty() {
+            continue;
+        }
+
         let mut destination_rotations = 0;
-
-        loop {
-            let source_piece_count = scan_center_transfer_row(cube, transfer, step, row, columns);
-
-            if source_piece_count == 0 {
-                break;
-            }
+        while !source_columns.is_empty() {
+            collect_open_destination_columns(
+                cube,
+                transfer,
+                step,
+                row,
+                source_columns,
+                columns,
+                rotations.state_ref(),
+            );
 
             if columns.is_empty() {
                 if destination_rotations == 4 {
                     break;
                 }
-                context.apply_center_face_rotation(cube, transfer.destination, MoveAngle::Positive);
+                rotations.rotate(transfer.destination, MoveAngle::Positive);
                 destination_rotations += 1;
                 continue;
             }
@@ -453,7 +538,15 @@ fn apply_center_transfer_step<S: FaceletArray>(
             if progress_enabled {
                 context.advance_stage_progress(columns.len());
             }
-            apply_normalized_center_commutator_row(context, cube, commutator, row, columns);
+            apply_normalized_center_commutator_row(
+                context,
+                cube,
+                commutator,
+                row,
+                columns,
+                rotations.state_ref(),
+            );
+            remove_selected_columns(source_columns, columns);
             destination_rotations = 0;
         }
     }
@@ -461,24 +554,22 @@ fn apply_center_transfer_step<S: FaceletArray>(
     moved
 }
 
-fn scan_center_transfer_row<S: FaceletArray>(
+fn scan_center_source_row<S: FaceletArray>(
     cube: &Cube<S>,
     transfer: CenterTransferSpec,
     step: CenterScheduleStep,
     row: usize,
-    columns: &mut Vec<usize>,
-) -> usize {
+    source_columns: &mut Vec<usize>,
+    rotations: CenterRotationStateRef<'_>,
+) {
     debug_assert_eq!(step.source_location.face, transfer.source);
-    debug_assert_eq!(step.destination_location.face, transfer.destination);
 
     let side_length = cube.side_len();
     let target = transfer.color.as_u8();
-    let source_stream = CenterScanStream::bind(cube, step.source_location, row);
-    let destination_stream = CenterScanStream::bind(cube, step.destination_location, row);
+    let source_stream = CenterScanStream::bind(cube, step.source_location, row, rotations);
     let source_storage = cube.face(transfer.source).matrix().storage();
-    let destination_storage = cube.face(transfer.destination).matrix().storage();
-    let mut source_piece_count = 0;
-    columns.clear();
+    source_columns.clear();
+
     for column in 1..side_length - 1 {
         if row == column {
             continue;
@@ -486,16 +577,55 @@ fn scan_center_transfer_row<S: FaceletArray>(
 
         let source_index = unsafe { source_stream.index_unchecked(column) };
         if unsafe { source_storage.get_unchecked_raw(source_index) } == target {
-            source_piece_count += 1;
-
-            let destination_index = unsafe { destination_stream.index_unchecked(column) };
-            if unsafe { destination_storage.get_unchecked_raw(destination_index) } != target {
-                columns.push(column);
-            }
+            source_columns.push(column);
         }
     }
+}
 
-    source_piece_count
+fn collect_open_destination_columns<S: FaceletArray>(
+    cube: &Cube<S>,
+    transfer: CenterTransferSpec,
+    step: CenterScheduleStep,
+    row: usize,
+    source_columns: &[usize],
+    columns: &mut Vec<usize>,
+    rotations: CenterRotationStateRef<'_>,
+) {
+    debug_assert_eq!(step.destination_location.face, transfer.destination);
+
+    let target = transfer.color.as_u8();
+    let destination_stream =
+        CenterScanStream::bind(cube, step.destination_location, row, rotations);
+    let destination_storage = cube.face(transfer.destination).matrix().storage();
+    columns.clear();
+
+    for column in source_columns.iter().copied() {
+        let destination_index = unsafe { destination_stream.index_unchecked(column) };
+        if unsafe { destination_storage.get_unchecked_raw(destination_index) } != target {
+            columns.push(column);
+        }
+    }
+}
+
+fn remove_selected_columns(source_columns: &mut Vec<usize>, selected_columns: &[usize]) {
+    debug_assert!(selected_columns.windows(2).all(|pair| pair[0] < pair[1]));
+
+    let mut selected = 0;
+    let mut write = 0;
+    for read in 0..source_columns.len() {
+        let column = source_columns[read];
+        while selected < selected_columns.len() && selected_columns[selected] < column {
+            selected += 1;
+        }
+        if selected < selected_columns.len() && selected_columns[selected] == column {
+            selected += 1;
+            continue;
+        }
+
+        source_columns[write] = column;
+        write += 1;
+    }
+    source_columns.truncate(write);
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -505,9 +635,14 @@ struct CenterScanStream {
 }
 
 impl CenterScanStream {
-    fn bind<S: FaceletArray>(cube: &Cube<S>, expr: CenterLocationExpr, row: usize) -> Self {
-        let start = raw_center_index_for_expr(cube, expr, row, 0);
-        let next = raw_center_index_for_expr(cube, expr, row, 1);
+    fn bind<S: FaceletArray>(
+        cube: &Cube<S>,
+        expr: CenterLocationExpr,
+        row: usize,
+        rotations: CenterRotationStateRef,
+    ) -> Self {
+        let start = raw_center_index_for_expr(cube, expr, row, 0, rotations);
+        let next = raw_center_index_for_expr(cube, expr, row, 1, rotations);
         let start_signed = isize::try_from(start).expect("raw center index overflowed isize");
         let next_signed = isize::try_from(next).expect("raw center index overflowed isize");
 
@@ -528,12 +663,12 @@ fn raw_center_index_for_expr<S: FaceletArray>(
     expr: CenterLocationExpr,
     row: usize,
     column: usize,
+    rotations: CenterRotationStateRef,
 ) -> usize {
     let side_length = cube.side_len();
     let location = expr.eval(side_length, row, column);
-    let (physical_row, physical_column) = cube
-        .face(location.face)
-        .physical_coords(location.row, location.column);
+    let (physical_row, physical_column) =
+        rotations.physical_coords(cube, location.face, location.row, location.column);
 
     physical_row
         .checked_mul(side_length)
@@ -547,8 +682,15 @@ fn apply_normalized_center_commutator_row<S: FaceletArray>(
     commutator: FaceCommutator,
     row: usize,
     columns: &[usize],
+    rotations: CenterRotationStateRef,
 ) {
-    context.apply_normalized_center_commutator_row(cube, commutator, row, columns);
+    context.apply_setup_normalized_center_commutator_row(
+        cube,
+        commutator,
+        row,
+        columns,
+        rotations.rotations.as_array(),
+    );
 }
 
 fn centers_are_solved<S: FaceletArray>(cube: &Cube<S>) -> bool {
@@ -729,7 +871,7 @@ fn face_center_score<S: FaceletArray>(cube: &Cube<S>, face: FaceId) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{conventions::opposite_face, Byte, RandomSource, XorShift64};
+    use crate::{conventions::opposite_face, Byte, ExecutionMode, RandomSource, XorShift64};
 
     #[test]
     fn scalable_center_progress_total_excludes_true_centers() {
@@ -864,6 +1006,51 @@ mod tests {
                 assert!(optimized.history().is_empty());
             }
         }
+    }
+
+    #[test]
+    fn setup_normalized_center_commutator_row_matches_literal_setup_moves() {
+        let side_length = 7;
+        let row = 2usize;
+        let columns = [1usize, 3, 5];
+        let virtual_face_rotations = [1u8, 0, 2, 3, 1, 0];
+        let commutator = FaceCommutator::new(FaceId::R, FaceId::F, MoveAngle::Negative);
+        let initial = patterned_cube(side_length);
+
+        let mut standard_cube = initial.clone();
+        let mut standard_context = SolveContext::new(SolveOptions::new(ExecutionMode::Standard));
+        standard_context.apply_setup_normalized_center_commutator_row(
+            &mut standard_cube,
+            commutator,
+            row,
+            &columns,
+            &virtual_face_rotations,
+        );
+
+        let mut optimized_cube = initial;
+        let mut optimized_context = SolveContext::new(SolveOptions::new(ExecutionMode::Optimized));
+        optimized_context.apply_setup_normalized_center_commutator_row(
+            &mut optimized_cube,
+            commutator,
+            row,
+            &columns,
+            &virtual_face_rotations,
+        );
+
+        let setup_moves = virtual_face_rotations
+            .iter()
+            .filter(|turns| **turns & 3 != 0)
+            .count();
+        let expected_moves = setup_moves * 2 + 2 + 2 * columns.len() + 4;
+
+        assert_cubes_match(&optimized_cube, &standard_cube);
+        assert_eq!(
+            optimized_context.move_stats(),
+            standard_context.move_stats()
+        );
+        assert_eq!(standard_context.moves().len(), expected_moves);
+        assert_eq!(optimized_context.move_stats().total, expected_moves);
+        assert!(optimized_context.moves().is_empty());
     }
 
     #[test]

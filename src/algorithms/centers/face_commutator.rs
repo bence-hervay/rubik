@@ -481,6 +481,24 @@ impl<S: FaceletArray> Cube<S> {
         );
     }
 
+    pub(crate) fn apply_virtual_normalized_face_commutator_prevalidated_untracked(
+        &mut self,
+        commutator: FaceCommutator,
+        rows: &[usize],
+        columns: &[usize],
+        virtual_face_rotations: &[u8; 6],
+    ) {
+        debug_assert!(self
+            .try_normalized_face_commutator_plan(commutator, rows, columns)
+            .is_ok());
+        self.apply_sparse_commutator_template_with_virtual_rotations_untracked(
+            commutator.normalized_template,
+            rows,
+            columns,
+            virtual_face_rotations,
+        );
+    }
+
     pub fn face_commutator_sparse_updates(
         &self,
         commutator: FaceCommutator,
@@ -590,6 +608,119 @@ impl<S: FaceletArray> Cube<S> {
                 self.set_position(second.to.eval(self.n, row, column), second_value);
                 self.set_position(third.to.eval(self.n, row, column), third_value);
             }
+        }
+    }
+
+    fn apply_sparse_commutator_template_with_virtual_rotations_untracked(
+        &mut self,
+        template: CenterCommutatorTemplate,
+        rows: &[usize],
+        columns: &[usize],
+        virtual_face_rotations: &[u8; 6],
+    ) {
+        if rows.is_empty() || columns.is_empty() {
+            return;
+        }
+
+        let [first, second, third] = template.updates;
+
+        for row in rows.iter().copied() {
+            for column in columns.iter().copied() {
+                let first_from = first.from.eval(self.n, row, column);
+                let second_from = second.from.eval(self.n, row, column);
+                let third_from = third.from.eval(self.n, row, column);
+                let first_value =
+                    self.raw_position_with_virtual_rotations(first_from, virtual_face_rotations);
+                let second_value =
+                    self.raw_position_with_virtual_rotations(second_from, virtual_face_rotations);
+                let third_value =
+                    self.raw_position_with_virtual_rotations(third_from, virtual_face_rotations);
+
+                self.set_raw_position_with_virtual_rotations(
+                    first.to.eval(self.n, row, column),
+                    first_value,
+                    virtual_face_rotations,
+                );
+                self.set_raw_position_with_virtual_rotations(
+                    second.to.eval(self.n, row, column),
+                    second_value,
+                    virtual_face_rotations,
+                );
+                self.set_raw_position_with_virtual_rotations(
+                    third.to.eval(self.n, row, column),
+                    third_value,
+                    virtual_face_rotations,
+                );
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn raw_position_with_virtual_rotations(
+        &self,
+        position: FacePosition,
+        virtual_face_rotations: &[u8; 6],
+    ) -> u8 {
+        let index = self.raw_index_with_virtual_rotations(position, virtual_face_rotations);
+        unsafe {
+            self.faces[position.face.index()]
+                .matrix()
+                .storage()
+                .get_unchecked_raw(index)
+        }
+    }
+
+    #[inline(always)]
+    fn set_raw_position_with_virtual_rotations(
+        &mut self,
+        position: FacePosition,
+        value: u8,
+        virtual_face_rotations: &[u8; 6],
+    ) {
+        let index = self.raw_index_with_virtual_rotations(position, virtual_face_rotations);
+        unsafe {
+            self.faces[position.face.index()]
+                .matrix_mut()
+                .storage_mut()
+                .set_unchecked_raw(index, value);
+        }
+    }
+
+    #[inline(always)]
+    fn raw_index_with_virtual_rotations(
+        &self,
+        position: FacePosition,
+        virtual_face_rotations: &[u8; 6],
+    ) -> usize {
+        let (row, col) = self.physical_coords_with_virtual_rotations(
+            position.face,
+            position.row,
+            position.col,
+            virtual_face_rotations,
+        );
+        row * self.n + col
+    }
+
+    #[inline(always)]
+    fn physical_coords_with_virtual_rotations(
+        &self,
+        face: FaceId,
+        row: usize,
+        col: usize,
+        virtual_face_rotations: &[u8; 6],
+    ) -> (usize, usize) {
+        debug_assert!(row < self.n, "row out of bounds");
+        debug_assert!(col < self.n, "column out of bounds");
+
+        let turns = (self.faces[face.index()].rotation().as_u8()
+            + virtual_face_rotations[face.index()])
+            & 3;
+        match turns {
+            0 => (row, col),
+            1 => (self.n - 1 - col, row),
+            2 => (self.n - 1 - row, self.n - 1 - col),
+            3 => (col, self.n - 1 - row),
+            _ => unreachable!("face angle is always normalized"),
         }
     }
 

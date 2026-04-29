@@ -176,6 +176,43 @@ impl SolveContext {
         }
     }
 
+    pub(crate) fn apply_setup_normalized_center_commutator_row<S: FaceletArray>(
+        &mut self,
+        cube: &mut Cube<S>,
+        commutator: FaceCommutator,
+        row: usize,
+        columns: &[usize],
+        virtual_face_rotations: &[u8; 6],
+    ) {
+        let rows = [row];
+
+        match self.execution_mode() {
+            ExecutionMode::Standard => {
+                self.apply_center_setup_rotations(cube, virtual_face_rotations);
+                self.apply_normalized_center_commutator(cube, commutator, &rows, columns);
+                self.apply_center_setup_inverse_rotations(cube, virtual_face_rotations);
+            }
+            ExecutionMode::Optimized => {
+                self.record_center_setup_rotations(cube.side_len(), virtual_face_rotations);
+                record_face_commutator_move_stats(
+                    &mut self.move_stats,
+                    cube.side_len(),
+                    commutator,
+                    FaceCommutatorMode::Normalized,
+                    &rows,
+                    columns,
+                );
+                self.record_center_setup_inverse_rotations(cube.side_len(), virtual_face_rotations);
+                cube.apply_virtual_normalized_face_commutator_prevalidated_untracked(
+                    commutator,
+                    &rows,
+                    columns,
+                    virtual_face_rotations,
+                );
+            }
+        }
+    }
+
     pub fn apply_edge_three_cycle_plan<S: FaceletArray>(
         &mut self,
         cube: &mut Cube<S>,
@@ -192,5 +229,73 @@ impl SolveContext {
     ) {
         let mv = face_outer_move(cube.side_len(), face, angle);
         self.apply_move(cube, mv);
+    }
+
+    pub(crate) fn record_center_face_rotation(
+        &mut self,
+        side_length: usize,
+        face: FaceId,
+        angle: MoveAngle,
+    ) {
+        let mv = face_outer_move(side_length, face, angle);
+        self.move_stats.record(mv, side_length);
+    }
+
+    fn apply_center_setup_rotations<S: FaceletArray>(
+        &mut self,
+        cube: &mut Cube<S>,
+        virtual_face_rotations: &[u8; 6],
+    ) {
+        for face in FaceId::ALL {
+            if let Some(angle) = move_angle_from_turns(virtual_face_rotations[face.index()]) {
+                self.apply_center_face_rotation(cube, face, angle);
+            }
+        }
+    }
+
+    fn apply_center_setup_inverse_rotations<S: FaceletArray>(
+        &mut self,
+        cube: &mut Cube<S>,
+        virtual_face_rotations: &[u8; 6],
+    ) {
+        for face in FaceId::ALL.into_iter().rev() {
+            if let Some(angle) = move_angle_from_turns(virtual_face_rotations[face.index()]) {
+                self.apply_center_face_rotation(cube, face, angle.inverse());
+            }
+        }
+    }
+
+    fn record_center_setup_rotations(
+        &mut self,
+        side_length: usize,
+        virtual_face_rotations: &[u8; 6],
+    ) {
+        for face in FaceId::ALL {
+            if let Some(angle) = move_angle_from_turns(virtual_face_rotations[face.index()]) {
+                self.record_center_face_rotation(side_length, face, angle);
+            }
+        }
+    }
+
+    fn record_center_setup_inverse_rotations(
+        &mut self,
+        side_length: usize,
+        virtual_face_rotations: &[u8; 6],
+    ) {
+        for face in FaceId::ALL.into_iter().rev() {
+            if let Some(angle) = move_angle_from_turns(virtual_face_rotations[face.index()]) {
+                self.record_center_face_rotation(side_length, face, angle.inverse());
+            }
+        }
+    }
+}
+
+fn move_angle_from_turns(turns: u8) -> Option<MoveAngle> {
+    match turns & 3 {
+        0 => None,
+        1 => Some(MoveAngle::Positive),
+        2 => Some(MoveAngle::Double),
+        3 => Some(MoveAngle::Negative),
+        _ => unreachable!("turns are masked to two bits"),
     }
 }

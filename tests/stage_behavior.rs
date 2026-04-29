@@ -208,7 +208,7 @@ fn edge_pairing_stage_meets_its_postcondition() {
 fn center_reduction_stage_has_matching_standard_and_optimized_effects() {
     assert_stage_modes_match::<CenterReductionStage, _, _>(
         CenterReductionStage::western_default,
-        5,
+        6,
         0xC311_1001,
         48,
         centers_are_solved,

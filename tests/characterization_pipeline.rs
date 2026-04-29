@@ -169,11 +169,14 @@ fn standard_and_optimized_default_pipelines_reach_the_same_final_cube_state() {
                     )
                 });
 
-        assert_cubes_match(&standard_cube, &optimized_cube);
-        assert_eq!(
-            standard_outcome.move_stats.total,
-            optimized_outcome.move_stats.total
+        assert!(standard_cube.is_solved(), "standard pipeline did not solve");
+        assert!(
+            optimized_cube.is_solved(),
+            "optimized pipeline did not solve"
         );
+        assert_cubes_match(&optimized_cube, &standard_cube);
+        assert_eq!(optimized_outcome.move_stats, standard_outcome.move_stats);
+        assert!(standard_outcome.move_stats.total > 0);
         assert_eq!(standard_cube.reachability(), CubeReachability::Reachable);
         assert_eq!(optimized_cube.reachability(), CubeReachability::Reachable);
     }
