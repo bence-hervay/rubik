@@ -1196,6 +1196,34 @@ fn structured_scramble_variants_use_equal_move_budgets() {
 }
 
 #[test]
+fn biased_random_layer_probability_is_parameterized() {
+    let k = 3;
+
+    for outer_probability in [0.0, 0.5, 1.0] {
+        let mut cube = Cube::<Byte>::new_solved(7);
+        cube.scramble_biased_random_layers_with_outer_probability(
+            &mut XorShift64::new(0xB1A5_5000),
+            k,
+            outer_probability,
+        );
+
+        assert_eq!(cube.history().len(), k * 3 * cube.side_len());
+        assert_eq!(cube.reachability(), CubeReachability::Reachable);
+    }
+}
+
+#[test]
+fn balanced_outer_layer_probability_equalizes_expected_layer_hits() {
+    for side_length in [3usize, 20, 500, 4000] {
+        let probability = crate::balanced_outer_layer_probability(side_length);
+        let outer_hits_per_k = side_length as f64 * probability / 2.0;
+        let inner_hits_per_k = side_length as f64 * (1.0 - probability) / (side_length - 2) as f64;
+
+        assert!((outer_hits_per_k - inner_hits_per_k).abs() < 1e-12);
+    }
+}
+
+#[test]
 fn basic_singmaster_turns_match_our_move_notation() {
     let side_length = 5;
     let last = side_length - 1;

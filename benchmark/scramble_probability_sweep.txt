@@ -1,0 +1,15 @@
+Biased random layer probability sweep
+
+Target: same expected untouched-layer rate as n=20, p=10%, k=4: 1.8316%.
+
+Analytic balance: choose p = 2/n so one outer layer and one inner layer get the same expected hits per k.
+Requested grid: every 5 percentage points from 5% through 95%.
+
+n, analytic p=2/n, best grid p, required k, expected unseen at k, empirical unseen at k
+500, 0.4000%, 5%, 5, 0.8441%, 0.8458%
+1000, 0.2000%, 5%, 5, 0.8546%, 0.8625%
+2000, 0.1000%, 5%, 5, 0.8599%, 0.9094%
+4000, 0.0500%, 5%, 5, 0.8625%, 0.8547%
+
+Within the requested 5%-95% grid, ties are broken by lower expected untouched-layer rate.
+The unrestricted analytic optimum is below 5% for all listed large cube sizes, so the grid optimum lands on 5%.

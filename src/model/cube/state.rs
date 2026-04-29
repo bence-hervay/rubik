@@ -11,6 +11,12 @@ use crate::{
 };
 
 use super::{ColorScheme, Cube, CubeReachability, DEFAULT_SCRAMBLE_ROUNDS};
+
+pub fn balanced_outer_layer_probability(side_length: usize) -> f64 {
+    assert!(side_length > 0, "cube side length must be > 0");
+    (2.0 / side_length as f64).min(1.0)
+}
+
 impl<S: FaceletArray> Cube<S> {
     pub fn new_solved(n: usize) -> Self {
         Self::new_with_scheme(n, ColorScheme::default())
@@ -175,12 +181,30 @@ impl<S: FaceletArray> Cube<S> {
     }
 
     pub fn scramble_biased_random_layers<R: RandomSource>(&mut self, rng: &mut R, k: usize) {
+        self.scramble_biased_random_layers_with_outer_probability(
+            rng,
+            k,
+            balanced_outer_layer_probability(self.n),
+        );
+    }
+
+    pub fn scramble_biased_random_layers_with_outer_probability<R: RandomSource>(
+        &mut self,
+        rng: &mut R,
+        k: usize,
+        outer_layer_probability: f64,
+    ) {
+        assert!(
+            outer_layer_probability.is_finite() && (0.0..=1.0).contains(&outer_layer_probability),
+            "outer layer probability must be in 0.0..=1.0"
+        );
+
         for _ in 0..k {
             for _ in 0..self.n {
                 for _ in 0..3 {
                     let mv = Move::new(
                         random_axis(rng),
-                        random_biased_layer(self.n, rng),
+                        random_biased_layer(self.n, rng, outer_layer_probability),
                         random_move_angle(rng),
                     );
                     self.apply_move(mv);
@@ -335,8 +359,12 @@ fn random_axis<R: RandomSource>(rng: &mut R) -> Axis {
     }
 }
 
-fn random_biased_layer<R: RandomSource>(side_length: usize, rng: &mut R) -> usize {
-    if side_length <= 2 || rng.next_u64() % 10 == 0 {
+fn random_biased_layer<R: RandomSource>(
+    side_length: usize,
+    rng: &mut R,
+    outer_layer_probability: f64,
+) -> usize {
+    if side_length <= 2 || random_unit_interval(rng) < outer_layer_probability {
         if rng.next_u64() & 1 == 0 {
             0
         } else {
@@ -345,4 +373,9 @@ fn random_biased_layer<R: RandomSource>(side_length: usize, rng: &mut R) -> usiz
     } else {
         1 + (rng.next_u64() as usize % (side_length - 2))
     }
+}
+
+fn random_unit_interval<R: RandomSource>(rng: &mut R) -> f64 {
+    const DENOMINATOR: f64 = u64::MAX as f64 + 1.0;
+    rng.next_u64() as f64 / DENOMINATOR
 }

@@ -37,7 +37,8 @@ pub use model::cube;
 pub use model::face;
 pub use model::facelet;
 pub use model::{
-    ColorScheme, Cube, CubeReachability, Face, FaceAngle, FaceId, Facelet, DEFAULT_SCRAMBLE_ROUNDS,
+    balanced_outer_layer_probability, ColorScheme, Cube, CubeReachability, Face, FaceAngle, FaceId,
+    Facelet, DEFAULT_SCRAMBLE_ROUNDS,
 };
 pub use moves::history;
 pub use moves::{Axis, Move, MoveAngle, MoveHistory};

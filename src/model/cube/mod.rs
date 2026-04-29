@@ -4,6 +4,7 @@ mod state;
 mod tests;
 mod types;
 
+pub use state::balanced_outer_layer_probability;
 pub use types::{ColorScheme, Cube, CubeReachability, DEFAULT_SCRAMBLE_ROUNDS};
 
 pub use crate::algorithms::centers::face_commutator::{

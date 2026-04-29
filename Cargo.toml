@@ -36,3 +36,7 @@ path = "src/bin/scramble_benchmark.rs"
 [[bin]]
 name = "scramble_stats"
 path = "src/bin/scramble_stats.rs"
+
+[[bin]]
+name = "scramble_probability_sweep"
+path = "src/bin/scramble_probability_sweep.rs"

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 900" width="1120" height="900">
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#111827}
+.title{font-size:22px;font-weight:700}
+.subtitle{fill:#4b5563;font-size:14px}
+.panel-title{font-size:16px;font-weight:700}
+.axis{stroke:#111827;stroke-width:1.2}
+.grid{stroke:#e5e7eb;stroke-width:1}
+.tick{fill:#374151;font-size:12px}
+.legend{font-size:13px}
+</style>
+<text x="86" y="42" class="title">Outer-layer probability sweep</text>
+<text x="86" y="66" class="subtitle">Probabilities are exactly 5%, 10%, ..., 95%. Target untouched-layer rate: 1.8316%.</text>
+<text x="86" y="88" class="subtitle">Required k is derived analytically and checked with 16 randomized layer-hit trials per point.</text>
+<text x="86" y="98" class="panel-title">Iterations needed to match the blue-method threshold</text>
+<text x="86" y="118" class="subtitle">Lower is faster; ties prefer the lower probability because it gives more middle-layer coverage.</text>
+<line x1="86" y1="462" x2="1016" y2="462" class="grid"/>
+<text x="78" y="466" text-anchor="end" class="tick">0</text>
+<line x1="86" y1="396" x2="1016" y2="396" class="grid"/>
+<text x="78" y="400" text-anchor="end" class="tick">16</text>
+<line x1="86" y1="330" x2="1016" y2="330" class="grid"/>
+<text x="78" y="334" text-anchor="end" class="tick">32</text>
+<line x1="86" y1="264" x2="1016" y2="264" class="grid"/>
+<text x="78" y="268" text-anchor="end" class="tick">48</text>
+<line x1="86" y1="198" x2="1016" y2="198" class="grid"/>
+<text x="78" y="202" text-anchor="end" class="tick">64</text>
+<line x1="86" y1="132" x2="1016" y2="132" class="grid"/>
+<text x="78" y="136" text-anchor="end" class="tick">80</text>
+<line x1="86" y1="132" x2="86" y2="462" class="grid"/>
+<text x="86" y="484" text-anchor="middle" class="tick">5%</text>
+<line x1="241" y1="132" x2="241" y2="462" class="grid"/>
+<text x="241" y="484" text-anchor="middle" class="tick">20%</text>
+<line x1="396" y1="132" x2="396" y2="462" class="grid"/>
+<text x="396" y="484" text-anchor="middle" class="tick">35%</text>
+<line x1="551" y1="132" x2="551" y2="462" class="grid"/>
+<text x="551" y="484" text-anchor="middle" class="tick">50%</text>
+<line x1="706" y1="132" x2="706" y2="462" class="grid"/>
+<text x="706" y="484" text-anchor="middle" class="tick">65%</text>
+<line x1="861" y1="132" x2="861" y2="462" class="grid"/>
+<text x="861" y="484" text-anchor="middle" class="tick">80%</text>
+<line x1="1016" y1="132" x2="1016" y2="462" class="grid"/>
+<text x="1016" y="484" text-anchor="middle" class="tick">95%</text>
+<line x1="86" y1="462" x2="1016" y2="462" class="axis"/>
+<line x1="86" y1="132" x2="86" y2="462" class="axis"/>
+<text x="551" y="512" text-anchor="middle" class="tick">outer-layer probability</text>
+<text x="30" y="297" transform="rotate(-90 30 297)" text-anchor="middle" class="tick">required k</text>
+<polyline points="86.00,441.38 137.67,441.38 189.33,441.38 241.00,441.38 292.67,437.25 344.33,437.25 396.00,433.12 447.67,433.12 499.33,429.00 551.00,429.00 602.67,424.88 654.33,420.75 706.00,412.50 757.67,404.25 809.33,396.00 861.00,379.50 912.67,350.62 964.33,297.00 1016.00,132.00 " fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="86.00,441.38 137.67,441.38 189.33,441.38 241.00,441.38 292.67,437.25 344.33,437.25 396.00,433.12 447.67,433.12 499.33,429.00 551.00,429.00 602.67,424.88 654.33,420.75 706.00,412.50 757.67,404.25 809.33,396.00 861.00,379.50 912.67,350.62 964.33,297.00 1016.00,132.00 " fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="86.00,441.38 137.67,441.38 189.33,441.38 241.00,441.38 292.67,437.25 344.33,437.25 396.00,433.12 447.67,433.12 499.33,429.00 551.00,429.00 602.67,424.88 654.33,420.75 706.00,412.50 757.67,404.25 809.33,396.00 861.00,379.50 912.67,350.62 964.33,297.00 1016.00,132.00 " fill="none" stroke="#059669" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="86.00,441.38 137.67,441.38 189.33,441.38 241.00,441.38 292.67,437.25 344.33,437.25 396.00,433.12 447.67,433.12 499.33,429.00 551.00,429.00 602.67,424.88 654.33,420.75 706.00,412.50 757.67,404.25 809.33,396.00 861.00,379.50 912.67,350.62 964.33,297.00 1016.00,132.00 " fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="86" y="526" class="panel-title">Empirical untouched-layer rate at required k</text>
+<text x="86" y="546" class="subtitle">Randomized layer-hit validation; dashed line is the blue-method threshold.</text>
+<line x1="86" y1="740" x2="1016" y2="740" class="grid"/>
+<text x="78" y="744" text-anchor="end" class="tick">0.00%</text>
+<line x1="86" y1="680" x2="1016" y2="680" class="grid"/>
+<text x="78" y="684" text-anchor="end" class="tick">0.74%</text>
+<line x1="86" y1="620" x2="1016" y2="620" class="grid"/>
+<text x="78" y="624" text-anchor="end" class="tick">1.47%</text>
+<line x1="86" y1="560" x2="1016" y2="560" class="grid"/>
+<text x="78" y="564" text-anchor="end" class="tick">2.21%</text>
+<line x1="86" y1="560" x2="86" y2="740" class="grid"/>
+<text x="86" y="762" text-anchor="middle" class="tick">5%</text>
+<line x1="241" y1="560" x2="241" y2="740" class="grid"/>
+<text x="241" y="762" text-anchor="middle" class="tick">20%</text>
+<line x1="396" y1="560" x2="396" y2="740" class="grid"/>
+<text x="396" y="762" text-anchor="middle" class="tick">35%</text>
+<line x1="551" y1="560" x2="551" y2="740" class="grid"/>
+<text x="551" y="762" text-anchor="middle" class="tick">50%</text>
+<line x1="706" y1="560" x2="706" y2="740" class="grid"/>
+<text x="706" y="762" text-anchor="middle" class="tick">65%</text>
+<line x1="861" y1="560" x2="861" y2="740" class="grid"/>
+<text x="861" y="762" text-anchor="middle" class="tick">80%</text>
+<line x1="1016" y1="560" x2="1016" y2="740" class="grid"/>
+<text x="1016" y="762" text-anchor="middle" class="tick">95%</text>
+<line x1="86" y1="590.6715232738085" x2="1016" y2="590.6715232738085" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="5 5"/>
+<line x1="86" y1="740" x2="1016" y2="740" class="axis"/>
+<line x1="86" y1="560" x2="86" y2="740" class="axis"/>
+<polyline points="86.00,671.04 137.67,649.64 189.33,631.97 241.00,589.85 292.67,663.23 344.33,624.16 396.00,659.83 447.67,610.57 499.33,633.67 551.00,594.26 602.67,607.51 654.33,589.17 706.00,636.05 757.67,600.04 809.33,600.72 861.00,599.02 912.67,620.76 964.33,599.70 1016.00,592.23 " fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="86.00,669.68 137.67,647.26 189.33,622.63 241.00,593.92 292.67,653.20 344.33,618.89 396.00,658.13 447.67,624.33 499.33,640.63 551.00,586.96 602.67,592.91 654.33,589.00 706.00,616.52 757.67,618.04 809.33,592.57 861.00,594.77 912.67,595.45 964.33,598.00 1016.00,590.87 " fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="86.00,665.86 137.67,645.14 189.33,627.98 241.00,583.48 292.67,651.42 344.33,622.38 396.00,657.45 447.67,620.25 499.33,636.90 551.00,596.30 602.67,594.35 654.33,600.89 706.00,616.35 757.67,615.84 809.33,592.48 861.00,598.94 912.67,592.74 964.33,586.20 1016.00,591.97 " fill="none" stroke="#059669" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="86.00,670.32 137.67,651.93 189.33,620.93 241.00,591.12 292.67,647.13 344.33,619.57 396.00,658.09 447.67,621.65 499.33,640.42 551.00,588.57 602.67,596.01 654.33,593.20 706.00,619.74 757.67,618.72 809.33,591.04 861.00,595.62 912.67,598.51 964.33,586.88 1016.00,591.25 " fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+<line x1="86" y1="810" x2="124" y2="810" stroke="#2563eb" stroke-width="3"/>
+<text x="134" y="814" class="legend">n=500</text>
+<line x1="291" y1="810" x2="329" y2="810" stroke="#dc2626" stroke-width="3"/>
+<text x="339" y="814" class="legend">n=1000</text>
+<line x1="496" y1="810" x2="534" y2="810" stroke="#059669" stroke-width="3"/>
+<text x="544" y="814" class="legend">n=2000</text>
+<line x1="701" y1="810" x2="739" y2="810" stroke="#7c3aed" stroke-width="3"/>
+<text x="749" y="814" class="legend">n=4000</text>
+<text x="86" y="868" class="subtitle">Analytic optimum p=2/n is below this grid for n=500..4000; inside the requested grid, lower p spends fewer moves over-hitting outer layers.</text>
+</svg>

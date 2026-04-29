@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rubik::{Byte, Cube, FaceId, Facelet, XorShift64};
+use rubik::{balanced_outer_layer_probability, Byte, Cube, FaceId, Facelet, XorShift64};
 
 const DEFAULT_SIDE_LENGTH: usize = 20;
 const DEFAULT_MAX_K: usize = 32;
@@ -345,7 +345,8 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#111827}
     );
     let _ = writeln!(
         out,
-        r#"<text x="80" y="88" class="subtitle">Both methods use 3*n*k move attempts; biased random layers use 10% outer-layer picks and 90% inner-layer picks.</text>"#
+        r#"<text x="80" y="88" class="subtitle">Both methods use 3*n*k move attempts; biased random layers use balanced outer p={:.4}% (2/n, capped at 100%).</text>"#,
+        100.0 * balanced_outer_layer_probability(cli.side_length)
     );
 
     render_panel(
