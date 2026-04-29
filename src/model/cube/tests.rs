@@ -1101,7 +1101,7 @@ fn random_move_stays_within_cube_bounds() {
 }
 
 #[test]
-fn scramble_applies_four_rounds_of_uniform_random_layer_turns() {
+fn scramble_applies_default_rounds_of_uniform_random_layer_turns() {
     let side_length = 5;
     let seed = 0x5C4A_2B1E;
 
