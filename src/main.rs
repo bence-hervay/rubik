@@ -6,10 +6,10 @@ use std::{
 };
 
 use rubik::{
-    optimized_thread_count, Axis, Byte, CenterReductionStage, CornerReductionStage, Cube,
-    EdgePairingStage, ExecutionMode, FaceletArray, Move, MoveAngle, NetRenderOptions, Nibble,
-    RandomSource, SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase, ThirdByte,
-    ThreeBit, XorShift64,
+    configure_optimized_thread_count, default_thread_count, optimized_thread_count, Axis, Byte,
+    CenterReductionStage, CornerReductionStage, Cube, EdgePairingStage, ExecutionMode,
+    FaceletArray, Move, MoveAngle, NetRenderOptions, Nibble, RandomSource, SolveAlgorithm,
+    SolveContext, SolveError, SolveOptions, SolvePhase, ThirdByte, ThreeBit, XorShift64,
 };
 
 const DEFAULT_SIDE_LENGTH: usize = 5;
@@ -30,6 +30,7 @@ struct Cli {
     backend: StorageKind,
     scramble_rounds: usize,
     seed: u64,
+    thread_count: usize,
     render: RenderCli,
 }
 
@@ -41,6 +42,7 @@ impl Default for Cli {
             backend: StorageKind::Byte,
             scramble_rounds: DEFAULT_SCRAMBLE_ROUNDS,
             seed: DEFAULT_RANDOM_SEED,
+            thread_count: optimized_thread_count(),
             render: RenderCli::default(),
         }
     }
@@ -173,6 +175,10 @@ where
                 let value = argument_value(&flag, inline_value, &mut iter)?;
                 cli.seed = parse_u64(&value, "seed")?;
             }
+            "-t" | "--threads" | "--thread-count" => {
+                let value = argument_value(&flag, inline_value, &mut iter)?;
+                cli.thread_count = parse_positive_usize(&value, "threads")?;
+            }
             "--plain-render" => {
                 if inline_value.is_some() {
                     return Err("--plain-render does not take a value".to_owned());
@@ -220,6 +226,14 @@ fn parse_usize(value: &str, name: &str) -> Result<usize, String> {
         .map_err(|_| format!("{name} must be a positive integer"))
 }
 
+fn parse_positive_usize(value: &str, name: &str) -> Result<usize, String> {
+    let parsed = parse_usize(value, name)?;
+    if parsed == 0 {
+        return Err(format!("{name} must be greater than 0"));
+    }
+    Ok(parsed)
+}
+
 fn parse_u64(value: &str, name: &str) -> Result<u64, String> {
     if let Some(hex) = value
         .strip_prefix("0x")
@@ -245,18 +259,22 @@ Options:
   -b, --backend <BACKEND>           byte | nibble | three_bit | third_byte. Default: byte
   -r, --scramble-rounds <ROUNDS>    Uniform random layer rounds; each round is 3*n moves. Default: {DEFAULT_SCRAMBLE_ROUNDS}
   -s, --seed <SEED>                 Scramble seed, decimal or 0x-prefixed hex.
+  -t, --threads <N>                 Optimized worker threads. Default: available CPUs ({})
       --plain-render                 Disable ANSI styling and print plain ASCII facelets.
   -h, --help                        Print this help.
 
 Examples:
-  cargo run -- --n 5 --mode optimized --backend third_byte
+  cargo run -- --n 5 --mode optimized --backend third_byte --threads 8
   cargo run -- -n 7 -m standard -b ThreeBit --seed 0xC0FFEE
   cargo run -- --plain-render
-"
+",
+        default_thread_count()
     )
 }
 
 fn run(cli: Cli) -> Result<(), String> {
+    configure_optimized_thread_count(cli.thread_count)?;
+
     match cli.backend {
         StorageKind::Byte => run_with_storage::<Byte>(cli),
         StorageKind::Nibble => run_with_storage::<Nibble>(cli),
@@ -287,7 +305,7 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
     print_value("  ", "Scramble Seed", format_args!("0x{:016X}", cli.seed));
     print_value("  ", "Planned Scramble Moves", scramble_move_count);
     if cli.mode == ExecutionMode::Optimized {
-        print_value("  ", "Optimized Threads", optimized_thread_count());
+        print_value("  ", "Optimized Threads", cli.thread_count);
     }
     print_value(
         "  ",
@@ -322,7 +340,7 @@ fn run_with_storage<S: FaceletArray>(cli: Cli) -> Result<(), String> {
         cube.scramble_parallel_random_layer_batches_untracked(
             &mut rng,
             cli.scramble_rounds,
-            optimized_thread_count(),
+            cli.thread_count,
         );
     }
     let scramble_elapsed = scramble_start.elapsed();
@@ -706,6 +724,7 @@ mod tests {
                 backend: StorageKind::ThreeBit,
                 scramble_rounds: 9,
                 seed: 0xC0FFEE,
+                thread_count: optimized_thread_count(),
                 render: RenderCli::default(),
             })
         );
@@ -721,7 +740,26 @@ mod tests {
                 backend: StorageKind::Byte,
                 scramble_rounds: DEFAULT_SCRAMBLE_ROUNDS,
                 seed: DEFAULT_RANDOM_SEED,
+                thread_count: optimized_thread_count(),
                 render: RenderCli { plain: true },
+            })
+        );
+    }
+
+    #[test]
+    fn parse_thread_count_aliases() {
+        assert_eq!(
+            parse_args(["rubik", "-t", "8"]).unwrap(),
+            Command::Run(Cli {
+                thread_count: 8,
+                ..Cli::default()
+            })
+        );
+        assert_eq!(
+            parse_args(["rubik", "--thread-count=6"]).unwrap(),
+            Command::Run(Cli {
+                thread_count: 6,
+                ..Cli::default()
             })
         );
     }
@@ -731,6 +769,14 @@ mod tests {
         assert_eq!(
             parse_args(["rubik", "--n", "0"]).unwrap_err(),
             "n must be greater than 0"
+        );
+    }
+
+    #[test]
+    fn reject_zero_thread_count() {
+        assert_eq!(
+            parse_args(["rubik", "--threads", "0"]).unwrap_err(),
+            "threads must be greater than 0"
         );
     }
 

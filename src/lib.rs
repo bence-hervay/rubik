@@ -55,7 +55,9 @@ pub use solver::{
 };
 pub use storage::{Byte, FaceletArray, Nibble, ThirdByte, ThreeBit};
 pub use util::random;
-pub use util::threading::{default_thread_count, optimized_thread_count};
+pub use util::threading::{
+    configure_optimized_thread_count, default_thread_count, optimized_thread_count,
+};
 pub use util::{RandomSource, XorShift64};
 
 #[deprecated(note = "use rubik::algorithms::centers::CenterCommutatorTable")]

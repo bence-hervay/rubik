@@ -7,7 +7,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rubik::{optimized_thread_count, Byte, Cube, FaceId, Facelet, XorShift64};
+use rubik::{
+    configure_optimized_thread_count, default_thread_count, optimized_thread_count, Byte, Cube,
+    FaceId, Facelet, XorShift64,
+};
 
 const DEFAULT_SIDE_LENGTH: usize = 20;
 const DEFAULT_MAX_K: usize = 32;
@@ -21,6 +24,7 @@ struct Cli {
     max_k: usize,
     trials: usize,
     seed: u64,
+    thread_count: usize,
     output: PathBuf,
     csv_output: Option<PathBuf>,
 }
@@ -32,6 +36,7 @@ impl Default for Cli {
             max_k: DEFAULT_MAX_K,
             trials: DEFAULT_TRIALS,
             seed: DEFAULT_SEED,
+            thread_count: optimized_thread_count(),
             output: PathBuf::from(DEFAULT_OUTPUT),
             csv_output: None,
         }
@@ -139,6 +144,10 @@ where
                 cli.trials = parse_positive_usize(&value(flag, inline_value, &mut iter)?, "trials")?
             }
             "--seed" => cli.seed = parse_u64(&value(flag, inline_value, &mut iter)?, "seed")?,
+            "-t" | "--threads" | "--thread-count" => {
+                cli.thread_count =
+                    parse_positive_usize(&value(flag, inline_value, &mut iter)?, "threads")?
+            }
             "--output" => cli.output = PathBuf::from(value(flag, inline_value, &mut iter)?),
             "--csv-output" => {
                 cli.csv_output = Some(PathBuf::from(value(flag, inline_value, &mut iter)?))
@@ -152,6 +161,8 @@ where
 }
 
 fn run(cli: Cli) -> Result<(), String> {
+    configure_optimized_thread_count(cli.thread_count)?;
+
     let rows = collect_rows(&cli);
     let csv_output = cli
         .csv_output
@@ -191,7 +202,7 @@ fn collect_rows(cli: &Cli) -> Vec<Row> {
                         cube.scramble_parallel_random_layer_batches_untracked(
                             &mut rng,
                             k,
-                            optimized_thread_count(),
+                            cli.thread_count,
                         );
                     }
                     Method::LayerSweeps => cube.scramble_layer_sweeps(&mut rng, k),
@@ -524,8 +535,8 @@ fn metric_max(rows: &[Row], metric: fn(Stats) -> f64) -> f64 {
 
 fn print_summary(cli: &Cli, rows: &[Row]) {
     println!(
-        "scramble stats: n={}, k=0..{}, trials={}",
-        cli.side_length, cli.max_k, cli.trials
+        "scramble stats: n={}, k=0..{}, trials={}, threads={}",
+        cli.side_length, cli.max_k, cli.trials, cli.thread_count
     );
     println!("method                  final_face_tv  final_pair_tv  final_elapsed_ms");
     for method in Method::ALL {
@@ -606,9 +617,11 @@ Options:
       --max-k <K>          Largest k value to measure. Default: {DEFAULT_MAX_K}
       --trials <N>         Trials per k and method. Default: {DEFAULT_TRIALS}
       --seed <N>           Base seed, decimal or 0x-prefixed hex. Default: 0x{DEFAULT_SEED:016X}
+  -t, --threads <N>        Optimized worker threads. Default: available CPUs ({})
       --output <PATH>      SVG graph output. Default: {DEFAULT_OUTPUT}
       --csv-output <PATH>  CSV output. Default: output path with .csv extension
   -h, --help              Print this help.
-"
+",
+        default_thread_count()
     )
 }

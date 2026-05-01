@@ -17,13 +17,14 @@ cargo run --release -- --n 5 --mode optimized --backend byte
 
 The main binary is `rubik` and prints the initial configuration, the scrambled
 net, each stage timing, and the solved result. Defaults are `n=5`,
-`mode=standard`, `backend=byte`, `scramble-rounds=3`, and `seed=42`.
+`mode=standard`, `backend=byte`, `scramble-rounds=3`, `seed=42`, and one
+optimized worker thread per available CPU.
 
 Useful examples:
 
 ```sh
 # Fast large-cube path
-cargo run --release -- --n 4096 --mode optimized --backend three_bit
+cargo run --release -- --n 4096 --mode optimized --backend three_bit --threads 16
 
 # Fully recorded/debuggable path
 cargo run --release -- --n 7 --mode standard --backend byte --seed 0xC0FFEE
@@ -40,13 +41,14 @@ CLI options:
 -b, --backend <BACKEND>         byte | nibble | three_bit | third_byte
 -r, --scramble-rounds <ROUNDS>  each round is 3*n random layer moves
 -s, --seed <SEED>               decimal or 0x-prefixed hex seed
+-t, --threads <N>               optimized worker threads; defaults to available CPUs
 --plain-render                  disable ANSI color rendering
 ```
 
 For non-rendered benchmark runs, use:
 
 ```sh
-cargo run --release --bin run_pipeline_no_render -- --n 4096 --mode optimized --backend byte
+cargo run --release --bin run_pipeline_no_render -- --n 4096 --mode optimized --backend byte --threads 16
 ```
 
 Run the test suite with:
@@ -283,7 +285,10 @@ cargo run --release --bin scramble_probability_sweep -- --output benchmark/scram
 ```
 
 The stage/backend benchmarks run `run_pipeline_no_render` and parse the
-`Finished ... Time: ... ms` lines. The checked-in benchmark files are:
+`Finished ... Time: ... ms` lines. Pass `-t` or `--threads` to the main runner,
+`run_pipeline_no_render`, `stages_benchmark`, `backends_benchmark`, or
+`scramble_stats` to control optimized worker threads; without it they use the
+available CPU count. The checked-in benchmark files are:
 
 - [`benchmark/stages_13.csv`](benchmark/stages_13.csv)
 - [`benchmark/stages_13.svg`](benchmark/stages_13.svg)

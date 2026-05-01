@@ -3,6 +3,8 @@ mod benchmark_common;
 
 use std::{env, path::PathBuf, process};
 
+use rubik::{default_thread_count, optimized_thread_count};
+
 use benchmark_common::{
     average_runs, default_csv_output_path, ensure_runner, format_ms, parse_backends,
     parse_non_negative_u64, parse_non_negative_usize, parse_positive_usize, print_table,
@@ -26,6 +28,7 @@ struct Cli {
     trials: usize,
     scramble_rounds: usize,
     seed: u64,
+    thread_count: usize,
     output: PathBuf,
     csv_output: Option<PathBuf>,
     runner: String,
@@ -41,6 +44,7 @@ impl Default for Cli {
             trials: DEFAULT_TRIALS,
             scramble_rounds: DEFAULT_SCRAMBLE_ROUNDS,
             seed: DEFAULT_SEED,
+            thread_count: optimized_thread_count(),
             output: PathBuf::from(DEFAULT_OUTPUT),
             csv_output: None,
             runner: DEFAULT_RUNNER.to_owned(),
@@ -99,6 +103,10 @@ where
             "--seed" => {
                 cli.seed = parse_non_negative_u64(&value(flag, inline_value, &mut iter)?, "seed")?;
             }
+            "-t" | "--threads" | "--thread-count" => {
+                cli.thread_count =
+                    parse_positive_usize(&value(flag, inline_value, &mut iter)?, "threads")?;
+            }
             "--output" => cli.output = PathBuf::from(value(flag, inline_value, &mut iter)?),
             "--csv-output" => {
                 cli.csv_output = Some(PathBuf::from(value(flag, inline_value, &mut iter)?));
@@ -125,13 +133,14 @@ fn run(cli: Cli) -> Result<(), String> {
         for trial in 0..cli.trials {
             let seed = cli.seed + trial as u64;
             println!(
-                "running n={} backend={} mode={} trial={}/{} seed={}",
+                "running n={} backend={} mode={} trial={}/{} seed={} threads={}",
                 cli.size,
                 backend,
                 cli.mode,
                 trial + 1,
                 cli.trials,
-                seed
+                seed,
+                cli.thread_count
             );
             runs.push(run_pipeline(RunConfig {
                 runner: &runner,
@@ -140,6 +149,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 backend,
                 scramble_rounds: cli.scramble_rounds,
                 seed,
+                thread_count: cli.thread_count,
             })?);
         }
         by_backend.push((backend.clone(), average_runs(&runs)?));
@@ -162,7 +172,13 @@ fn run(cli: Cli) -> Result<(), String> {
     println!();
     print_table(&headers, &rows);
 
-    let svg = render_backends_svg(&by_backend, cli.size, &cli.mode, cli.trials);
+    let svg = render_backends_svg(
+        &by_backend,
+        cli.size,
+        &cli.mode,
+        cli.trials,
+        cli.thread_count,
+    );
     write_svg(&cli.output, &svg)?;
 
     let csv_output = cli
@@ -176,6 +192,7 @@ fn run(cli: Cli) -> Result<(), String> {
         cli.trials,
         cli.scramble_rounds,
         cli.seed,
+        cli.thread_count,
     );
     write_csv(&csv_output, &csv)?;
 
@@ -197,13 +214,15 @@ Options:
   --trials <N>                   Runs per backend. Default: {DEFAULT_TRIALS}
   --scramble-rounds <N>          Uniform random layer rounds passed to run_pipeline_no_render. Default: {DEFAULT_SCRAMBLE_ROUNDS}
   --seed <N>                     Base scramble seed. Trial i uses seed+i. Default: {DEFAULT_SEED}
+  -t, --threads <N>              Optimized worker threads passed to run_pipeline_no_render. Default: available CPUs ({})
   --output <PATH>                SVG output path. Default: {DEFAULT_OUTPUT}
   --csv-output <PATH>            CSV output path. Default: SVG output with .csv extension
   --runner <PATH>                Path to run_pipeline_no_render. Default: {DEFAULT_RUNNER}
   --no-build                     Do not build the release runner before benchmarking
   -h, --help                     Print this help.
 ",
-        BACKENDS.join(",")
+        BACKENDS.join(","),
+        default_thread_count()
     )
 }
 

@@ -116,6 +116,7 @@ pub struct RunConfig<'a> {
     pub backend: &'a str,
     pub scramble_rounds: usize,
     pub seed: u64,
+    pub thread_count: usize,
 }
 
 pub fn repo_root() -> PathBuf {
@@ -161,6 +162,8 @@ pub fn run_pipeline(config: RunConfig<'_>) -> Result<StageTimes, String> {
             .arg(config.scramble_rounds.to_string())
             .arg("--seed")
             .arg(config.seed.to_string())
+            .arg("--threads")
+            .arg(config.thread_count.to_string())
             .current_dir(root),
     )?;
 
@@ -335,12 +338,13 @@ pub fn render_stages_csv(
     attempts: usize,
     scramble_rounds: usize,
     seed: u64,
+    thread_count: usize,
     fit_threshold: usize,
     extrapolate_to: usize,
 ) -> String {
     let mut csv = String::new();
     csv.push_str(
-        "backend,mode,attempts,scramble_rounds,base_seed,fit_threshold,extrapolate_to,n,init_ms,scramble_ms,corner_ms,edge_ms,center_ms,total_ms\n",
+        "backend,mode,attempts,scramble_rounds,base_seed,threads,fit_threshold,extrapolate_to,n,init_ms,scramble_ms,corner_ms,edge_ms,center_ms,total_ms\n",
     );
 
     for (size, times) in by_size {
@@ -352,6 +356,7 @@ pub fn render_stages_csv(
                 attempts.to_string(),
                 scramble_rounds.to_string(),
                 seed.to_string(),
+                thread_count.to_string(),
                 fit_threshold.to_string(),
                 extrapolate_to.to_string(),
                 size.to_string(),
@@ -375,10 +380,11 @@ pub fn render_backends_csv(
     trials: usize,
     scramble_rounds: usize,
     seed: u64,
+    thread_count: usize,
 ) -> String {
     let mut csv = String::new();
     csv.push_str(
-        "n,mode,trials,scramble_rounds,base_seed,backend,init_ms,scramble_ms,corner_ms,edge_ms,center_ms,total_ms\n",
+        "n,mode,trials,scramble_rounds,base_seed,threads,backend,init_ms,scramble_ms,corner_ms,edge_ms,center_ms,total_ms\n",
     );
 
     for (backend, times) in by_backend {
@@ -390,6 +396,7 @@ pub fn render_backends_csv(
                 trials.to_string(),
                 scramble_rounds.to_string(),
                 seed.to_string(),
+                thread_count.to_string(),
                 backend.clone(),
                 csv_ms(times.get(Stage::Init)),
                 csv_ms(times.get(Stage::Scramble)),
@@ -421,6 +428,7 @@ pub fn render_stages_svg(
     backend: &str,
     mode: &str,
     attempts: usize,
+    thread_count: usize,
     fit_threshold: usize,
     extrapolate_to: usize,
 ) -> String {
@@ -511,7 +519,9 @@ pub fn render_stages_svg(
         &mut svg,
         42.0,
         38.0,
-        &format!("Stage runtime scaling - backend={backend}, mode={mode}, attempts={attempts}"),
+        &format!(
+            "Stage runtime scaling - backend={backend}, mode={mode}, attempts={attempts}, threads={thread_count}"
+        ),
         TextOptions::title(),
     );
     svg_text(
@@ -744,6 +754,7 @@ pub fn render_backends_svg(
     size: usize,
     mode: &str,
     trials: usize,
+    thread_count: usize,
 ) -> String {
     let width = 1200.0;
     let height = 840.0;
@@ -772,7 +783,9 @@ pub fn render_backends_svg(
         &mut svg,
         42.0,
         38.0,
-        &format!("Backend runtime comparison - n={size}, mode={mode}, trials={trials}"),
+        &format!(
+            "Backend runtime comparison - n={size}, mode={mode}, trials={trials}, threads={thread_count}"
+        ),
         TextOptions::title(),
     );
     svg_text(
