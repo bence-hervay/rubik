@@ -1191,6 +1191,87 @@ fn structured_scramble_variants_use_equal_move_budgets() {
 }
 
 #[test]
+fn independent_same_axis_parallel_batch_matches_sequential_orders() {
+    let side_length = 8;
+    let moves = [
+        Move::new(Axis::X, 0, MoveAngle::Positive),
+        Move::new(Axis::X, 2, MoveAngle::Negative),
+        Move::new(Axis::X, 5, MoveAngle::Double),
+        Move::new(Axis::X, 7, MoveAngle::Positive),
+    ];
+
+    let mut expected = patterned_cube::<Byte>(side_length, 71);
+    expected.apply_moves_untracked(moves);
+
+    let mut reversed = patterned_cube::<Byte>(side_length, 71);
+    reversed.apply_moves_untracked(moves.iter().rev().copied());
+
+    let mut shuffled = patterned_cube::<Byte>(side_length, 71);
+    for index in [2usize, 0, 3, 1] {
+        shuffled.apply_move_untracked(moves[index]);
+    }
+
+    let mut parallel = patterned_cube::<Byte>(side_length, 71);
+    parallel.apply_independent_same_axis_moves_untracked_parallel(&moves, 4);
+
+    assert_cubes_match(&reversed, &expected);
+    assert_cubes_match(&shuffled, &expected);
+    assert_cubes_match(&parallel, &expected);
+}
+
+#[test]
+fn parallel_random_layer_batches_are_untracked_and_backend_stable() {
+    let side_length = 128;
+    let rounds = 2;
+    let seed = 0x9A7A_BA7C_0001;
+    let expected_moves = rounds * 3 * side_length;
+
+    let mut byte = Cube::<Byte>::new_solved(side_length);
+    let mut nibble = Cube::<Nibble>::new_solved(side_length);
+    let mut three_bit = Cube::<ThreeBit>::new_solved(side_length);
+    let mut third_byte = Cube::<ThirdByte>::new_solved(side_length);
+
+    assert_eq!(
+        byte.scramble_parallel_random_layer_batches_untracked(
+            &mut XorShift64::new(seed),
+            rounds,
+            4,
+        ),
+        expected_moves
+    );
+    assert_eq!(
+        nibble.scramble_parallel_random_layer_batches_untracked(
+            &mut XorShift64::new(seed),
+            rounds,
+            4,
+        ),
+        expected_moves
+    );
+    assert_eq!(
+        three_bit.scramble_parallel_random_layer_batches_untracked(
+            &mut XorShift64::new(seed),
+            rounds,
+            4,
+        ),
+        expected_moves
+    );
+    assert_eq!(
+        third_byte.scramble_parallel_random_layer_batches_untracked(
+            &mut XorShift64::new(seed),
+            rounds,
+            4,
+        ),
+        expected_moves
+    );
+
+    assert!(byte.history().is_empty());
+    assert_eq!(byte.reachability(), CubeReachability::Reachable);
+    assert_cubes_match(&byte, &nibble);
+    assert_cubes_match(&byte, &three_bit);
+    assert_cubes_match(&byte, &third_byte);
+}
+
+#[test]
 fn biased_random_layer_probability_is_parameterized() {
     let k = 3;
 

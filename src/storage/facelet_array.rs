@@ -1,6 +1,8 @@
 use crate::facelet::Facelet;
 
-pub trait FaceletArray: Clone + core::fmt::Debug + Send {
+pub trait FaceletArray: Clone + core::fmt::Debug + Send + Sync {
+    const SUPPORTS_DISJOINT_PARALLEL_WRITES: bool = false;
+
     fn with_len(len: usize, fill: Facelet) -> Self
     where
         Self: Sized;
@@ -43,6 +45,36 @@ pub trait FaceletArray: Clone + core::fmt::Debug + Send {
     #[inline]
     unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
         self.set(index, Facelet::from_u8(value));
+    }
+
+    /// # Safety
+    ///
+    /// `storage` must point to a valid instance of this storage backend and
+    /// `index` must be in bounds. Concurrent callers must guarantee that no
+    /// thread mutates the same underlying memory location while this read is
+    /// in progress.
+    #[inline]
+    unsafe fn get_unchecked_raw_parallel(storage: *const Self, index: usize) -> u8
+    where
+        Self: Sized,
+    {
+        (*storage).get_unchecked_raw(index)
+    }
+
+    /// # Safety
+    ///
+    /// `storage` must point to a valid instance of this storage backend and
+    /// `index` must be in bounds. Concurrent callers must guarantee that no
+    /// other thread reads or mutates the same underlying memory location while
+    /// this write is in progress. This is only used when
+    /// `SUPPORTS_DISJOINT_PARALLEL_WRITES` is true.
+    #[inline]
+    unsafe fn set_unchecked_raw_parallel(storage: *mut Self, index: usize, value: u8)
+    where
+        Self: Sized,
+    {
+        debug_assert!(Self::SUPPORTS_DISJOINT_PARALLEL_WRITES);
+        (*storage).set_unchecked_raw(index, value);
     }
 
     /// # Safety

@@ -18,6 +18,8 @@ impl Byte {
 }
 
 impl FaceletArray for Byte {
+    const SUPPORTS_DISJOINT_PARALLEL_WRITES: bool = true;
+
     fn with_len(len: usize, fill: Facelet) -> Self {
         Self {
             data: init::filled_vec(len, fill.as_u8()),
@@ -52,6 +54,16 @@ impl FaceletArray for Byte {
     #[inline(always)]
     unsafe fn set_unchecked_raw(&mut self, index: usize, value: u8) {
         *self.data.get_unchecked_mut(index) = value;
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked_raw_parallel(storage: *const Self, index: usize) -> u8 {
+        *(*storage).data.as_ptr().add(index)
+    }
+
+    #[inline(always)]
+    unsafe fn set_unchecked_raw_parallel(storage: *mut Self, index: usize, value: u8) {
+        *(*storage).data.as_mut_ptr().add(index) = value;
     }
 
     #[inline(always)]

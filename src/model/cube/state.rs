@@ -1,13 +1,16 @@
+use rayon::prelude::*;
+
 use crate::{
     conventions::face_layer_move,
     face::{Face, FaceId},
     facelet::Facelet,
     geometry,
-    line::{cycle_four_lines, StripSpec},
+    line::{cycle_four_lines, LineTraversal, StripSpec},
     moves::{Axis, Move, MoveAngle, MoveHistory},
     random::RandomSource,
     simulation::derived::FacePosition,
     storage::FaceletArray,
+    util::threading::optimized_thread_pool,
 };
 
 use super::{ColorScheme, Cube, CubeReachability, DEFAULT_SCRAMBLE_ROUNDS};
@@ -229,6 +232,41 @@ impl<S: FaceletArray> Cube<S> {
         }
     }
 
+    pub fn scramble_parallel_random_layer_batches_untracked<R: RandomSource>(
+        &mut self,
+        rng: &mut R,
+        rounds: usize,
+        thread_count: usize,
+    ) -> usize {
+        let total_moves = scramble_move_count(self.n, rounds);
+        let batch_size = parallel_scramble_batch_size(self.n);
+        let mut remaining = total_moves;
+        let mut depths = Vec::with_capacity(batch_size);
+        let mut moves = Vec::with_capacity(batch_size);
+
+        while remaining > 0 {
+            let axis = random_axis(rng);
+            let batch_len = batch_size.min(remaining).min(self.n);
+            depths.clear();
+            moves.clear();
+
+            while moves.len() < batch_len {
+                let depth = (rng.next_u64() as usize) % self.n;
+                if depths.contains(&depth) {
+                    continue;
+                }
+
+                depths.push(depth);
+                moves.push(Move::new(axis, depth, random_move_angle(rng)));
+            }
+
+            self.apply_independent_same_axis_moves_untracked_parallel(&moves, thread_count);
+            remaining -= moves.len();
+        }
+
+        total_moves
+    }
+
     pub fn is_solved(&self) -> bool {
         for id in FaceId::ALL {
             let face = self.face(id);
@@ -313,6 +351,223 @@ impl<S: FaceletArray> Cube<S> {
             angle,
         );
     }
+
+    pub(crate) fn apply_independent_same_axis_moves_untracked_parallel(
+        &mut self,
+        moves: &[Move],
+        thread_count: usize,
+    ) {
+        if moves.is_empty() {
+            return;
+        }
+
+        if moves.len() == 1
+            || thread_count <= 1
+            || !S::SUPPORTS_DISJOINT_PARALLEL_WRITES
+            || !same_axis_unique_depths(moves, self.n)
+        {
+            self.apply_moves_untracked(moves.iter().copied());
+            return;
+        }
+
+        let planned = moves
+            .iter()
+            .copied()
+            .map(|mv| {
+                self.validate_move(mv);
+                let specs = self.plan_move(mv);
+                PlannedIndependentMove {
+                    angle: mv.angle,
+                    face_indices: [
+                        specs[0].face.index(),
+                        specs[1].face.index(),
+                        specs[2].face.index(),
+                        specs[3].face.index(),
+                    ],
+                    traversals: [
+                        self.faces[specs[0].face.index()].line_traversal(
+                            specs[0].kind,
+                            specs[0].index,
+                            specs[0].reversed,
+                        ),
+                        self.faces[specs[1].face.index()].line_traversal(
+                            specs[1].kind,
+                            specs[1].index,
+                            specs[1].reversed,
+                        ),
+                        self.faces[specs[2].face.index()].line_traversal(
+                            specs[2].kind,
+                            specs[2].index,
+                            specs[2].reversed,
+                        ),
+                        self.faces[specs[3].face.index()].line_traversal(
+                            specs[3].kind,
+                            specs[3].index,
+                            specs[3].reversed,
+                        ),
+                    ],
+                }
+            })
+            .collect::<Vec<_>>();
+
+        for mv in moves.iter().copied() {
+            self.rotate_outer_face_meta_unchecked(mv);
+        }
+
+        let storages = ParallelFaceStorages::new(&mut self.faces);
+        let thread_count = thread_count.min(planned.len());
+        let chunk_size = planned.len().div_ceil(thread_count);
+        let side_length = self.n;
+
+        optimized_thread_pool().install(|| {
+            planned.par_chunks(chunk_size).for_each(|chunk| {
+                for planned in chunk {
+                    unsafe {
+                        cycle_four_lines_parallel(
+                            storages,
+                            planned.face_indices,
+                            planned.traversals,
+                            side_length,
+                            planned.angle,
+                        );
+                    }
+                }
+            });
+        });
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+struct PlannedIndependentMove {
+    angle: MoveAngle,
+    face_indices: [usize; 4],
+    traversals: [LineTraversal; 4],
+}
+
+struct ParallelFaceStorages<S: FaceletArray> {
+    ptrs: [*mut S; 6],
+}
+
+impl<S: FaceletArray> Copy for ParallelFaceStorages<S> {}
+
+impl<S: FaceletArray> Clone for ParallelFaceStorages<S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+unsafe impl<S: FaceletArray> Send for ParallelFaceStorages<S> {}
+unsafe impl<S: FaceletArray> Sync for ParallelFaceStorages<S> {}
+
+impl<S: FaceletArray> ParallelFaceStorages<S> {
+    fn new(faces: &mut [Face<S>; 6]) -> Self {
+        Self {
+            ptrs: [
+                faces[0].matrix_mut().storage_mut() as *mut S,
+                faces[1].matrix_mut().storage_mut() as *mut S,
+                faces[2].matrix_mut().storage_mut() as *mut S,
+                faces[3].matrix_mut().storage_mut() as *mut S,
+                faces[4].matrix_mut().storage_mut() as *mut S,
+                faces[5].matrix_mut().storage_mut() as *mut S,
+            ],
+        }
+    }
+
+    unsafe fn get_raw(self, face_index: usize, index: usize) -> u8 {
+        S::get_unchecked_raw_parallel(self.ptrs[face_index] as *const S, index)
+    }
+
+    unsafe fn set_raw(self, face_index: usize, index: usize, value: u8) {
+        S::set_unchecked_raw_parallel(self.ptrs[face_index], index, value);
+    }
+}
+
+unsafe fn cycle_four_lines_parallel<S: FaceletArray>(
+    storages: ParallelFaceStorages<S>,
+    face_indices: [usize; 4],
+    traversals: [LineTraversal; 4],
+    len: usize,
+    angle: MoveAngle,
+) {
+    match angle {
+        MoveAngle::Positive => cycle_four_lines_parallel_mapped(
+            storages,
+            face_indices,
+            traversals,
+            len,
+            |v0, v1, v2, v3| (v3, v0, v1, v2),
+        ),
+        MoveAngle::Double => cycle_four_lines_parallel_mapped(
+            storages,
+            face_indices,
+            traversals,
+            len,
+            |v0, v1, v2, v3| (v2, v3, v0, v1),
+        ),
+        MoveAngle::Negative => cycle_four_lines_parallel_mapped(
+            storages,
+            face_indices,
+            traversals,
+            len,
+            |v0, v1, v2, v3| (v1, v2, v3, v0),
+        ),
+    }
+}
+
+unsafe fn cycle_four_lines_parallel_mapped<S, F>(
+    storages: ParallelFaceStorages<S>,
+    face_indices: [usize; 4],
+    traversals: [LineTraversal; 4],
+    len: usize,
+    mut rotate: F,
+) where
+    S: FaceletArray,
+    F: FnMut(u8, u8, u8, u8) -> (u8, u8, u8, u8),
+{
+    let mut p0 = traversals[0].start;
+    let mut p1 = traversals[1].start;
+    let mut p2 = traversals[2].start;
+    let mut p3 = traversals[3].start;
+
+    for _ in 0..len {
+        let i0 = p0 as usize;
+        let i1 = p1 as usize;
+        let i2 = p2 as usize;
+        let i3 = p3 as usize;
+
+        let v0 = storages.get_raw(face_indices[0], i0);
+        let v1 = storages.get_raw(face_indices[1], i1);
+        let v2 = storages.get_raw(face_indices[2], i2);
+        let v3 = storages.get_raw(face_indices[3], i3);
+        let (n0, n1, n2, n3) = rotate(v0, v1, v2, v3);
+
+        storages.set_raw(face_indices[0], i0, n0);
+        storages.set_raw(face_indices[1], i1, n1);
+        storages.set_raw(face_indices[2], i2, n2);
+        storages.set_raw(face_indices[3], i3, n3);
+
+        p0 += traversals[0].step;
+        p1 += traversals[1].step;
+        p2 += traversals[2].step;
+        p3 += traversals[3].step;
+    }
+}
+
+fn same_axis_unique_depths(moves: &[Move], side_length: usize) -> bool {
+    let Some(first) = moves.first() else {
+        return true;
+    };
+    let mut depths = Vec::with_capacity(moves.len());
+
+    for mv in moves.iter().copied() {
+        if mv.axis != first.axis || mv.depth >= side_length {
+            return false;
+        }
+        depths.push(mv.depth);
+    }
+
+    depths.sort_unstable();
+    depths.windows(2).all(|pair| pair[0] != pair[1])
 }
 
 #[inline]
@@ -348,6 +603,17 @@ fn random_move_angle<R: RandomSource>(rng: &mut R) -> MoveAngle {
         1 => MoveAngle::Double,
         _ => MoveAngle::Negative,
     }
+}
+
+fn scramble_move_count(side_length: usize, rounds: usize) -> usize {
+    side_length
+        .checked_mul(3)
+        .and_then(|moves_per_round| moves_per_round.checked_mul(rounds))
+        .expect("scramble move count overflowed usize")
+}
+
+fn parallel_scramble_batch_size(side_length: usize) -> usize {
+    (side_length / 64).max(1)
 }
 
 fn random_axis<R: RandomSource>(rng: &mut R) -> Axis {

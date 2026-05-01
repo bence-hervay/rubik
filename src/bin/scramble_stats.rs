@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rubik::{Byte, Cube, FaceId, Facelet, XorShift64};
+use rubik::{optimized_thread_count, Byte, Cube, FaceId, Facelet, XorShift64};
 
 const DEFAULT_SIDE_LENGTH: usize = 20;
 const DEFAULT_MAX_K: usize = 32;
@@ -41,15 +41,21 @@ impl Default for Cli {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Method {
     UniformRandomLayers,
+    ParallelRandomLayerBatches,
     LayerSweeps,
 }
 
 impl Method {
-    const ALL: [Self; 2] = [Self::UniformRandomLayers, Self::LayerSweeps];
+    const ALL: [Self; 3] = [
+        Self::UniformRandomLayers,
+        Self::ParallelRandomLayerBatches,
+        Self::LayerSweeps,
+    ];
 
     const fn name(self) -> &'static str {
         match self {
             Self::UniformRandomLayers => "uniform_random_layers",
+            Self::ParallelRandomLayerBatches => "parallel_random_layer_batches",
             Self::LayerSweeps => "layer_sweeps",
         }
     }
@@ -57,6 +63,7 @@ impl Method {
     const fn label(self) -> &'static str {
         match self {
             Self::UniformRandomLayers => "Uniform random layers",
+            Self::ParallelRandomLayerBatches => "Parallel random layer batches",
             Self::LayerSweeps => "Layer sweeps",
         }
     }
@@ -64,6 +71,7 @@ impl Method {
     const fn color(self) -> &'static str {
         match self {
             Self::UniformRandomLayers => "#2563eb",
+            Self::ParallelRandomLayerBatches => "#16a34a",
             Self::LayerSweeps => "#dc2626",
         }
     }
@@ -71,6 +79,7 @@ impl Method {
     const fn seed_salt(self) -> u64 {
         match self {
             Self::UniformRandomLayers => 0xB1A5_ED00_0000,
+            Self::ParallelRandomLayerBatches => 0x9A7A_4B17_0000,
             Self::LayerSweeps => 0x5EED_5000_0000,
         }
     }
@@ -178,6 +187,13 @@ fn collect_rows(cli: &Cli) -> Vec<Row> {
                 let start = Instant::now();
                 match method {
                     Method::UniformRandomLayers => cube.scramble_uniform_random_layers(&mut rng, k),
+                    Method::ParallelRandomLayerBatches => {
+                        cube.scramble_parallel_random_layer_batches_untracked(
+                            &mut rng,
+                            k,
+                            optimized_thread_count(),
+                        );
+                    }
                     Method::LayerSweeps => cube.scramble_layer_sweeps(&mut rng, k),
                 }
                 stats.elapsed += start.elapsed();
@@ -345,7 +361,7 @@ text{font-family:Arial,Helvetica,sans-serif;fill:#111827}
     );
     let _ = writeln!(
         out,
-        r#"<text x="80" y="88" class="subtitle">Both methods use 3*n*k move attempts; uniform random layers choose outer and inner depths with equal per-layer probability.</text>"#
+        r#"<text x="80" y="88" class="subtitle">Each method uses 3*n*k move attempts; batched layers choose independent depths on one random axis per batch.</text>"#
     );
 
     render_panel(

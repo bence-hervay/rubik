@@ -8,6 +8,7 @@ default-run = "rubik"
 
 [dependencies]
 indicatif = "0.17.11"
+rayon = "1.10.0"
 
 [[bin]]
 name = "rubik"

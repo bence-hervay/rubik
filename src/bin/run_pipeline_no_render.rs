@@ -4,9 +4,10 @@ use std::{
 };
 
 use rubik::{
-    Axis, Byte, CenterReductionStage, CornerReductionStage, Cube, EdgePairingStage, ExecutionMode,
-    FaceletArray, Move, MoveAngle, Nibble, RandomSource, SolveAlgorithm, SolveContext, SolveError,
-    SolveOptions, SolvePhase, ThirdByte, ThreeBit, XorShift64,
+    optimized_thread_count, Axis, Byte, CenterReductionStage, CornerReductionStage, Cube,
+    EdgePairingStage, ExecutionMode, FaceletArray, Move, MoveAngle, Nibble, RandomSource,
+    SolveAlgorithm, SolveContext, SolveError, SolveOptions, SolvePhase, ThirdByte, ThreeBit,
+    XorShift64,
 };
 
 const DEFAULT_SIDE_LENGTH: usize = 5;
@@ -233,7 +234,16 @@ fn run(cli: Cli) -> Result<(), String> {
 
 fn run_with_storage<S: FaceletArray + 'static>(cli: Cli) -> Result<(), String> {
     let estimated_storage = estimated_storage_bytes::<S>(cli.side_length)?;
-    let scramble_moves = generate_scramble_moves(cli.side_length, cli.scramble_rounds, cli.seed)?;
+    let scramble_move_count = scramble_move_count(cli.side_length, cli.scramble_rounds)?;
+    let scramble_moves = if cli.mode == ExecutionMode::Standard {
+        Some(generate_scramble_moves(
+            cli.side_length,
+            cli.scramble_rounds,
+            cli.seed,
+        )?)
+    } else {
+        None
+    };
 
     println!("Starting Rubik Pipeline");
     print_value("  ", "N", cli.side_length);
@@ -241,7 +251,10 @@ fn run_with_storage<S: FaceletArray + 'static>(cli: Cli) -> Result<(), String> {
     print_value("  ", "Backend", title_case(&cli.backend.to_string()));
     print_value("  ", "Scramble Rounds", cli.scramble_rounds);
     print_value("  ", "Scramble Seed", format_args!("0x{:016X}", cli.seed));
-    print_value("  ", "Planned Scramble Moves", scramble_moves.len());
+    print_value("  ", "Planned Scramble Moves", scramble_move_count);
+    if cli.mode == ExecutionMode::Optimized {
+        print_value("  ", "Optimized Threads", optimized_thread_count());
+    }
     print_value(
         "  ",
         "Estimated Facelet Storage",
@@ -268,11 +281,20 @@ fn run_with_storage<S: FaceletArray + 'static>(cli: Cli) -> Result<(), String> {
     println!();
 
     let scramble_start = Instant::now();
-    cube.apply_moves_untracked(scramble_moves.iter().copied());
+    if let Some(scramble_moves) = &scramble_moves {
+        cube.apply_moves_untracked(scramble_moves.iter().copied());
+    } else {
+        let mut rng = XorShift64::new(cli.seed);
+        cube.scramble_parallel_random_layer_batches_untracked(
+            &mut rng,
+            cli.scramble_rounds,
+            optimized_thread_count(),
+        );
+    }
     let scramble_elapsed = scramble_start.elapsed();
 
     println!("Finished Scramble");
-    print_move_stats(scramble_elapsed, scramble_moves.len(), "  ");
+    print_move_stats(scramble_elapsed, scramble_move_count, "  ");
     println!();
 
     let mut context = SolveContext::new(SolveOptions::new(cli.mode));
@@ -380,6 +402,13 @@ fn estimated_storage_bytes<S: FaceletArray>(side_length: usize) -> Result<usize,
     S::storage_bytes_for_len(cells_per_face)
         .checked_mul(6)
         .ok_or_else(|| "n is too large to estimate storage safely".to_owned())
+}
+
+fn scramble_move_count(side_length: usize, rounds: usize) -> Result<usize, String> {
+    side_length
+        .checked_mul(3)
+        .and_then(|per_round| per_round.checked_mul(rounds))
+        .ok_or_else(|| "scramble plan would overflow usize".to_owned())
 }
 
 fn generate_scramble_moves(
